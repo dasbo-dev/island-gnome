@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { SessionStore } from '../../src/core/store.js'
 import { PermissionTable, type Timers } from '../../src/core/permissions.js'
 import type { AgentEvent, Decision } from '../../src/core/types.js'
@@ -18,8 +18,14 @@ function fakeTimers() {
   }
   const advance = (ms: number) => {
     now += ms
+    // Re-check live membership: a callback in this batch may cancel or replace a
+    // timer that was also due, and a cancelled timer must not fire.
     for (const [id, t] of [...scheduled]) {
-      if (t.at <= now) { scheduled.delete(id); t.fn() }
+      if (!scheduled.has(id)) continue
+      if (t.at <= now) {
+        scheduled.delete(id)
+        t.fn()
+      }
     }
   }
   return { timers, advance, pendingTimers: () => scheduled.size }
@@ -148,5 +154,106 @@ describe('PermissionTable', () => {
     const seen: Decision[] = []
     t.request({ sessionKey: 'claude:ghost', tool: 'Bash', timeoutSeconds: 30 }, (d) => seen.push(d))
     expect(seen).toEqual([{ kind: 'fallthrough', reason: 'Unknown session' }])
+  })
+
+  it('queues a second request for the same session instead of overwriting it', () => {
+    const store = seeded()
+    const { timers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    const seen: Decision[] = []
+    const first = t.request({ sessionKey: 'claude:s1', tool: 'Bash', timeoutSeconds: 30 }, (d) => seen.push(d))
+    t.request({ sessionKey: 'claude:s1', tool: 'Edit', timeoutSeconds: 30 }, (d) => seen.push(d))
+
+    const pending = store.get('claude:s1')!.pendingPermission!
+    expect(pending.id).toBe(first)
+    expect(pending.tool, 'the first request stays active').toBe('Bash')
+    expect(pending.queued).toBe(1)
+    expect(t.pendingCount()).toBe(2)
+    expect(seen, 'neither has resolved yet').toHaveLength(0)
+  })
+
+  it('promotes the queued request when the active one resolves', () => {
+    const store = seeded()
+    const { timers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    const seen: Decision[] = []
+    const first = t.request({ sessionKey: 'claude:s1', tool: 'Bash', timeoutSeconds: 30 }, (d) => seen.push(d))
+    t.request({ sessionKey: 'claude:s1', tool: 'Edit', timeoutSeconds: 30 }, (d) => seen.push(d))
+
+    t.resolve(first, { kind: 'allow' })
+
+    const pending = store.get('claude:s1')!.pendingPermission!
+    expect(pending.tool).toBe('Edit')
+    expect(pending.queued).toBe(0)
+    expect(store.get('claude:s1')!.state).toBe('waiting')
+    expect(seen).toEqual([{ kind: 'allow' }])
+  })
+
+  it('does not start a queued request clock until it becomes active', () => {
+    const store = seeded()
+    const { timers, advance, pendingTimers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    const seen: Decision[] = []
+    const first = t.request({ sessionKey: 'claude:s1', tool: 'Bash', timeoutSeconds: 30 }, (d) => seen.push(d))
+    t.request({ sessionKey: 'claude:s1', tool: 'Edit', timeoutSeconds: 30 }, (d) => seen.push(d))
+
+    expect(pendingTimers(), 'only the active request has a timer').toBe(1)
+
+    advance(29_000)
+    t.resolve(first, { kind: 'allow' })
+
+    // The queued request has now been waiting 29s, but its own 30s clock starts here.
+    advance(29_000)
+    expect(seen, 'the promoted request must not have timed out yet').toHaveLength(1)
+    advance(2_000)
+    expect(seen[1]).toEqual({ kind: 'fallthrough', reason: 'Timed out' })
+  })
+
+  it('resolving a queued request directly leaves the active one alone', () => {
+    const store = seeded()
+    const { timers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    const seen: Decision[] = []
+    const first = t.request({ sessionKey: 'claude:s1', tool: 'Bash', timeoutSeconds: 30 }, (d) => seen.push(d))
+    const second = t.request({ sessionKey: 'claude:s1', tool: 'Edit', timeoutSeconds: 30 }, (d) => seen.push(d))
+
+    t.resolve(second, { kind: 'deny' })
+
+    const pending = store.get('claude:s1')!.pendingPermission!
+    expect(pending.id).toBe(first)
+    expect(pending.tool).toBe('Bash')
+    expect(pending.queued).toBe(0)
+    expect(t.pendingCount()).toBe(1)
+  })
+
+  it('does not queue requests from different sessions behind each other', () => {
+    const store = seeded()
+    store.apply({ agent: 'claude', kind: 'session-start', sessionId: 's2', cwd: '/p/other', pid: 11, ts: 0 })
+    const { timers, pendingTimers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    t.request({ sessionKey: 'claude:s1', tool: 'Bash', timeoutSeconds: 30 }, () => {})
+    t.request({ sessionKey: 'claude:s2', tool: 'Bash', timeoutSeconds: 30 }, () => {})
+
+    expect(store.get('claude:s1')!.pendingPermission!.queued).toBe(0)
+    expect(store.get('claude:s2')!.pendingPermission!.queued).toBe(0)
+    expect(pendingTimers(), 'both are active, so both have clocks').toBe(2)
+  })
+
+  it('drains active and queued entries exactly once on shutdown', () => {
+    const store = seeded()
+    const { timers, pendingTimers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    const seen: Decision[] = []
+    t.request({ sessionKey: 'claude:s1', tool: 'Bash', timeoutSeconds: 30 }, (d) => seen.push(d))
+    t.request({ sessionKey: 'claude:s1', tool: 'Edit', timeoutSeconds: 30 }, (d) => seen.push(d))
+    t.request({ sessionKey: 'claude:s1', tool: 'Read', timeoutSeconds: 30 }, (d) => seen.push(d))
+
+    t.resolveAllFallthrough()
+
+    expect(seen).toHaveLength(3)
+    expect(seen.every((d) => d.kind === 'fallthrough')).toBe(true)
+    expect(t.pendingCount()).toBe(0)
+    expect(pendingTimers(), 'draining must not leave or start a timer').toBe(0)
+    expect(store.get('claude:s1')!.state).toBe('idle')
   })
 })

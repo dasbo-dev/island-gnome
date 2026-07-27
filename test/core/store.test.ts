@@ -78,7 +78,7 @@ describe('SessionStore', () => {
   it('setPending puts the session into waiting and clearPending restores idle', () => {
     const s = new SessionStore()
     s.apply(ev())
-    s.setPending('claude:s1', { id: 'p1', tool: 'Bash', detail: 'rm -rf build', deadline: 31000 })
+    s.setPending('claude:s1', { id: 'p1', tool: 'Bash', detail: 'rm -rf build', deadline: 31000, queued: 0 })
     expect(s.list()[0]!.state).toBe('waiting')
     expect(s.list()[0]!.pendingPermission?.tool).toBe('Bash')
     s.clearPending('claude:s1')
@@ -91,7 +91,7 @@ describe('SessionStore', () => {
     s.apply(ev({ sessionId: 'a' }))
     s.apply(ev({ sessionId: 'b', kind: 'tool-start', tool: 'Edit' }))
     expect(s.worstState()).toBe('running')
-    s.setPending('claude:a', { id: 'p1', tool: 'Bash', deadline: 0 })
+    s.setPending('claude:a', { id: 'p1', tool: 'Bash', deadline: 0, queued: 0 })
     expect(s.worstState()).toBe('waiting')
   })
 
@@ -121,7 +121,7 @@ describe('SessionStore', () => {
   it('reap never drops a session with a pending permission', () => {
     const s = new SessionStore()
     s.apply(ev({ ts: 0 }))
-    s.setPending('claude:s1', { id: 'p1', tool: 'Bash', deadline: 0 })
+    s.setPending('claude:s1', { id: 'p1', tool: 'Bash', deadline: 0, queued: 0 })
     s.reap(99_999_999, () => false)
     expect(s.list()).toHaveLength(1)
   })

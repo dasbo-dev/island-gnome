@@ -48,6 +48,8 @@ export interface PendingPermission {
   detail?: string
   /** Milliseconds since epoch when this request must fall through. 0 means never. */
   deadline: number
+  /** How many further requests for this session are waiting behind this one. */
+  queued: number
 }
 
 export interface Session {
