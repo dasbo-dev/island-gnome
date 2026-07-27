@@ -123,6 +123,17 @@ function codexEdits(env: InstallEnv, install: boolean): FileEdit[] {
   } else {
     if (!(CODEX_KEY in hooks)) return []
     delete hooks[CODEX_KEY]
+
+    // Removing must never activate anything. If the file was in the legacy
+    // unwrapped shape, Codex is currently ignoring it entirely — wrapping it
+    // here would silently switch every dormant foreign hook on, as a side
+    // effect of an uninstall. Write the legacy shape back untouched apart
+    // from our own key.
+    if (!wrapped) {
+      const legacy = { ...source }
+      delete legacy[CODEX_KEY]
+      return [{ path, content: JSON.stringify(legacy, null, 2) + '\n', backup: true }]
+    }
   }
 
   const root = { ...outerRest, hooks }

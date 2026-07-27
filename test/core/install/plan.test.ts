@@ -188,6 +188,25 @@ describe('planUninstall', () => {
     expect(parsed.hooks['dasbo-island']).toBeUndefined()
   })
 
+  it('does not wrap a legacy codex file on uninstall, which would activate dormant hooks', () => {
+    // An unwrapped file is rejected by Codex and therefore inert. Wrapping it
+    // here would switch every foreign hook on as a side effect of a removal.
+    const legacy = JSON.stringify({
+      'vibe-island': { command: 'python3 /x/y.py', events: ['session.start'] },
+      'dasbo-island': { command: '/h/dasbo-hook codex notify', events: ['session.start'] },
+    })
+    const parsed = JSON.parse(
+      planUninstall('codex', env({ '/home/me/.codex/hooks.json': legacy }))[0]!.content
+    )
+    expect(parsed.hooks, 'must stay unwrapped').toBeUndefined()
+    expect(parsed['vibe-island'], 'foreign entry survives, still dormant').toBeDefined()
+    expect(parsed['dasbo-island']).toBeUndefined()
+  })
+
+  it('returns no edits for claude when the existing settings.json is malformed', () => {
+    expect(planUninstall('claude', env({ '/home/me/.claude/settings.json': '{not json' }))).toEqual([])
+  })
+
   it('returns no edits for codex when dasbo-island is not installed', () => {
     const before = JSON.stringify({ hooks: { 'vibe-island': { command: 'x', events: ['session.start'] } } })
     expect(planUninstall('codex', env({ '/home/me/.codex/hooks.json': before }))).toEqual([])
