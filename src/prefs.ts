@@ -166,26 +166,32 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     }
 
     const run = (edits: ReturnType<typeof planInstall>, verb: string) => {
-      if (edits.length === 0) {
-        this._toast(window, `${adapters[id].displayName}: nothing to ${verb}`)
-        return
-      }
-      // Must be read before applyEdits rewrites the file — afterwards it's
-      // already wrapped and this would always report false.
-      const migrating =
-        id === 'codex' && verb === 'install' && isLegacyCodexHooks(env.existing(`${env.home}/.codex/hooks.json`))
       try {
-        applyEdits(edits)
-        const migrationNote = migrating
-          ? ' — existing entries in hooks.json were previously inert (Codex rejects the unwrapped format) and are now re-activated'
-          : ''
-        this._toast(window, `${adapters[id].displayName}: ${verb} complete${migrationNote}`)
-      } catch (e) {
-        this._toast(window, `${adapters[id].displayName}: ${verb} failed — ${e}`)
+        if (edits.length === 0) {
+          this._toast(window, `${adapters[id].displayName}: nothing to ${verb}`)
+          return
+        }
+        // Must be read before applyEdits rewrites the file — afterwards it's
+        // already wrapped and this would always report false.
+        const migrating =
+          id === 'codex' && verb === 'install' && isLegacyCodexHooks(env.existing(`${env.home}/.codex/hooks.json`))
+        try {
+          applyEdits(edits)
+          const migrationNote = migrating
+            ? ' — existing entries in hooks.json were previously inert (Codex rejects the unwrapped format) and are now re-activated'
+            : ''
+          this._toast(window, `${adapters[id].displayName}: ${verb} complete${migrationNote}`)
+        } catch (e) {
+          this._toast(window, `${adapters[id].displayName}: ${verb} failed — ${e}`)
+        }
+      } finally {
+        // Refresh every row, not just this one: all three read from disk, and
+        // a row's state is derived entirely from those files. That's true
+        // whether the write succeeded, failed, or turned out to be a no-op —
+        // a no-op click usually means what's on disk no longer matches what
+        // the row was showing, which is exactly when it needs re-reading.
+        refreshAll()
       }
-      // Refresh every row, not just this one: all three read from disk and a
-      // failed write must be reflected as accurately as a successful one.
-      refreshAll()
     }
 
     install.connect('clicked', () => run(planInstall(id, env), 'install'))
