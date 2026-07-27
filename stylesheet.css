@@ -36,3 +36,8 @@
   font-family: monospace;
   font-size: 0.85em;
 }
+
+.dasbo-row-outer { spacing: 12px; }
+.dasbo-row-actions { spacing: 8px; }
+.dasbo-jump { padding: 2px 10px; }
+.dasbo-perm-actions { spacing: 6px; }
