@@ -17,7 +17,6 @@ import { SessionRow } from './sessionRow.js'
  */
 type MenuWithOpenSignal = PopupMenu.PopupMenu & {
   connect(sigName: 'open-state-changed', callback: (menu: unknown, open: boolean) => void): number
-  disconnect(id: number): void
 }
 
 const STATE_CLASS: Record<SessionState, string> = {
