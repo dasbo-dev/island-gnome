@@ -45,6 +45,15 @@ describe('codexAdapter.normalize (UNVERIFIED — no captured fixtures)', () => {
     expect(codexAdapter.normalize({ type: 'tool.start', cwd: '/p' }, ctx)).toBeNull()
   })
 
+  it('returns null for a non-object payload', () => {
+    expect(codexAdapter.normalize('not json', ctx)).toBeNull()
+    expect(codexAdapter.normalize(null, ctx)).toBeNull()
+  })
+
+  it('returns null when neither payload nor argv names an event', () => {
+    expect(codexAdapter.normalize({ session_id: 's1', cwd: '/p' }, ctx)).toBeNull()
+  })
+
   it('returns null when neither the payload nor the hook supplies a cwd', () => {
     expect(
       codexAdapter.normalize({ type: 'tool.start', session_id: 's1' }, { ...ctx, cwd: '' })
