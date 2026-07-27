@@ -60,7 +60,12 @@ parses,
 > `installState(...) !== 'absent'` if and only if `planUninstall(...)` returns
 > a non-empty edit list
 
-by construction, so the Remove button is never enabled on a no-op. A file that
+by construction, so the Remove button is never enabled on a no-op. For Claude
+both sides read the file through one shared traversal (`ourCommandsIn`), so
+"Remove has work to do" cannot drift from "installState sees us": in
+particular, foreign malformed groups an uninstall pass would once have
+normalised away — an empty `hooks` array, a group that is not a record — no
+longer count as presence, and are no longer rewritten. A file that
 does not parse is exempt: it reports `unreadable` rather than `absent`, and
 `planUninstall` is empty for it too (there is nothing to remove), so the two
 can disagree there without contradiction — `unreadable` disables both
@@ -90,12 +95,34 @@ key-order drift from a hand edit.
 | no entries attributed to us | `absent` |
 | our (event, command) pairs equal the expected pairs (Codex: `events` set) | `installed` |
 | our entries exist but the pairs differ — including ours under the wrong event | `stale` |
+| Codex only: our key is present but the file is unwrapped | `stale` |
 
 `stale` is a real case, not a theoretical one: it is what an extension
 directory move produces, since every installed command embeds the absolute
 `hookPath`. Rewriting via `planInstall` repairs it, because Claude and
 Antigravity strip all of our prior entries before appending fresh ones and
-Codex replaces its whole key.
+Codex replaces its whole key. Because it covers several causes at once — a
+moved hook path, a duplicated entry, a missing event, a command under the
+wrong event, an unwrapped Codex file — the subtitle names none of them.
+
+The Codex row of that table is a freshness judgement about the *file*, not
+about our entry. `codexEdits` tolerates the legacy unwrapped shape when
+writing, but Codex 0.142 rejects such a file wholesale, so a perfectly formed
+entry inside one never fires. Reporting `installed` there would strand the
+user: the row would say so with Install insensitive, and Install — which
+wraps the file — is the only action that repairs it. `codexMatches`
+therefore returns false for any file whose top-level `hooks` is not an
+object.
+
+**What freshness deliberately does not see.** The pair comparison reads only
+event names and command strings. A hand edit that narrows a Claude
+`matcher` from `*` to `Bash`, or deletes `type: 'command'` from a handler,
+leaves both unchanged and so still reports `installed`, even though the hook
+now fires for fewer tools or not at all; repairing it takes a Remove followed
+by an Install. That is the accepted cost of the pair ruling, not an oversight
+— widening the comparison to whole entry objects would reintroduce the false
+`stale` reports (key order, extra fields a future agent version adds) that
+the ruling exists to avoid.
 
 A malformed config stays `unreadable` rather than being reported as `absent`,
 because `planInstall` also refuses to touch such a file — offering Install
@@ -146,7 +173,7 @@ reads `installState` and drives the row:
 |---|---|---|---|
 | `absent` | Not installed | label `Install`, sensitive | insensitive |
 | `installed` | Hooks installed | label `Install`, insensitive | sensitive |
-| `stale` | Needs update — hook path changed | label `Update`, sensitive | sensitive |
+| `stale` | Hooks need updating — they don't match what this version installs | label `Update`, sensitive | sensitive |
 | `unreadable` | `<path>` is not valid JSON | insensitive | insensitive |
 
 Every row's `refresh()` runs after any install or remove action, and on the
