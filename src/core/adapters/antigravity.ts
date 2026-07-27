@@ -1,5 +1,6 @@
 import type { Decision, EventKind, HookContext } from '../types.js'
 import type { AgentAdapter } from './index.js'
+import { isRecord, str } from './shared.js'
 
 const KIND_BY_EVENT: Record<string, EventKind> = {
   PreInvocation: 'prompt-submit',
@@ -7,14 +8,6 @@ const KIND_BY_EVENT: Record<string, EventKind> = {
   PreToolUse: 'tool-start',
   PostToolUse: 'tool-end',
   Stop: 'stop',
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v)
-}
-
-function str(v: unknown): string | undefined {
-  return typeof v === 'string' && v.length > 0 ? v : undefined
 }
 
 /**
@@ -52,9 +45,15 @@ export const antigravityAdapter: AgentAdapter = {
     const error = str(raw['error'])
     const toolCall = raw['toolCall']
 
+    // A Stop carrying a non-empty error must still be terminal: reclassifying it
+    // as 'error' would mean the session never reaches 'done', never gets a
+    // doneAt, and lingers for the full 15-minute stale window instead of
+    // done-linger. The error text is still surfaced via `detail` below.
+    const kind = baseKind === 'stop' ? 'stop' : error ? 'error' : baseKind
+
     return {
       agent: 'antigravity',
-      kind: error ? 'error' : baseKind,
+      kind,
       sessionId,
       cwd,
       tool: isRecord(toolCall) ? str(toolCall['name']) : undefined,
@@ -65,6 +64,13 @@ export const antigravityAdapter: AgentAdapter = {
     }
   },
 
+  // UNVERIFIED. Status reporting (normalize, above) is checked against 12 real
+  // captured fixtures; this response shape is not. No fixture exercises the
+  // permission-decision path, and docs/agent-dialects.md documents payload
+  // shapes but never a response schema. If `agy` ignores this shape, clicking
+  // Deny reports the tool as denied while it executes anyway — a security
+  // control failing open, silently. Treat as best-effort until confirmed
+  // against a real Antigravity permission round-trip.
   encodeDecision(d: Decision) {
     if (d.kind === 'fallthrough') return {}
     return {

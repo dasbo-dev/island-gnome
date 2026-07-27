@@ -73,6 +73,14 @@ describe('antigravityAdapter.normalize', () => {
     expect(e?.detail).toBe('boom')
   })
 
+  it('treats Stop as terminal even when error is non-empty, so the session reaches done', () => {
+    const e = antigravityAdapter.normalize(
+      { conversationId: 'c1', error: 'boom' }, ctx('Stop')
+    )
+    expect(e?.kind).toBe('stop')
+    expect(e?.detail, 'the error text is still surfaced as detail').toBe('boom')
+  })
+
   it('tolerates toolCall being null on a tool event', () => {
     const e = antigravityAdapter.normalize(
       { conversationId: 'c1', toolCall: null }, ctx('PostToolUse')
