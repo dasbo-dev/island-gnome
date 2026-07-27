@@ -6,7 +6,7 @@
   "scripts": {
     "build": "node build.mjs",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit -p tsconfig.json; s1=$?; tsc --noEmit -p tsconfig.test.json; s2=$?; exit $((s1 + s2))"
   },
   "devDependencies": {
     "@girs/gnome-shell": "46.0.2",

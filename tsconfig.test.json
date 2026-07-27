@@ -1,0 +1,7 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["@girs/gnome-shell/ambient", "@girs/gnome-shell/extensions/global", "node"]
+  },
+  "include": ["test/**/*.ts"]
+}
