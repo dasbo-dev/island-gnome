@@ -230,6 +230,17 @@ tool — args include `TargetFile`, `CodeContent`, `Overwrite`,
 `ArtifactMetadata`). `run_command` and `write_to_file` fixtures were kept
 specifically to satisfy "both a file-edit tool and a bash tool captured".
 
+Two caveats on that tool list. `list_dir` is named as observed but **no
+`list_dir` fixture was kept**, so this document carries no shape reference
+for it — an adapter author has nothing to check against for that tool. And
+the kept `write_to_file` pair (`PreToolUse-40.json` / `PostToolUse-41.json`)
+comes from a different conversation (`51537811-…`, the aborted
+plan-writing run) than the other ten fixtures (`74bcbcf3-…`, the real
+execution run): it captures a `plan.md` write, not the `a.txt` append the
+driving prompt asked for. The payload is verbatim and its *shape* is
+valid — which is what the adapters need — but it is semantically unrelated
+to the prompt, so do not read it as evidence of how a requested edit flows.
+
 ### Critical dialect gap: no event-name field in the payload at all
 
 Unlike Claude (`hook_event_name`) and Codex (`type`), **no Antigravity hook
@@ -280,9 +291,14 @@ Other fields present on every payload: `artifactDirectoryPath`,
 `modelName`. Tool-event payloads add `stepIdx` and `toolCall.args` (shape
 is per-tool). `PostToolUse` adds `error` (empty string `""` when the tool
 succeeded — presence of this key, not its value, is what distinguishes
-Pre from Post) and, inside `toolCall.args`, two extra keys not present at
-`PreToolUse` time: `toolAction` and `toolSummary` (human-readable
-descriptions filled in after execution). `PreInvocation`/`PostInvocation`
+Pre from Post) and, inside `toolCall.args`, **an open set** of extra keys
+not present at `PreToolUse` time. At least `toolAction` and `toolSummary`
+(human-readable descriptions filled in after execution) appear on every
+observed pair, but per-tool fields are added too — `PostToolUse-41.json`
+(`write_to_file`) also carries a `Description` key absent from its
+`PreToolUse-40.json` counterpart. Treat this as a lower bound, never as a
+closed set: an adapter that enumerates the post-only keys will drop
+tool-specific fields. `PreInvocation`/`PostInvocation`
 add `invocationNum` and `initialNumSteps`. `Stop` adds `executionNum`,
 `terminationReason` (observed value: `"NO_TOOL_CALL"` — not one of the
 three example values, `model_stop`/`max_steps_exceeded`/`error`, given in
@@ -297,6 +313,13 @@ from the same sessions and were discarded, not fabricated):
 `list_permissions`, `run_command` respectively),
 `PostToolUse-{41,47,49,54,58}.json` (same tools, plus the `toolCall: null`
 edge case at `-47`), `Stop-74.json`.
+
+The 63 discarded payloads are unrecoverable. Every kept fixture carries
+`error: ""`, so **no genuine tool-failure payload was preserved** — if one
+occurred among the discarded set, its shape is unknown. An adapter must
+therefore treat a non-empty `error` string as possible but unexemplified,
+and must not assume the failure payload is structurally identical to the
+success payload beyond the keys documented above.
 
 ---
 
