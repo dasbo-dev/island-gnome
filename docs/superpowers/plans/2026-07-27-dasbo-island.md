@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **REVISION R1 APPLIES.** Task 2 captured real agent payloads and disproved three assumptions in this plan. `2026-07-27-dasbo-island-R1.md` rewrites **Tasks 4, 5, 7, 8 and 13** and adds the `HookContext` type. Where R1 and this document disagree, **R1 wins.** Tasks 1, 2, 3, 6, 9, 10, 11, 12, 14 and 15 are unaffected.
+
 **Goal:** A GNOME Shell 46 extension that shows live AI coding-agent sessions as a top-bar pill, gates tool permissions inline, and jumps back to the terminal running a session.
 
 **Architecture:** Two processes. A standalone GJS hook helper (`dasbo-hook`) reads an agent's hook payload from stdin and forwards it over the session bus to the extension, which owns `org.dasbo.Island`. The extension is split into a pure-TypeScript `src/core/` (no GObject imports, unit tested under vitest in plain node) and a thin `src/shell/` St/Clutter layer. Permission timeout policy lives entirely in the extension, so the hook never needs redeploying when settings change.
