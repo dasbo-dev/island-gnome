@@ -26,9 +26,19 @@ export default class DasboIslandExtension extends Extension {
       settings.get_string('panel-position')
     )
 
+    this._island.setPermissionHandlers({
+      resolve: (id, kind) => {
+        this._permissions?.resolve(id, { kind })
+      },
+      grantAllowAlways: (sessionKey, tool, id) => {
+        this._permissions?.grantAlways(sessionKey, tool)
+        this._permissions?.resolve(id, { kind: 'allow', reason: 'Always allowed for this session' })
+      },
+    })
+
     this._service = new IslandService(this._store, this._permissions, {
       timeoutSeconds: () => settings.get_int('permission-timeout'),
-      onPermissionOpened: () => {},
+      onPermissionOpened: () => this._island?.notifyPermissionOpened(),
     })
     this._service.export()
   }

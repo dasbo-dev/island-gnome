@@ -3,11 +3,13 @@ import Clutter from 'gi://Clutter'
 import GObject from 'gi://GObject'
 import GLib from 'gi://GLib'
 import type Gio from 'gi://Gio'
+import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 import type { SessionStore } from '../core/store.js'
 import type { Session, SessionState } from '../core/types.js'
 import { SessionRow } from './sessionRow.js'
+import { PermissionControls } from './permissionRow.js'
 
 /**
  * `PanelMenu.Button#menu` is typed as `PopupMenu | PopupDummyMenu` because a
@@ -47,6 +49,12 @@ export const Island = GObject.registerClass(
     private _settingsChangedId = 0
     private _menuStateId = 0
     private _onJump: (s: Session) => void = () => {}
+    private _controls = new Map<string, PermissionControls>()
+    private _pulsing = false
+    private _permHandlers: {
+      resolve: (id: string, kind: 'allow' | 'deny') => void
+      grantAllowAlways: (sessionKey: string, tool: string, id: string) => void
+    } | null = null
 
     constructor(store: SessionStore, settings: Gio.Settings) {
       super(0.5, 'Dasbo Island')
@@ -92,6 +100,44 @@ export const Island = GObject.registerClass(
       this._onJump = fn
     }
 
+    setPermissionHandlers(h: {
+      resolve: (id: string, kind: 'allow' | 'deny') => void
+      grantAllowAlways: (sessionKey: string, tool: string, id: string) => void
+    }): void {
+      this._permHandlers = h
+    }
+
+    /** Called by the D-Bus service after a permission row has been registered. */
+    notifyPermissionOpened(): void {
+      this._startPulse()
+      if (!this._settings.get_boolean('auto-open-on-permission')) return
+      if (Main.layoutManager.primaryMonitor?.inFullscreen) return
+      this.menu.open(true)
+    }
+
+    private _startPulse(): void {
+      if (this._pulsing) return
+      this._pulsing = true
+      this._pulseStep(false)
+    }
+
+    private _pulseStep(dim: boolean): void {
+      if (!this._pulsing) return
+      this._dot.ease({
+        opacity: dim ? 255 : 90,
+        duration: 600,
+        mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
+        onComplete: () => this._pulseStep(!dim),
+      })
+    }
+
+    private _stopPulse(): void {
+      if (!this._pulsing) return
+      this._pulsing = false
+      this._dot.remove_all_transitions()
+      this._dot.opacity = 255
+    }
+
     private _startTimer(): void {
       if (this._timerId) return
       this._tickAll()
@@ -133,6 +179,29 @@ export const Island = GObject.registerClass(
           ;(this.menu as PopupMenu.PopupMenu).addMenuItem(row)
         }
       }
+
+      for (const s of sessions) {
+        const row = this._rows.get(s.key)
+        if (!row) continue
+        const pending = s.pendingPermission
+        const existingControls = this._controls.get(s.key)
+
+        if (pending && !existingControls) {
+          const controls = new PermissionControls({
+            onAllow: () => this._permHandlers?.resolve(pending.id, 'allow'),
+            onDeny: () => this._permHandlers?.resolve(pending.id, 'deny'),
+            onAlways: () =>
+              this._permHandlers?.grantAllowAlways(s.key, pending.tool, pending.id),
+          })
+          controls.attachTo(row.actionBox)
+          this._controls.set(s.key, controls)
+        } else if (!pending && existingControls) {
+          existingControls.destroy()
+          this._controls.delete(s.key)
+        }
+      }
+
+      if (this._store.worstState() !== 'waiting') this._stopPulse()
     }
 
     refresh(): void {
@@ -157,6 +226,9 @@ export const Island = GObject.registerClass(
     }
 
     destroy(): void {
+      this._stopPulse()
+      for (const c of this._controls.values()) c.destroy()
+      this._controls.clear()
       this._stopTimer()
       this._unsubscribe?.()
       this._unsubscribe = null
