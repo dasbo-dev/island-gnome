@@ -14,17 +14,28 @@ const IFACE = 'org.dasbo.Island'
 // G_MAXINT means "no timeout" to GDBus. The extension owns timeout policy.
 const NO_TIMEOUT = 2147483647
 
-// Read stdin through /dev/stdin rather than Gio.UnixInputStream, which is
-// deprecated in GJS 1.80 and prints a warning plus a stack trace to stderr on
-// every single invocation. That noise would reach the agent's output on every
-// tool call. GioUnix.InputStream is the named replacement, but importing it
-// statically would abort before the fail-open catch on any runtime that lacks
-// it; GLib is already imported and handles pipes, empty input and large
-// payloads fine.
+// Read stdin from the descriptor itself, never by reopening a path. Agents
+// spawn hooks from Node, whose piped stdio is a socketpair, and opening
+// /dev/stdin on a socket fails with ENXIO ("No such device or address") — so
+// the path route dropped every real payload while working fine by hand from a
+// shell. GLib.IOChannel takes the existing fd and handles sockets, pipes,
+// files, empty input and large payloads alike. Gio.UnixInputStream would do
+// too, but it is deprecated in GJS 1.80 and prints a warning plus a stack
+// trace to stderr on every invocation, which would reach the agent's output on
+// every tool call; GioUnix.InputStream is the named replacement, but importing
+// it statically would abort before the fail-open catch on any runtime that
+// lacks it.
 function readStdin() {
-  const [ok, bytes] = GLib.file_get_contents('/dev/stdin')
-  if (!ok) return ''
-  return new TextDecoder().decode(bytes)
+  const channel = GLib.IOChannel.unix_new(0)
+  // Binary encoding: the default UTF-8 codec refuses read_to_end on anything
+  // it cannot decode, and this only ever gets decoded as text below anyway.
+  channel.set_encoding(null)
+  try {
+    const [, bytes] = channel.read_to_end()
+    return new TextDecoder().decode(bytes)
+  } finally {
+    channel.shutdown(false)
+  }
 }
 
 function getPid() {
