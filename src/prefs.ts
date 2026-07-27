@@ -149,10 +149,25 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     const uninstall = new Gtk.Button({ label: 'Remove', valign: Gtk.Align.CENTER })
 
     const describe = (state: InstallState): string => {
-      if (state === 'installed') return 'Hooks installed'
-      if (state === 'stale') return 'Needs update — the installed hook path is out of date'
-      if (state === 'unreadable') return `${configPath(id, env)} is not valid JSON`
-      return 'Not installed'
+      switch (state) {
+        case 'installed':
+          return 'Hooks installed'
+        // Deliberately vague about the cause: stale covers an out-of-date hook
+        // path, a duplicated entry, a missing event, a command under the wrong
+        // event, and a codex file Codex ignores for being unwrapped.
+        case 'stale':
+          return 'Hooks need updating — they don’t match what this version installs'
+        case 'unreadable':
+          return `${configPath(id, env)} is not valid JSON`
+        case 'absent':
+          return 'Not installed'
+        default: {
+          // A new InstallState member must be given a subtitle here rather
+          // than silently rendering as "Not installed".
+          const unhandled: never = state
+          return unhandled
+        }
+      }
     }
 
     const refresh = () => {
@@ -172,7 +187,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
         // Must be read before applyEdits rewrites the file — afterwards it's
         // already wrapped and this would always report false.
         const migrating =
-          id === 'codex' && verb === 'install' && isLegacyCodexHooks(env.existing(`${env.home}/.codex/hooks.json`))
+          id === 'codex' && verb === 'install' && isLegacyCodexHooks(env.existing(configPath('codex', env)))
         try {
           applyEdits(edits)
           const migrationNote = migrating
