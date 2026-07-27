@@ -6,3 +6,9 @@ export function formatElapsed(ms: number): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`
 }
+
+/** Collapse whitespace and cap length, so one label cannot resize the popup. */
+export function truncateDetail(s: string, max = 120): string {
+  const flat = s.replace(/\s+/g, ' ').trim()
+  return flat.length <= max ? flat : flat.slice(0, max - 1) + '…'
+}
