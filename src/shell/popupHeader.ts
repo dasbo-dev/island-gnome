@@ -1,0 +1,62 @@
+import St from 'gi://St'
+import Clutter from 'gi://Clutter'
+import GObject from 'gi://GObject'
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
+
+export interface PopupHeaderCallbacks {
+  onPrefs: () => void
+}
+
+/**
+ * The popup's title row: the extension name on the left, a gear button on the
+ * right. Non-reactive on purpose — an activatable menu item closes the menu on
+ * any click along its width, so the title itself would become a close button.
+ * The child St.Button still receives clicks, the way SessionRow's Jump does.
+ */
+export const PopupHeader = GObject.registerClass(
+  class PopupHeader extends PopupMenu.PopupBaseMenuItem {
+    private _cb!: PopupHeaderCallbacks
+
+    constructor(cb: PopupHeaderCallbacks) {
+      super({ reactive: false, can_focus: false, style_class: 'dasbo-header' })
+      this._cb = cb
+
+      const title = new St.Label({
+        text: 'Dasbo Island',
+        style_class: 'dasbo-header-title',
+        x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER,
+      })
+
+      const gear = new St.Button({
+        style_class: 'button dasbo-prefs',
+        // Without this the button announces itself as an unnamed button to a
+        // screen reader: its only child is an icon, so there is no text to read.
+        accessible_name: 'Settings',
+        y_align: Clutter.ActorAlign.CENTER,
+        child: new St.Icon({ icon_name: 'emblem-system-symbolic', icon_size: 16 }),
+      })
+      gear.connect('clicked', () => this._cb.onPrefs())
+
+      this.add_child(title)
+      this.add_child(gear)
+    }
+  }
+)
+
+/** Shown in place of the session rows while the store is empty. */
+export const EmptyRow = GObject.registerClass(
+  class EmptyRow extends PopupMenu.PopupBaseMenuItem {
+    constructor() {
+      super({ reactive: false, can_focus: false, style_class: 'dasbo-row' })
+      this.add_child(
+        new St.Label({
+          text: 'No active sessions',
+          style_class: 'dasbo-empty',
+          x_expand: true,
+          y_align: Clutter.ActorAlign.CENTER,
+        })
+      )
+    }
+  }
+)
