@@ -10,6 +10,7 @@ import type { SessionStore } from '../core/store.js'
 import type { Session, SessionState } from '../core/types.js'
 import { SessionRow } from './sessionRow.js'
 import { PermissionControls } from './permissionRow.js'
+import { PopupHeader, EmptyRow } from './popupHeader.js'
 
 /**
  * `PanelMenu.Button#menu` is typed as `PopupMenu | PopupDummyMenu` because a
@@ -45,10 +46,14 @@ export const Island = GObject.registerClass(
     private _label!: St.Label
     private _unsubscribe: (() => void) | null = null
     private _rows = new Map<string, InstanceType<typeof SessionRow>>()
+    private _header!: InstanceType<typeof PopupHeader>
+    private _separator!: PopupMenu.PopupSeparatorMenuItem
+    private _emptyRow: InstanceType<typeof EmptyRow> | null = null
     private _timerId = 0
     private _settingsChangedId = 0
     private _menuStateId = 0
     private _onJump: (s: Session) => void = () => {}
+    private _onPrefs: () => void = () => {}
     private _controls = new Map<string, { id: string; controls: PermissionControls }>()
     private _pulsing = false
     private _transientIds = new Set<number>()
@@ -76,6 +81,25 @@ export const Island = GObject.registerClass(
       box.add_child(this._label)
       this.add_child(box)
 
+      this._header = new PopupHeader({
+        onPrefs: () => {
+          // Close first: the preferences window takes focus, and a popup left
+          // open behind it lingers until the next click somewhere else.
+          this.menu.close(true)
+          try {
+            this._onPrefs()
+          } catch (e) {
+            // An exception escaping a Clutter signal handler is logged without
+            // context. The menu is already closed, so the user just sees no
+            // window — put the reason in the journal.
+            console.warn(`dasbo-island: opening preferences failed: ${e}`)
+          }
+        },
+      })
+      this._separator = new PopupMenu.PopupSeparatorMenuItem()
+      ;(this.menu as PopupMenu.PopupMenu).addMenuItem(this._header)
+      ;(this.menu as PopupMenu.PopupMenu).addMenuItem(this._separator)
+
       this._unsubscribe = this._store.subscribe(() => this.refresh())
 
       // Both ids are captured and released in destroy(). Relying on the objects
@@ -99,6 +123,10 @@ export const Island = GObject.registerClass(
 
     setJumpHandler(fn: (s: Session) => void): void {
       this._onJump = fn
+    }
+
+    setPrefsHandler(fn: () => void): void {
+      this._onPrefs = fn
     }
 
     showJumpFailure(key: string): void {
@@ -231,6 +259,16 @@ export const Island = GObject.registerClass(
       // in 'error' would otherwise silence the pulse while this one still has live
       // Allow/Deny/Always buttons.
       if (this._controls.size === 0) this._stopPulse()
+
+      // Ordering needs no care here: the empty row exists only while there are
+      // zero session rows, so it can never end up wedged between two of them.
+      if (sessions.length === 0 && !this._emptyRow) {
+        this._emptyRow = new EmptyRow()
+        ;(this.menu as PopupMenu.PopupMenu).addMenuItem(this._emptyRow)
+      } else if (sessions.length > 0 && this._emptyRow) {
+        this._emptyRow.destroy()
+        this._emptyRow = null
+      }
     }
 
     refresh(): void {
@@ -273,6 +311,10 @@ export const Island = GObject.registerClass(
       }
       for (const row of this._rows.values()) row.destroy()
       this._rows.clear()
+      this._emptyRow?.destroy()
+      this._emptyRow = null
+      this._header.destroy()
+      this._separator.destroy()
       super.destroy()
     }
   }
