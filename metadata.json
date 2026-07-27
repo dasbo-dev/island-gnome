@@ -1,0 +1,11 @@
+{
+  "uuid": "dasbo-island@ayubaswad.gmail.com",
+  "name": "Dasbo Island",
+  "description": "Live AI coding-agent sessions in the top bar: status, inline permission approval, and jump-back to the terminal.",
+  "shell-version": ["46"],
+  "session-modes": ["user"],
+  "settings-schema": "org.gnome.shell.extensions.dasbo-island",
+  "gettext-domain": "dasbo-island",
+  "url": "https://github.com/ayubaswad/dasbo-island",
+  "version-name": "0.1.0"
+}

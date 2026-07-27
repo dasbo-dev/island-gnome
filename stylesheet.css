@@ -1,0 +1,38 @@
+.dasbo-pill {
+  spacing: 6px;
+}
+
+.dasbo-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background-color: #9e9e9e;
+}
+
+.dasbo-dot.state-running { background-color: #62a0ea; }
+.dasbo-dot.state-waiting { background-color: #f5c211; }
+.dasbo-dot.state-error   { background-color: #e01b24; }
+.dasbo-dot.state-done    { background-color: #57e389; }
+
+.dasbo-pill-label {
+  font-size: 0.9em;
+}
+
+.dasbo-row-project {
+  font-weight: bold;
+}
+
+.dasbo-row-activity {
+  font-size: 0.85em;
+  color: #cccccc;
+}
+
+.dasbo-row-elapsed {
+  font-feature-settings: "tnum";
+  color: #aaaaaa;
+}
+
+.dasbo-perm-command {
+  font-family: monospace;
+  font-size: 0.85em;
+}

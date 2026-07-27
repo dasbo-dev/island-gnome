@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.dasbo-island"
+          path="/org/gnome/shell/extensions/dasbo-island/">
+    <key name="panel-position" type="s">
+      <choices>
+        <choice value="left"/>
+        <choice value="center"/>
+        <choice value="right"/>
+      </choices>
+      <default>'center'</default>
+      <summary>Panel box for the island pill</summary>
+      <description>Which top bar box the pill is placed in.</description>
+    </key>
+    <key name="panel-index" type="i">
+      <default>0</default>
+      <summary>Ordering index within the panel box</summary>
+      <description>Position of the pill inside the chosen top bar box.</description>
+    </key>
+    <key name="always-show" type="b">
+      <default>false</default>
+      <summary>Show the pill with zero sessions</summary>
+      <description>When false the pill is hidden entirely while no agent session is active.</description>
+    </key>
+    <key name="permission-timeout" type="i">
+      <default>30</default>
+      <summary>Permission prompt timeout in seconds</summary>
+      <description>Seconds to wait for a decision before falling through to the agent's own prompt. Zero waits indefinitely.</description>
+    </key>
+    <key name="auto-open-on-permission" type="b">
+      <default>true</default>
+      <summary>Auto-expand the popup on a permission request</summary>
+      <description>Suppressed while a fullscreen window is on the primary monitor.</description>
+    </key>
+    <key name="enabled-agents" type="as">
+      <default>['claude','codex','antigravity']</default>
+      <summary>Agent adapters that accept events</summary>
+      <description>Independent of hook installation. An agent with no hooks installed simply never sends events.</description>
+    </key>
+    <key name="done-linger" type="i">
+      <default>10</default>
+      <summary>Seconds a finished session stays visible</summary>
+      <description>How long a session in the done state remains in the popup before it is dropped.</description>
+    </key>
+  </schema>
+</schemalist>
