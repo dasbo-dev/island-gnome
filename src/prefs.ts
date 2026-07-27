@@ -27,14 +27,12 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
 
   private _appearancePage(settings: Gio.Settings): Adw.PreferencesPage {
     const page = new Adw.PreferencesPage({ title: 'Appearance', icon_name: 'preferences-desktop-display-symbolic' })
-    const group = new Adw.PreferencesGroup({
-      title: 'Panel',
-      description: 'Position changes take effect after disabling and re-enabling the extension.',
-    })
+    const group = new Adw.PreferencesGroup({ title: 'Panel' })
 
     const position = new Adw.ComboRow({
       title: 'Panel box',
-      model: Gtk.StringList.new(['left', 'center', 'right']),
+      subtitle: 'Extensions that replace the top bar, such as Dash to Panel, decide where each box lands on screen',
+      model: Gtk.StringList.new(['Left', 'Center', 'Right']),
     })
     const order = ['left', 'center', 'right']
     position.selected = Math.max(0, order.indexOf(settings.get_string('panel-position')))
