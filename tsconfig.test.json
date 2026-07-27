@@ -1,7 +1,12 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "types": ["@girs/gnome-shell/ambient", "@girs/gnome-shell/extensions/global", "node"]
+    // Node only. Pulling the gnome-shell ambient types in here too would put
+    // `const global: Shell.Global` and `declare var global: typeof globalThis`
+    // in one Program, where Node's declaration wins and every Shell.Global
+    // member access fails with TS7017. Tests only reach src/core, which the
+    // purity guard keeps free of gi:// and resource:// entirely.
+    "types": ["node"]
   },
   "include": ["test/**/*.ts"]
 }
