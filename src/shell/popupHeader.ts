@@ -54,14 +54,18 @@ export const EmptyRow = GObject.registerClass(
   class EmptyRow extends PopupMenu.PopupBaseMenuItem {
     constructor() {
       super({ reactive: false, can_focus: false, style_class: 'dasbo-row' })
-      this.add_child(
-        new St.Label({
-          text: 'No active sessions',
-          style_class: 'dasbo-empty',
-          x_expand: true,
-          y_align: Clutter.ActorAlign.CENTER,
-        })
-      )
+      const label = new St.Label({
+        text: 'No active sessions',
+        style_class: 'dasbo-empty',
+        x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER,
+      })
+      // St's CSS engine doesn't reliably honour `opacity` (the .dasbo-empty
+      // rule is kept for intent, but isn't load-bearing) — set the Clutter
+      // actor property directly so the label actually reads as dimmed.
+      // 178 == 0.7 * 255.
+      label.opacity = 178
+      this.add_child(label)
     }
   }
 )
