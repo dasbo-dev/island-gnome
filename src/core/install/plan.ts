@@ -36,6 +36,11 @@ function cmd(env: InstallEnv, agent: AgentId, mode: 'notify' | 'permission', eve
   return `${env.hookPath} ${agent} ${mode} ${event}`
 }
 
+/** Codex's single command, shared across all its events — see codexEdits. */
+function codexCommand(env: InstallEnv): string {
+  return `${env.hookPath} codex notify`
+}
+
 function isRecord(v: unknown): v is Record<string, any> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
@@ -142,7 +147,7 @@ function codexEdits(env: InstallEnv, install: boolean): FileEdit[] {
 
   if (install) {
     hooks[CODEX_KEY] = {
-      command: `${env.hookPath} codex notify`,
+      command: codexCommand(env),
       events: [...CODEX_EVENTS],
     }
   } else {
@@ -294,7 +299,7 @@ function codexMatches(env: InstallEnv, root: Record<string, any>): boolean {
   const hooks = isRecord(root['hooks']) ? root['hooks'] : root
   const entry = hooks[CODEX_KEY]
   if (!isRecord(entry)) return false
-  if (entry['command'] !== `${env.hookPath} codex notify`) return false
+  if (entry['command'] !== codexCommand(env)) return false
   const events = Array.isArray(entry['events'])
     ? entry['events'].filter((e: unknown): e is string => typeof e === 'string')
     : []
@@ -305,9 +310,11 @@ function codexMatches(env: InstallEnv, root: Record<string, any>): boolean {
  * Whether an agent's hooks are installed, and whether they still point at the
  * current hook path.
  *
- * Presence is delegated to planUninstall rather than re-derived, so
- * `installState() !== 'absent'` and "Remove has work to do" can never
- * disagree — the Remove button is never offered for a no-op.
+ * Presence is delegated to planUninstall rather than re-derived, so for a
+ * config file that parses, `installState() !== 'absent'` and "Remove has work
+ * to do" can never disagree — the Remove button is never offered for a no-op.
+ * A file that does not parse reports `unreadable`, which disables both
+ * buttons: planInstall refuses to touch it either.
  *
  * Freshness compares the command strings the file attributes to us against the
  * ones planInstall would write, as sorted lists. Comparing serialized text

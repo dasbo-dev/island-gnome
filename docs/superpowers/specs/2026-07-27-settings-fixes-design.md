@@ -54,12 +54,17 @@ export function installState(agent: AgentId, env: InstallEnv): InstallState
 
 Presence is keyed exactly the way each agent's uninstall keys it: Claude on
 the `dasbo-hook` MARKER, Codex on `hooks[CODEX_KEY]`, Antigravity on
-`root[ANTIGRAVITY_KEY]`. That gives the invariant
+`root[ANTIGRAVITY_KEY]`. That gives the invariant, for a config file that
+parses,
 
 > `installState(...) !== 'absent'` if and only if `planUninstall(...)` returns
 > a non-empty edit list
 
-by construction, so the Remove button is never enabled on a no-op.
+by construction, so the Remove button is never enabled on a no-op. A file that
+does not parse is exempt: it reports `unreadable` rather than `absent`, and
+`planUninstall` is empty for it too (there is nothing to remove), so the two
+can disagree there without contradiction — `unreadable` disables both
+buttons, and `planInstall` refuses to touch such a file either.
 
 Freshness is decided semantically, not by comparing serialized text: collect
 the command strings the file currently attributes to us, and compare them as a

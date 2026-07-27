@@ -325,6 +325,16 @@ describe('installState', () => {
       expect(planUninstall(agent, e).length).toBeGreaterThan(0)
       expect(installState(agent, e)).not.toBe('absent')
     })
+
+    it(`reports unreadable, not absent, for ${agent} when the file is malformed and planUninstall is empty`, () => {
+      // The exempt corner of the presence invariant: a malformed file has no
+      // uninstall work either, but reporting it as absent would offer an
+      // Install that planInstall silently refuses to perform.
+      const files = { [configPath(agent, env())]: '{not json' }
+      const e = env(files)
+      expect(planUninstall(agent, e)).toEqual([])
+      expect(installState(agent, e)).toBe('unreadable')
+    })
   }
 
   it('reports absent for claude when only foreign hooks are present', () => {
@@ -386,6 +396,20 @@ describe('installState', () => {
 
   it('reports stale for antigravity when our key is present but empty', () => {
     const files = { '/home/me/.gemini/config/hooks.json': JSON.stringify({ 'dasbo-island': {} }) }
+    expect(installState('antigravity', env(files))).toBe('stale')
+  })
+
+  it('stays installed for antigravity when the keys of our key are reordered', () => {
+    const doc = JSON.parse(planInstall('antigravity', env())[0]!.content)
+    doc['dasbo-island'] = Object.fromEntries(Object.entries(doc['dasbo-island']).reverse())
+    const files = { '/home/me/.gemini/config/hooks.json': JSON.stringify(doc) }
+    expect(installState('antigravity', env(files))).toBe('installed')
+  })
+
+  it('reports stale for antigravity when one of our command entries is duplicated', () => {
+    const doc = JSON.parse(planInstall('antigravity', env())[0]!.content)
+    doc['dasbo-island'].Stop.push(doc['dasbo-island'].Stop[0])
+    const files = { '/home/me/.gemini/config/hooks.json': JSON.stringify(doc) }
     expect(installState('antigravity', env(files))).toBe('stale')
   })
 })
