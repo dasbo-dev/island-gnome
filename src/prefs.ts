@@ -3,7 +3,15 @@ import Gtk from 'gi://Gtk'
 import GLib from 'gi://GLib'
 import type Gio from 'gi://Gio'
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js'
-import { planInstall, planUninstall, isLegacyCodexHooks, type InstallEnv } from './core/install/plan.js'
+import {
+  planInstall,
+  planUninstall,
+  isLegacyCodexHooks,
+  installState,
+  configPath,
+  type InstallEnv,
+  type InstallState,
+} from './core/install/plan.js'
 import { applyEdits, readFileOrNull } from './shell/applyEdits.js'
 import { adapters } from './core/adapters/index.js'
 import type { AgentId } from './core/types.js'
@@ -97,55 +105,97 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
       existing: readFileOrNull,
     }
 
+    const refreshers: (() => void)[] = []
+    const refreshAll = () => {
+      for (const refresh of refreshers) refresh()
+    }
+
     for (const id of ['claude', 'codex', 'antigravity'] as AgentId[]) {
-      const row = new Adw.ActionRow({ title: adapters[id].displayName })
-
-      const enabled = new Gtk.Switch({ valign: Gtk.Align.CENTER, tooltip_text: 'Accept events from this agent' })
-      enabled.active = settings.get_strv('enabled-agents').includes(id)
-      enabled.connect('notify::active', () => {
-        const current = settings.get_strv('enabled-agents')
-        const has = current.includes(id)
-        if (enabled.active && !has) {
-          settings.set_strv('enabled-agents', [...current, id])
-        } else if (!enabled.active && has) {
-          settings.set_strv('enabled-agents', current.filter((a) => a !== id))
-        }
-      })
-
-      const install = new Gtk.Button({ label: 'Install', valign: Gtk.Align.CENTER })
-      const uninstall = new Gtk.Button({ label: 'Remove', valign: Gtk.Align.CENTER })
-
-      const run = (edits: ReturnType<typeof planInstall>, verb: string) => {
-        if (edits.length === 0) {
-          this._toast(window, `${adapters[id].displayName}: nothing to ${verb}`)
-          return
-        }
-        // Must be read before applyEdits rewrites the file — afterwards it's
-        // already wrapped and this would always report false.
-        const migrating =
-          id === 'codex' && verb === 'install' && isLegacyCodexHooks(env.existing(`${env.home}/.codex/hooks.json`))
-        try {
-          applyEdits(edits)
-          const migrationNote = migrating
-            ? ' — existing entries in hooks.json were previously inert (Codex rejects the unwrapped format) and are now re-activated'
-            : ''
-          this._toast(window, `${adapters[id].displayName}: ${verb} complete${migrationNote}`)
-        } catch (e) {
-          this._toast(window, `${adapters[id].displayName}: ${verb} failed — ${e}`)
-        }
-      }
-
-      install.connect('clicked', () => run(planInstall(id, env), 'install'))
-      uninstall.connect('clicked', () => run(planUninstall(id, env), 'remove'))
-
-      row.add_suffix(enabled)
-      row.add_suffix(install)
-      row.add_suffix(uninstall)
+      const { row, refresh } = this._agentRow(id, env, settings, window, refreshAll)
+      refreshers.push(refresh)
       group.add(row)
     }
 
+    // The config files can change outside this window — another install, a
+    // hand edit, a moved extension directory. Re-read whenever the user
+    // arrives on this page rather than trusting what was true at build time.
+    window.connect('notify::visible-page', refreshAll)
+    refreshAll()
+
     page.add(group)
     return page
+  }
+
+  private _agentRow(
+    id: AgentId,
+    env: InstallEnv,
+    settings: Gio.Settings,
+    window: Adw.PreferencesWindow,
+    refreshAll: () => void
+  ): { row: Adw.ActionRow; refresh: () => void } {
+    const row = new Adw.ActionRow({ title: adapters[id].displayName })
+
+    const enabled = new Gtk.Switch({ valign: Gtk.Align.CENTER, tooltip_text: 'Accept events from this agent' })
+    enabled.active = settings.get_strv('enabled-agents').includes(id)
+    enabled.connect('notify::active', () => {
+      const current = settings.get_strv('enabled-agents')
+      const has = current.includes(id)
+      if (enabled.active && !has) {
+        settings.set_strv('enabled-agents', [...current, id])
+      } else if (!enabled.active && has) {
+        settings.set_strv('enabled-agents', current.filter((a) => a !== id))
+      }
+    })
+
+    const install = new Gtk.Button({ label: 'Install', valign: Gtk.Align.CENTER })
+    const uninstall = new Gtk.Button({ label: 'Remove', valign: Gtk.Align.CENTER })
+
+    const describe = (state: InstallState): string => {
+      if (state === 'installed') return 'Hooks installed'
+      if (state === 'stale') return 'Needs update — the installed hook path is out of date'
+      if (state === 'unreadable') return `${configPath(id, env)} is not valid JSON`
+      return 'Not installed'
+    }
+
+    const refresh = () => {
+      const state = installState(id, env)
+      row.subtitle = describe(state)
+      install.label = state === 'stale' ? 'Update' : 'Install'
+      install.sensitive = state === 'absent' || state === 'stale'
+      uninstall.sensitive = state === 'installed' || state === 'stale'
+    }
+
+    const run = (edits: ReturnType<typeof planInstall>, verb: string) => {
+      if (edits.length === 0) {
+        this._toast(window, `${adapters[id].displayName}: nothing to ${verb}`)
+        return
+      }
+      // Must be read before applyEdits rewrites the file — afterwards it's
+      // already wrapped and this would always report false.
+      const migrating =
+        id === 'codex' && verb === 'install' && isLegacyCodexHooks(env.existing(`${env.home}/.codex/hooks.json`))
+      try {
+        applyEdits(edits)
+        const migrationNote = migrating
+          ? ' — existing entries in hooks.json were previously inert (Codex rejects the unwrapped format) and are now re-activated'
+          : ''
+        this._toast(window, `${adapters[id].displayName}: ${verb} complete${migrationNote}`)
+      } catch (e) {
+        this._toast(window, `${adapters[id].displayName}: ${verb} failed — ${e}`)
+      }
+      // Refresh every row, not just this one: all three read from disk and a
+      // failed write must be reflected as accurately as a successful one.
+      refreshAll()
+    }
+
+    install.connect('clicked', () => run(planInstall(id, env), 'install'))
+    uninstall.connect('clicked', () => run(planUninstall(id, env), 'remove'))
+
+    row.add_suffix(enabled)
+    row.add_suffix(install)
+    row.add_suffix(uninstall)
+
+    return { row, refresh }
   }
 
   private _toast(window: Adw.PreferencesWindow, text: string): void {
