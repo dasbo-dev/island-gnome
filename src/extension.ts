@@ -8,6 +8,7 @@ import { glibTimers } from './shell/glibTimers.js'
 import { IslandService } from './dbus/service.js'
 import { Island } from './shell/island.js'
 import { activateForPid, pidAlive } from './shell/windowFinder.js'
+import { placeInPanelBox } from './shell/panelPlacement.js'
 
 export default class DasboIslandExtension extends Extension {
   private _island: InstanceType<typeof Island> | null = null
@@ -15,7 +16,7 @@ export default class DasboIslandExtension extends Extension {
   private _permissions: PermissionTable | null = null
   private _service: IslandService | null = null
   private _reaperId = 0
-  private _settingsChangedId = 0
+  private _settingsIds: number[] = []
   private _settings: Gio.Settings | null = null
 
   enable() {
@@ -23,9 +24,11 @@ export default class DasboIslandExtension extends Extension {
     this._settings = settings
     this._store = new SessionStore()
     this._store.doneLingerSeconds = settings.get_int('done-linger')
-    this._settingsChangedId = settings.connect('changed::done-linger', () => {
-      if (this._store) this._store.doneLingerSeconds = settings.get_int('done-linger')
-    })
+    this._settingsIds.push(
+      settings.connect('changed::done-linger', () => {
+        if (this._store) this._store.doneLingerSeconds = settings.get_int('done-linger')
+      })
+    )
     this._permissions = new PermissionTable(this._store, glibTimers)
     this._island = new Island(this._store, settings)
 
@@ -35,6 +38,19 @@ export default class DasboIslandExtension extends Extension {
       settings.get_int('panel-index'),
       settings.get_string('panel-position')
     )
+
+    // addToStatusArea above runs once, because it also registers the role and
+    // the menu. Later changes only reparent the container.
+    const reposition = () => {
+      if (!this._island) return
+      placeInPanelBox(
+        this._island.container,
+        settings.get_string('panel-position'),
+        settings.get_int('panel-index')
+      )
+    }
+    this._settingsIds.push(settings.connect('changed::panel-position', reposition))
+    this._settingsIds.push(settings.connect('changed::panel-index', reposition))
 
     this._island.setJumpHandler((session) => {
       const ok = activateForPid(session.pid)
@@ -110,11 +126,10 @@ export default class DasboIslandExtension extends Extension {
 
     this._store = null
 
-    safely('settings handler', () => {
-      if (this._settingsChangedId && this._settings) {
-        this._settings.disconnect(this._settingsChangedId)
-        this._settingsChangedId = 0
-      }
+    safely('settings handlers', () => {
+      const settings = this._settings
+      if (settings) for (const id of this._settingsIds) settings.disconnect(id)
+      this._settingsIds = []
     })
 
     this._settings = null
