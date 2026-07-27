@@ -21,6 +21,9 @@
 - Hooks fail open: every error path in `dasbo-hook` exits 0 with empty stdout.
 - Permission timeout default 30s, `0` means wait indefinitely. Fall-through never auto-allows and never auto-denies.
 - Commit after every task. Conventional Commits prefixes (`feat:`, `fix:`, `test:`, `chore:`, `docs:`).
+- **`GObject.registerClass` subclasses use `constructor`, never `_init`.** `@girs` types the parent's constructor signature, and an `_init` override does not reach it, so `new Island()` fails to typecheck. Call `super(...)` directly. GJS routes it to the parent's `_init` at runtime.
+- **`package.json` carries an `overrides` block pinning every `@girs/*` package.** Without it npm resolves the tree to two incompatible trains (`4.0.0-beta.15` top-level, `4.0.0-rc.17` nested), producing duplicate `GObject.ParamSpec` types and unusable `registerClass` typings. Never remove it; regenerate it if a `@girs` version is bumped.
+- `npm run typecheck` must exit clean. It is a gate for every task, not advisory.
 
 ## File Structure
 
@@ -261,8 +264,8 @@ import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js'
 
 const Island = GObject.registerClass(
   class Island extends PanelMenu.Button {
-    _init() {
-      super._init(0.5, 'Dasbo Island')
+    constructor() {
+      super(0.5, 'Dasbo Island')
       const box = new St.BoxLayout({ style_class: 'dasbo-pill' })
       box.add_child(new St.Widget({ style_class: 'dasbo-dot', y_align: 2 }))
       box.add_child(new St.Label({ text: 'dasbo', style_class: 'dasbo-pill-label', y_align: 2 }))
@@ -2072,8 +2075,8 @@ import { IslandService } from './dbus/service.js'
 const Island = GObject.registerClass(
   class Island extends PanelMenu.Button {
     _label!: St.Label
-    _init() {
-      super._init(0.5, 'Dasbo Island')
+    constructor() {
+      super(0.5, 'Dasbo Island')
       const box = new St.BoxLayout({ style_class: 'dasbo-pill' })
       box.add_child(new St.Widget({ style_class: 'dasbo-dot', y_align: 2 }))
       this._label = new St.Label({ text: '0', style_class: 'dasbo-pill-label', y_align: 2 })
@@ -2421,8 +2424,8 @@ export const Island = GObject.registerClass(
     private _label!: St.Label
     private _unsubscribe: (() => void) | null = null
 
-    _init(store: SessionStore, settings: Gio.Settings) {
-      super._init(0.5, 'Dasbo Island')
+    constructor(store: SessionStore, settings: Gio.Settings) {
+      super(0.5, 'Dasbo Island')
       this._store = store
       this._settings = settings
 
@@ -2668,8 +2671,8 @@ export const SessionRow = GObject.registerClass(
     private _jump!: St.Button
     private _actionBox!: St.BoxLayout
 
-    _init(session: Session, cb: SessionRowCallbacks) {
-      super._init({ reactive: false, can_focus: false, style_class: 'dasbo-row' })
+    constructor(session: Session, cb: SessionRowCallbacks) {
+      super({ reactive: false, can_focus: false, style_class: 'dasbo-row' })
       this._session = session
       this._cb = cb
 
@@ -2766,7 +2769,7 @@ Add these fields to the class:
     private _onJump: (s: Session) => void = () => {}
 ```
 
-Extend `_init` — after `this._unsubscribe = ...` and before `this.refresh()`:
+Extend the constructor — after `this._unsubscribe = ...` and before `this.refresh()`:
 
 ```ts
       this.menu.connect('open-state-changed', (_menu: unknown, open: boolean) => {

@@ -7,8 +7,8 @@ import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js'
 
 const Island = GObject.registerClass(
   class Island extends PanelMenu.Button {
-    _init() {
-      super._init(0.5, 'Dasbo Island')
+    constructor() {
+      super(0.5, 'Dasbo Island')
       const box = new St.BoxLayout({ style_class: 'dasbo-pill' })
       box.add_child(new St.Widget({ style_class: 'dasbo-dot', y_align: Clutter.ActorAlign.CENTER }))
       box.add_child(new St.Label({ text: 'dasbo', style_class: 'dasbo-pill-label', y_align: Clutter.ActorAlign.CENTER }))
