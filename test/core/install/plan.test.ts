@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { planInstall, planUninstall, isLegacyCodexHooks, type InstallEnv } from '../../../src/core/install/plan.js'
+import {
+  planInstall,
+  planUninstall,
+  isLegacyCodexHooks,
+  configPath,
+  installState,
+  type InstallEnv,
+} from '../../../src/core/install/plan.js'
 
 function env(files: Record<string, string> = {}): InstallEnv {
   return {
@@ -266,5 +273,119 @@ describe('isLegacyCodexHooks', () => {
 
   it('is false for malformed JSON', () => {
     expect(isLegacyCodexHooks('{not json')).toBe(false)
+  })
+})
+
+describe('configPath', () => {
+  it('names the config file each agent stores hooks in', () => {
+    expect(configPath('claude', env())).toBe('/home/me/.claude/settings.json')
+    expect(configPath('codex', env())).toBe('/home/me/.codex/hooks.json')
+    expect(configPath('antigravity', env())).toBe('/home/me/.gemini/config/hooks.json')
+  })
+})
+
+describe('installState', () => {
+  const agents = ['claude', 'codex', 'antigravity'] as const
+
+  function installed(agent: (typeof agents)[number], e = env()): Record<string, string> {
+    const edit = planInstall(agent, e)[0]!
+    return { [edit.path]: edit.content }
+  }
+
+  function movedEnv(files: Record<string, string> = {}): InstallEnv {
+    return {
+      home: '/home/me',
+      hookPath: '/home/me/.local/share/gnome-shell/extensions/moved/hooks/dasbo-hook',
+      existing: (p) => files[p] ?? null,
+    }
+  }
+
+  for (const agent of agents) {
+    it(`reports absent for ${agent} when the config file does not exist`, () => {
+      expect(installState(agent, env())).toBe('absent')
+    })
+
+    it(`reports installed for ${agent} when fed back what planInstall writes`, () => {
+      expect(installState(agent, env(installed(agent)))).toBe('installed')
+    })
+
+    it(`reports stale for ${agent} when the installed hook path is out of date`, () => {
+      // Written by an extension directory that has since moved: every command
+      // embeds the absolute hook path, so all of them are now wrong.
+      expect(installState(agent, movedEnv(installed(agent)))).toBe('stale')
+    })
+
+    it(`reports unreadable for ${agent} when the config file is malformed`, () => {
+      const files = { [configPath(agent, env())]: '{not json' }
+      expect(installState(agent, env(files))).toBe('unreadable')
+    })
+
+    it(`never reports absent for ${agent} when planUninstall has work to do`, () => {
+      const e = env(installed(agent))
+      expect(planUninstall(agent, e).length).toBeGreaterThan(0)
+      expect(installState(agent, e)).not.toBe('absent')
+    })
+  }
+
+  it('reports absent for claude when only foreign hooks are present', () => {
+    const before = JSON.stringify({
+      hooks: { Stop: [{ hooks: [{ type: 'command', command: '/other/tool' }] }] },
+    })
+    expect(installState('claude', env({ '/home/me/.claude/settings.json': before }))).toBe('absent')
+  })
+
+  it('reports absent for codex when only a foreign entry is present', () => {
+    const before = JSON.stringify({
+      hooks: { 'vibe-island': { command: 'python3 /x/y.py', events: ['session.start'] } },
+    })
+    expect(installState('codex', env({ '/home/me/.codex/hooks.json': before }))).toBe('absent')
+  })
+
+  it('stays installed for claude when a foreign hook is appended after ours', () => {
+    // planInstall would reorder ours to the end, so a text comparison would
+    // call this stale. The command set is unchanged, so it is not.
+    const doc = JSON.parse(planInstall('claude', env())[0]!.content)
+    doc.hooks.Stop.push({ hooks: [{ type: 'command', command: '/other/tool' }] })
+    const files = { '/home/me/.claude/settings.json': JSON.stringify(doc) }
+    expect(installState('claude', env(files))).toBe('installed')
+  })
+
+  it('stays installed for claude across reformatting and key reordering', () => {
+    const doc = JSON.parse(planInstall('claude', env())[0]!.content)
+    const files = { '/home/me/.claude/settings.json': JSON.stringify({ model: 'opus', ...doc }, null, 4) }
+    expect(installState('claude', env(files))).toBe('installed')
+  })
+
+  it('reports stale for claude when one of the five events lost its hook', () => {
+    const doc = JSON.parse(planInstall('claude', env())[0]!.content)
+    delete doc.hooks.Stop
+    const files = { '/home/me/.claude/settings.json': JSON.stringify(doc) }
+    expect(installState('claude', env(files))).toBe('stale')
+  })
+
+  it('reports stale for claude when our hook is duplicated by a hand edit', () => {
+    const doc = JSON.parse(planInstall('claude', env())[0]!.content)
+    doc.hooks.Stop.push(doc.hooks.Stop[0])
+    const files = { '/home/me/.claude/settings.json': JSON.stringify(doc) }
+    expect(installState('claude', env(files))).toBe('stale')
+  })
+
+  it('reports stale for codex when the events list no longer matches', () => {
+    const doc = JSON.parse(planInstall('codex', env())[0]!.content)
+    doc.hooks['dasbo-island'].events = ['session.start']
+    const files = { '/home/me/.codex/hooks.json': JSON.stringify(doc) }
+    expect(installState('codex', env(files))).toBe('stale')
+  })
+
+  it('reports installed for codex regardless of the order of the events list', () => {
+    const doc = JSON.parse(planInstall('codex', env())[0]!.content)
+    doc.hooks['dasbo-island'].events = [...doc.hooks['dasbo-island'].events].reverse()
+    const files = { '/home/me/.codex/hooks.json': JSON.stringify(doc) }
+    expect(installState('codex', env(files))).toBe('installed')
+  })
+
+  it('reports stale for antigravity when our key is present but empty', () => {
+    const files = { '/home/me/.gemini/config/hooks.json': JSON.stringify({ 'dasbo-island': {} }) }
+    expect(installState('antigravity', env(files))).toBe('stale')
   })
 })

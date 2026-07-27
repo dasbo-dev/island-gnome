@@ -8,6 +8,13 @@ export interface InstallEnv {
   existing: (path: string) => string | null
 }
 
+/** Config file each agent keeps its hook entries in. */
+export function configPath(agent: AgentId, env: InstallEnv): string {
+  if (agent === 'claude') return `${env.home}/.claude/settings.json`
+  if (agent === 'codex') return `${env.home}/.codex/hooks.json`
+  return `${env.home}/.gemini/config/hooks.json`
+}
+
 /** Marker used to recognise our own entries on uninstall and to stay idempotent. */
 const MARKER = 'dasbo-hook'
 const CODEX_KEY = 'dasbo-island'
@@ -83,7 +90,7 @@ function withoutOurs(groups: unknown): any[] {
 }
 
 function claudeEdits(env: InstallEnv, install: boolean): FileEdit[] {
-  const path = `${env.home}/.claude/settings.json`
+  const path = configPath('claude', env)
   const doc = parseOrNull(env.existing(path))
   if (doc === undefined) return []
   const root: Record<string, any> = doc === null ? {} : { ...doc }
@@ -125,7 +132,7 @@ function claudeEdits(env: InstallEnv, install: boolean): FileEdit[] {
  * that's the whole point of "rescue", since the file is otherwise inert.
  */
 function codexEdits(env: InstallEnv, install: boolean): FileEdit[] {
-  const path = `${env.home}/.codex/hooks.json`
+  const path = configPath('codex', env)
   const doc = parseOrNull(env.existing(path))
   if (doc === undefined) return []
   const source: Record<string, any> = doc === null ? {} : doc
@@ -175,7 +182,7 @@ function codexEdits(env: InstallEnv, install: boolean): FileEdit[] {
  * Antigravity payloads contain no event-name field at all.
  */
 function antigravityEdits(env: InstallEnv, install: boolean): FileEdit[] {
-  const path = `${env.home}/.gemini/config/hooks.json`
+  const path = configPath('antigravity', env)
   const doc = parseOrNull(env.existing(path))
   if (doc === undefined) return []
   const root: Record<string, any> = doc === null ? {} : { ...doc }
@@ -213,4 +220,110 @@ export function planUninstall(agent: AgentId, env: InstallEnv): FileEdit[] {
   if (agent === 'claude') return claudeEdits(env, false)
   if (agent === 'codex') return codexEdits(env, false)
   return antigravityEdits(env, false)
+}
+
+export type InstallState = 'absent' | 'installed' | 'stale' | 'unreadable'
+
+/**
+ * Order-insensitive but duplicate-sensitive comparison. Order must not matter
+ * because a hand edit or a foreign tool can reorder entries without changing
+ * behaviour; duplicates must matter because a duplicated entry fires our hook
+ * twice, and rewriting via planInstall is the repair.
+ */
+function sameStrings(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  const x = [...a].sort()
+  const y = [...b].sort()
+  return x.every((v, i) => v === y[i])
+}
+
+function expectedClaudeCommands(env: InstallEnv): string[] {
+  return CLAUDE_EVENTS.map((event) =>
+    cmd(env, 'claude', event === 'PreToolUse' ? 'permission' : 'notify', event)
+  )
+}
+
+function expectedAntigravityCommands(env: InstallEnv): string[] {
+  return [
+    ...ANTIGRAVITY_GROUPED.map((event) =>
+      cmd(env, 'antigravity', event === 'PreToolUse' ? 'permission' : 'notify', event)
+    ),
+    ...ANTIGRAVITY_FLAT.map((event) => cmd(env, 'antigravity', 'notify', event)),
+  ]
+}
+
+/** Commands the file currently attributes to us, across the events we own. */
+function presentClaudeCommands(root: Record<string, any>): string[] {
+  const hooks = isRecord(root['hooks']) ? root['hooks'] : {}
+  const out: string[] = []
+  for (const event of CLAUDE_EVENTS) {
+    const groups = Array.isArray(hooks[event]) ? hooks[event] : []
+    for (const group of groups) {
+      if (!isRecord(group) || !Array.isArray(group['hooks'])) continue
+      for (const h of group['hooks']) {
+        if (isRecord(h) && isOurs(h['command'])) out.push(h['command'])
+      }
+    }
+  }
+  return out
+}
+
+function presentAntigravityCommands(root: Record<string, any>): string[] {
+  const set = isRecord(root[ANTIGRAVITY_KEY]) ? root[ANTIGRAVITY_KEY] : {}
+  const out: string[] = []
+  for (const event of ANTIGRAVITY_GROUPED) {
+    const groups = Array.isArray(set[event]) ? set[event] : []
+    for (const group of groups) {
+      if (!isRecord(group) || !Array.isArray(group['hooks'])) continue
+      for (const h of group['hooks']) {
+        if (isRecord(h) && typeof h['command'] === 'string') out.push(h['command'])
+      }
+    }
+  }
+  for (const event of ANTIGRAVITY_FLAT) {
+    const entries = Array.isArray(set[event]) ? set[event] : []
+    for (const h of entries) {
+      if (isRecord(h) && typeof h['command'] === 'string') out.push(h['command'])
+    }
+  }
+  return out
+}
+
+/** Our codex entry, wherever the file's shape puts it. */
+function codexMatches(env: InstallEnv, root: Record<string, any>): boolean {
+  const hooks = isRecord(root['hooks']) ? root['hooks'] : root
+  const entry = hooks[CODEX_KEY]
+  if (!isRecord(entry)) return false
+  if (entry['command'] !== `${env.hookPath} codex notify`) return false
+  const events = Array.isArray(entry['events'])
+    ? entry['events'].filter((e: unknown): e is string => typeof e === 'string')
+    : []
+  return sameStrings(events, [...CODEX_EVENTS])
+}
+
+/**
+ * Whether an agent's hooks are installed, and whether they still point at the
+ * current hook path.
+ *
+ * Presence is delegated to planUninstall rather than re-derived, so
+ * `installState() !== 'absent'` and "Remove has work to do" can never
+ * disagree — the Remove button is never offered for a no-op.
+ *
+ * Freshness compares the command strings the file attributes to us against the
+ * ones planInstall would write, as sorted lists. Comparing serialized text
+ * instead would report a false `stale` for indentation, key order, or a
+ * foreign hook appended after ours.
+ */
+export function installState(agent: AgentId, env: InstallEnv): InstallState {
+  const doc = parseOrNull(env.existing(configPath(agent, env)))
+  if (doc === undefined) return 'unreadable'
+  if (planUninstall(agent, env).length === 0) return 'absent'
+  const root = doc ?? {}
+  const fresh =
+    agent === 'claude'
+      ? sameStrings(presentClaudeCommands(root), expectedClaudeCommands(env))
+      : agent === 'codex'
+        ? codexMatches(env, root)
+        : sameStrings(presentAntigravityCommands(root), expectedAntigravityCommands(env))
+  return fresh ? 'installed' : 'stale'
 }
