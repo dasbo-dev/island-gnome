@@ -201,11 +201,24 @@ describe('PermissionTable', () => {
     const first = t.request({ sessionKey: 'claude:s1', tool: 'Bash', timeoutSeconds: 30 }, () => {})
     t.request({ sessionKey: 'claude:s1', tool: 'Edit', timeoutSeconds: 30 }, () => {})
 
+    // Record what a subscriber actually observes. Asserting only the final state
+    // would pass even if pendingPermission briefly cleared and was re-set within
+    // the same synchronous call — which a subscriber's refresh() would still see.
+    const observed: Array<string | undefined> = []
+    const off = store.subscribe(() => {
+      observed.push(store.get('claude:s1')?.pendingPermission?.id)
+    })
+
     t.resolve(first, { kind: 'allow' })
+    off()
+
+    expect(observed.length, 'promotion must notify subscribers').toBeGreaterThan(0)
+    expect(observed, 'no subscriber may observe a cleared permission').not.toContain(undefined)
+    expect(observed, 'no subscriber may observe the resolved id still active').not.toContain(first)
 
     const pending = store.get('claude:s1')!.pendingPermission!
     expect(pending.id).not.toBe(first)
-    expect(pending.id).toBeDefined()
+    expect(pending.tool).toBe('Edit')
     expect(store.get('claude:s1')!.state).toBe('waiting')
   })
 
