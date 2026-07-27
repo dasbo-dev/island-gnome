@@ -1,0 +1,9 @@
+#!/bin/sh
+# Records one agent hook payload verbatim, then exits 0 with empty stdout.
+# Usage: capture-hook <agent-id>
+AGENT="$1"
+DIR="${DASBO_FIXTURE_DIR:-$PWD/test/fixtures}/$AGENT"
+mkdir -p "$DIR"
+N=$(ls "$DIR" 2>/dev/null | wc -l)
+cat > "$DIR/raw-$N.json"
+exit 0
