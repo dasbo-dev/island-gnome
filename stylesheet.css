@@ -24,17 +24,12 @@
 
 .dasbo-row-activity {
   font-size: 0.85em;
-  color: #cccccc;
+  opacity: 0.7;
 }
 
 .dasbo-row-elapsed {
   font-feature-settings: "tnum";
-  color: #aaaaaa;
-}
-
-.dasbo-perm-command {
-  font-family: monospace;
-  font-size: 0.85em;
+  opacity: 0.7;
 }
 
 .dasbo-row-outer { spacing: 12px; }

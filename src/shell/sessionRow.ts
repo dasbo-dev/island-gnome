@@ -2,7 +2,7 @@ import St from 'gi://St'
 import Clutter from 'gi://Clutter'
 import GObject from 'gi://GObject'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
-import { formatElapsed } from '../core/format.js'
+import { formatElapsed, truncateDetail } from '../core/format.js'
 import type { Session, SessionState } from '../core/types.js'
 
 const STATE_CLASS: Record<SessionState, string> = {
@@ -83,23 +83,20 @@ export const SessionRow = GObject.registerClass(
       const tool = session.currentTool
       const detail = session.detail
       const pending = session.pendingPermission
-      this._activity.text =
-        pending
-          ? `waiting for you${pending.queued > 0 ? ` · +${pending.queued} more` : ''}`
-        : tool && detail ? `${tool} · ${detail}`
-        : tool ? tool
-        : session.state
+      if (pending) {
+        const what = pending.detail ? `${pending.tool} · ${truncateDetail(pending.detail)}` : pending.tool
+        const more = pending.queued > 0 ? ` · +${pending.queued} more` : ''
+        this._activity.text = `waiting for you · ${what}${more}`
+      } else if (tool && detail) {
+        this._activity.text = `${tool} · ${truncateDetail(detail)}`
+      } else {
+        this._activity.text = tool ?? session.state
+      }
     }
 
     /** Called once per second by the Island while the popup is open. */
     tick(now: number): void {
       this._elapsed.text = formatElapsed(now - this._session.startedAt)
-    }
-
-    /** Hide the jump button when no window can own this session. */
-    setJumpEnabled(enabled: boolean): void {
-      this._jump.reactive = enabled
-      this._jump.opacity = enabled ? 255 : 128
     }
 
     showTransient(text: string): void {
