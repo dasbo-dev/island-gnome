@@ -1,5 +1,20 @@
 export type AgentId = 'claude' | 'codex' | 'antigravity'
 
+/**
+ * What the hook process knows about an event, independent of the payload.
+ * Adapters prefer payload values where they exist and fall back to these.
+ */
+export interface HookContext {
+  /** PID of the hook process, the seed for jump-back ancestry. */
+  pid: number
+  /** Milliseconds since epoch, supplied by the caller so adapters stay pure. */
+  ts: number
+  /** Working directory of the hook process. Used when the payload carries no cwd. */
+  cwd: string
+  /** Event name from argv. Used when the payload carries no event field. */
+  event?: string
+}
+
 export type SessionState = 'idle' | 'running' | 'waiting' | 'done' | 'error'
 
 export type EventKind =
