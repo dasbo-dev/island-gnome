@@ -1,7 +1,19 @@
 import type { Decision, EventKind, HookContext } from '../types.js'
 import type { AgentAdapter } from './index.js'
+import { detailFromToolInput } from './claude.js'
 
+/**
+ * UNVERIFIED. Codex captured no fixtures in Task 2 — the environment was not
+ * authenticated. Key names are taken from the installed vibe-island hook
+ * script, which reads `type`, `session_id`, `cwd` and `tool_name`. Both the
+ * dotted `type` names and the CamelCase `hook_event_name` names are accepted,
+ * since the installed build and the published docs disagree about which is used.
+ */
 const KIND_BY_EVENT: Record<string, EventKind> = {
+  'session.start': 'session-start',
+  'session.end': 'stop',
+  'tool.start': 'tool-start',
+  'tool.end': 'tool-end',
   SessionStart: 'session-start',
   UserPromptSubmit: 'prompt-submit',
   PreToolUse: 'tool-start',
@@ -17,26 +29,14 @@ function str(v: unknown): string | undefined {
   return typeof v === 'string' && v.length > 0 ? v : undefined
 }
 
-/** Pick the most useful human-readable detail out of a Claude tool_input blob. */
-export function detailFromToolInput(input: unknown): string | undefined {
-  if (!isRecord(input)) return undefined
-  return (
-    str(input['command']) ??
-    str(input['file_path']) ??
-    str(input['path']) ??
-    str(input['pattern']) ??
-    str(input['url'])
-  )
-}
-
-export const claudeAdapter: AgentAdapter = {
-  id: 'claude',
-  displayName: 'Claude Code',
+export const codexAdapter: AgentAdapter = {
+  id: 'codex',
+  displayName: 'Codex CLI',
 
   normalize(raw, ctx) {
     if (!isRecord(raw)) return null
 
-    const eventName = str(raw['hook_event_name']) ?? ctx.event
+    const eventName = str(raw['type']) ?? str(raw['hook_event_name']) ?? ctx.event
     if (!eventName) return null
     const kind = KIND_BY_EVENT[eventName]
     if (!kind) return null
@@ -48,12 +48,12 @@ export const claudeAdapter: AgentAdapter = {
     if (!cwd) return null
 
     return {
-      agent: 'claude',
+      agent: 'codex',
       kind,
       sessionId,
       cwd,
       tool: str(raw['tool_name']),
-      detail: detailFromToolInput(raw['tool_input']),
+      detail: detailFromToolInput(raw['tool_input']) ?? str(raw['command']),
       transcriptPath: str(raw['transcript_path']),
       pid: ctx.pid,
       ts: ctx.ts,
@@ -61,17 +61,13 @@ export const claudeAdapter: AgentAdapter = {
   },
 
   encodeDecision(d: Decision) {
-    const permissionDecision =
-      d.kind === 'allow' ? 'allow' : d.kind === 'deny' ? 'deny' : 'ask'
-    const defaultReason =
-      d.kind === 'allow' ? 'Allowed from Dasbo Island'
-      : d.kind === 'deny' ? 'Denied from Dasbo Island'
-      : 'Dasbo Island did not decide'
+    if (d.kind === 'fallthrough') return {}
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',
-        permissionDecision,
-        permissionDecisionReason: d.reason ?? defaultReason,
+        permissionDecision: d.kind,
+        permissionDecisionReason:
+          d.reason ?? (d.kind === 'allow' ? 'Allowed from Dasbo Island' : 'Denied from Dasbo Island'),
       },
     }
   },
