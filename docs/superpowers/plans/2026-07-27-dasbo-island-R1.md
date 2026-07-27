@@ -435,6 +435,14 @@ describe('antigravityAdapter.normalize', () => {
     expect(e?.cwd).toBe('/hook/cwd')
   })
 
+  it('returns null when neither workspacePaths nor the hook supplies a cwd', () => {
+    const e = antigravityAdapter.normalize(
+      { conversationId: 'c1', workspacePaths: [] },
+      { pid: 7, ts: 9, cwd: '', event: 'Stop' }
+    )
+    expect(e).toBeNull()
+  })
+
   it('maps every wired event kind', () => {
     const pairs: Array<[string, string]> = [
       ['PreInvocation', 'prompt-submit'],
@@ -669,6 +677,12 @@ describe('codexAdapter.normalize (UNVERIFIED — no captured fixtures)', () => {
   it('returns null on unknown type or missing session id', () => {
     expect(codexAdapter.normalize({ type: 'nope', session_id: 's', cwd: '/p' }, ctx)).toBeNull()
     expect(codexAdapter.normalize({ type: 'tool.start', cwd: '/p' }, ctx)).toBeNull()
+  })
+
+  it('returns null when neither the payload nor the hook supplies a cwd', () => {
+    expect(
+      codexAdapter.normalize({ type: 'tool.start', session_id: 's1' }, { ...ctx, cwd: '' })
+    ).toBeNull()
   })
 })
 
