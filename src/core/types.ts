@@ -68,6 +68,12 @@ export interface Session {
   doneAt?: number
   transcriptPath?: string
   pendingPermission?: PendingPermission
+  /**
+   * What the most recent event would have set the state to, recorded while a
+   * permission is pending so clearPending can settle to it. Undefined when no
+   * event arrived during the hold.
+   */
+  deferredState?: SessionState
 }
 
 export type DecisionKind = 'allow' | 'deny' | 'fallthrough'

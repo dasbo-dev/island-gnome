@@ -59,8 +59,16 @@ export default class DasboIslandExtension extends Extension {
     this._service.export()
 
     this._reaperId = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, 60, () => {
-      const dropped = this._store?.reap(Date.now(), pidAlive) ?? []
-      for (const key of dropped) this._permissions?.releaseSession(key)
+      // releaseSession reaches Island.refresh through the store's subscribers,
+      // so this callback builds St widgets. An exception escaping a GLib source
+      // callback removes the source, which would stop the reaper permanently and
+      // strand every remaining key — so swallow and keep sweeping.
+      try {
+        const dropped = this._store?.reap(Date.now(), pidAlive) ?? []
+        for (const key of dropped) this._permissions?.releaseSession(key)
+      } catch (e) {
+        console.warn(`dasbo-island: reaper sweep failed: ${e}`)
+      }
       return GLib.SOURCE_CONTINUE
     })
   }

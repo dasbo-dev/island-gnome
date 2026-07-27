@@ -80,16 +80,19 @@ export class SessionStore {
     switch (e.kind) {
       case 'session-start':
         kindState = 'idle'
+        s.doneAt = undefined
         break
       case 'prompt-submit':
         kindState = 'running'
         s.currentTool = undefined
         s.detail = undefined
+        s.doneAt = undefined
         break
       case 'tool-start':
         kindState = 'running'
         s.currentTool = e.tool
         s.detail = e.detail
+        s.doneAt = undefined
         break
       case 'tool-end':
         kindState = 'idle'
@@ -113,7 +116,16 @@ export class SessionStore {
     // one tool while another tool's permission on the same session is still
     // held open. Losing 'waiting' here would make the pill lie about a session
     // that is actually blocked on the user.
-    s.state = s.pendingPermission ? 'waiting' : kindState
+    if (s.pendingPermission) {
+      // Remember what this event meant so clearPending can settle to it, rather
+      // than reconstructing a state from flags — which loses 'error' entirely
+      // and mistakes a stale doneAt for a freshly finished session.
+      s.deferredState = kindState
+      s.state = 'waiting'
+    } else {
+      s.deferredState = undefined
+      s.state = kindState
+    }
     this.emit()
   }
 
@@ -129,10 +141,11 @@ export class SessionStore {
     const s = this.sessions.get(key)
     if (!s?.pendingPermission) return
     s.pendingPermission = undefined
-    // A 'stop' received while the permission was pending stamps doneAt but
-    // (per apply()) keeps state 'waiting' until the permission clears. Once it
-    // does, settle to the state that stop actually meant, not to 'idle'.
-    if (s.state === 'waiting') s.state = s.doneAt !== undefined ? 'done' : 'idle'
+    // Settle to whatever the last event actually meant while the permission was
+    // held — a stop settles to 'done', an error to 'error'. With no event in
+    // that window there is nothing deferred, so 'idle' is right.
+    if (s.state === 'waiting') s.state = s.deferredState ?? 'idle'
+    s.deferredState = undefined
     this.emit()
   }
 

@@ -84,7 +84,11 @@ export const SessionRow = GObject.registerClass(
       const detail = session.detail
       const pending = session.pendingPermission
       if (pending) {
-        const what = pending.detail ? `${pending.tool} · ${truncateDetail(pending.detail)}` : pending.tool
+        // The tool name comes from the payload too, so it needs bounding for the
+        // same reason detail does — an unbounded label pushes Allow and Deny off
+        // screen, which is exactly what this row exists to prevent.
+        const tool = truncateDetail(pending.tool, 40)
+        const what = pending.detail ? `${tool} · ${truncateDetail(pending.detail)}` : tool
         const more = pending.queued > 0 ? ` · +${pending.queued} more` : ''
         this._activity.text = `waiting for you · ${what}${more}`
       } else if (tool && detail) {

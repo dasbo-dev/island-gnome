@@ -181,6 +181,42 @@ describe('SessionStore', () => {
     expect(s.list()[0]!.state).toBe('done')
   })
 
+  it('does not settle a resumed session to done from a stale doneAt', () => {
+    // A session that finished a turn and was resumed still carried its old
+    // doneAt, so resolving a later permission marked the live session done and
+    // the next reaper sweep deleted its row.
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    s.apply(ev({ kind: 'stop', ts: 1000 }))
+    expect(s.list()[0]!.state).toBe('done')
+
+    s.apply(ev({ kind: 'prompt-submit', ts: 2000 }))
+    expect(s.list()[0]!.state).toBe('running')
+    expect(s.list()[0]!.doneAt, 'resuming clears the finish stamp').toBeUndefined()
+
+    // No event arrives during the hold, so there is nothing deferred and idle
+    // is the correct settle — but it must not be 'done', and the session must
+    // not be reapable as finished.
+    s.setPending('claude:s1', { id: 'p1', tool: 'Bash', deadline: 30_000, queued: 0 })
+    s.clearPending('claude:s1')
+    expect(s.list()[0]!.state, 'a live session must not settle to done').toBe('idle')
+
+    expect(s.reap(20_000, () => true), 'and must not be reaped as finished').toEqual([])
+    expect(s.list()).toHaveLength(1)
+  })
+
+  it('preserves an error that arrived while a permission was pending', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    s.setPending('claude:s1', { id: 'p1', tool: 'Bash', deadline: 30_000, queued: 0 })
+
+    s.apply(ev({ kind: 'error', detail: 'boom', ts: 2000 }))
+    expect(s.list()[0]!.state, 'waiting still wins while held').toBe('waiting')
+
+    s.clearPending('claude:s1')
+    expect(s.list()[0]!.state, 'the error must survive the resolve').toBe('error')
+  })
+
   it('caps the session count so a hostile peer cannot grow the map unbounded', () => {
     const s = new SessionStore()
     for (let i = 0; i < 305; i++) {
