@@ -13,7 +13,7 @@ describe('src/core purity', () => {
   it('never imports gi:// or resource://', () => {
     const offenders = walk('src/core').filter((f) => {
       const src = readFileSync(f, 'utf8')
-      return src.includes("gi://") || src.includes("resource:///")
+      return src.includes("gi://") || src.includes("resource://")
     })
     expect(offenders).toEqual([])
   })
