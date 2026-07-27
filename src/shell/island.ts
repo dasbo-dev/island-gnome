@@ -89,9 +89,14 @@ export const Island = GObject.registerClass(
           try {
             this._onPrefs()
           } catch (e) {
-            // An exception escaping a Clutter signal handler is logged without
-            // context. The menu is already closed, so the user just sees no
-            // window — put the reason in the journal.
+            // This only guards a synchronous throw (e.g. from the UUID lookup
+            // in Extension.openPreferences()). The actual prefs-window launch
+            // goes through Main.extensionManager.openExtensionPrefs(), which
+            // dispatches an async D-Bus call with a null callback — a failure
+            // there never reaches this frame, it lands in the journal from
+            // the gnome-extensions side instead. Still worth catching: an
+            // exception escaping a Clutter signal handler is otherwise logged
+            // without this context, and the menu is already closed by then.
             console.warn(`dasbo-island: opening preferences failed: ${e}`)
           }
         },
@@ -260,8 +265,12 @@ export const Island = GObject.registerClass(
       // Allow/Deny/Always buttons.
       if (this._controls.size === 0) this._stopPulse()
 
-      // Ordering needs no care here: the empty row exists only while there are
-      // zero session rows, so it can never end up wedged between two of them.
+      // Ordering needs no care here: by the time this method returns, the empty
+      // row exists only while there are zero session rows. During a 0->N
+      // transition it's briefly still parented above the newly-appended rows,
+      // but it's destroyed later in this same synchronous call, before
+      // anything is painted — so it never ends up observably wedged between
+      // two session rows.
       if (sessions.length === 0 && !this._emptyRow) {
         this._emptyRow = new EmptyRow()
         ;(this.menu as PopupMenu.PopupMenu).addMenuItem(this._emptyRow)
