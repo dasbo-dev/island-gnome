@@ -128,8 +128,15 @@ export default class DasboIslandExtension extends Extension {
 
     safely('settings handlers', () => {
       const settings = this._settings
-      if (settings) for (const id of this._settingsIds) settings.disconnect(id)
-      this._settingsIds = []
+      try {
+        if (settings) for (const id of this._settingsIds) settings.disconnect(id)
+      } finally {
+        // A throw part-way through the loop must not carry the remaining ids
+        // into the next enable(): they would be stale, the following disable()
+        // would throw on them again, and the extension would never tear its
+        // handlers down cleanly again.
+        this._settingsIds = []
+      }
     })
 
     this._settings = null
