@@ -25,6 +25,9 @@ Then open the preferences and install hooks for each agent you use:
 gnome-extensions prefs dasbo-island@ayubaswad.gmail.com
 ```
 
+The preferences window is also one click away at any time: click the pill and
+then the gear in the popup's header.
+
 Each agent row shows whether its hooks are installed. If the extension
 directory moves, the row offers **Update** — every installed hook command
 embeds an absolute path. Panel box and position changes apply immediately,
