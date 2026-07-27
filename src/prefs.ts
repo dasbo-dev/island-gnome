@@ -134,7 +134,6 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     const row = new Adw.ActionRow({ title: adapters[id].displayName })
 
     const enabled = new Gtk.Switch({ valign: Gtk.Align.CENTER, tooltip_text: 'Accept events from this agent' })
-    enabled.active = settings.get_strv('enabled-agents').includes(id)
     enabled.connect('notify::active', () => {
       const current = settings.get_strv('enabled-agents')
       const has = current.includes(id)
@@ -171,6 +170,14 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     }
 
     const refresh = () => {
+      // The switch is re-read here, not just at construction: enabled-agents
+      // changes under this window — another prefs instance, gsettings, the
+      // extension itself — and refresh() exists for exactly that. Assign only
+      // on a real difference, so the notify::active handler is not woken to
+      // write back the value we have just read.
+      const isEnabled = settings.get_strv('enabled-agents').includes(id)
+      if (enabled.active !== isEnabled) enabled.active = isEnabled
+
       const state = installState(id, env)
       row.subtitle = describe(state)
       install.label = state === 'stale' ? 'Update' : 'Install'
