@@ -1,6 +1,7 @@
 import type { Decision, EventKind, HookContext } from '../types.js'
 import type { AgentAdapter } from './index.js'
 import { detailFromToolInput } from './claude.js'
+import { isRecord, str } from './shared.js'
 
 /**
  * UNVERIFIED. Codex captured no fixtures in Task 2 — the environment was not
@@ -19,14 +20,6 @@ const KIND_BY_EVENT: Record<string, EventKind> = {
   PreToolUse: 'tool-start',
   PostToolUse: 'tool-end',
   Stop: 'stop',
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v)
-}
-
-function str(v: unknown): string | undefined {
-  return typeof v === 'string' && v.length > 0 ? v : undefined
 }
 
 export const codexAdapter: AgentAdapter = {

@@ -1,5 +1,6 @@
 import type { Decision, EventKind, HookContext } from '../types.js'
 import type { AgentAdapter } from './index.js'
+import { isRecord, str } from './shared.js'
 
 const KIND_BY_EVENT: Record<string, EventKind> = {
   SessionStart: 'session-start',
@@ -7,14 +8,6 @@ const KIND_BY_EVENT: Record<string, EventKind> = {
   PreToolUse: 'tool-start',
   PostToolUse: 'tool-end',
   Stop: 'stop',
-}
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v)
-}
-
-function str(v: unknown): string | undefined {
-  return typeof v === 'string' && v.length > 0 ? v : undefined
 }
 
 /** Pick the most useful human-readable detail out of a Claude tool_input blob. */
