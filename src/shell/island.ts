@@ -51,6 +51,7 @@ export const Island = GObject.registerClass(
     private _onJump: (s: Session) => void = () => {}
     private _controls = new Map<string, PermissionControls>()
     private _pulsing = false
+    private _transientIds = new Set<number>()
     private _permHandlers: {
       resolve: (id: string, kind: 'allow' | 'deny') => void
       grantAllowAlways: (sessionKey: string, tool: string, id: string) => void
@@ -98,6 +99,19 @@ export const Island = GObject.registerClass(
 
     setJumpHandler(fn: (s: Session) => void): void {
       this._onJump = fn
+    }
+
+    showJumpFailure(key: string): void {
+      const row = this._rows.get(key)
+      if (!row) return
+      row.showTransient('no window')
+      const id = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
+        const s = this._store.get(key)
+        if (s) row.update(s)
+        this._transientIds.delete(id)
+        return GLib.SOURCE_REMOVE
+      })
+      this._transientIds.add(id)
     }
 
     setPermissionHandlers(h: {
@@ -230,6 +244,8 @@ export const Island = GObject.registerClass(
       for (const c of this._controls.values()) c.destroy()
       this._controls.clear()
       this._stopTimer()
+      for (const id of this._transientIds) GLib.Source.remove(id)
+      this._transientIds.clear()
       this._unsubscribe?.()
       this._unsubscribe = null
       if (this._settingsChangedId) {

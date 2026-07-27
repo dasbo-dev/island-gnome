@@ -5,6 +5,7 @@ import { PermissionTable } from './core/permissions.js'
 import { glibTimers } from './shell/glibTimers.js'
 import { IslandService } from './dbus/service.js'
 import { Island } from './shell/island.js'
+import { activateForPid } from './shell/windowFinder.js'
 
 export default class DasboIslandExtension extends Extension {
   private _island: InstanceType<typeof Island> | null = null
@@ -25,6 +26,11 @@ export default class DasboIslandExtension extends Extension {
       settings.get_int('panel-index'),
       settings.get_string('panel-position')
     )
+
+    this._island.setJumpHandler((session) => {
+      const ok = activateForPid(session.pid)
+      if (!ok) this._island?.showJumpFailure(session.key)
+    })
 
     this._island.setPermissionHandlers({
       resolve: (id, kind) => {
