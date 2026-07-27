@@ -25,8 +25,9 @@ Then open the preferences and install hooks for each agent you use:
 gnome-extensions prefs dasbo-island@ayubaswad.gmail.com
 ```
 
-The preferences window is also one click away at any time: click the pill and
-then the gear in the popup's header.
+Whenever the pill is visible, the preferences window is one click away: click
+the pill, then the gear in the popup's header. (The pill stays hidden while no
+session is running unless you enable **Always show the pill**.)
 
 Each agent row shows whether its hooks are installed. If the extension
 directory moves, the row offers **Update** — every installed hook command
