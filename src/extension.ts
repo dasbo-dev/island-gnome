@@ -57,6 +57,8 @@ export default class DasboIslandExtension extends Extension {
       if (!ok) this._island?.showJumpFailure(session.key)
     })
 
+    this._island.setPrefsHandler(() => this.openPreferences())
+
     this._island.setPermissionHandlers({
       resolve: (id, kind) => {
         this._permissions?.resolve(id, { kind })
