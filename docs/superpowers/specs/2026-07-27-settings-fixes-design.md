@@ -66,20 +66,30 @@ does not parse is exempt: it reports `unreadable` rather than `absent`, and
 can disagree there without contradiction — `unreadable` disables both
 buttons, and `planInstall` refuses to touch such a file either.
 
-Freshness is decided semantically, not by comparing serialized text: collect
-the command strings the file currently attributes to us, and compare them as a
-**set** against the set `planInstall` would write for the current `hookPath`.
-For Codex the `events` array is compared as a set too. Set comparison avoids
-two false "stale" reports that a text or array diff would produce — a foreign
-hook appended after ours (which `planInstall` would reorder), and indentation
-or key-order drift from a hand edit.
+Freshness is decided semantically, not by comparing serialized text, but what
+gets compared differs by agent. For Claude and Antigravity, collect
+**(event, command) pairs** the file currently attributes to us — not bare
+command strings — and compare them as a set against the pairs `planInstall`
+would write for the current `hookPath`. Pairs matter because every command we
+write encodes its own event name (see `cmd()`), so a command sitting under the
+wrong event is a broken install even though the *set of command strings alone*
+is unchanged — e.g. a hand edit that swaps the `PreToolUse` and `PostToolUse`
+commands between their groups. Comparing bare commands as a set would miss
+that and call the file `installed`; comparing pairs calls it `stale`, and
+rewriting via `planInstall` repairs it. For Codex there is only one command
+shared across every event (see `codexCommand`), so there is no per-command
+event to pair it with — the `events` array is compared as a set on its own.
+Set comparison (of pairs, or of the Codex `events` array) avoids two false
+"stale" reports that a text or array diff would produce — a foreign hook
+appended after ours (which `planInstall` would reorder), and indentation or
+key-order drift from a hand edit.
 
 | condition | state |
 |---|---|
 | file exists but does not parse as a JSON object | `unreadable` |
 | no entries attributed to us | `absent` |
-| our command set equals the expected set | `installed` |
-| our entries exist but the sets differ | `stale` |
+| our (event, command) pairs equal the expected pairs (Codex: `events` set) | `installed` |
+| our entries exist but the pairs differ — including ours under the wrong event | `stale` |
 
 `stale` is a real case, not a theoretical one: it is what an extension
 directory move produces, since every installed command embeds the absolute

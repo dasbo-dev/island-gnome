@@ -406,6 +406,30 @@ describe('installState', () => {
     expect(installState('antigravity', env(files))).toBe('installed')
   })
 
+  it('reports stale for antigravity when our commands sit under the wrong events', () => {
+    // Same two commands, same multiset — but swapped onto each other's event,
+    // so PreToolUse now fires the PostToolUse-labelled command and vice versa.
+    // Every command encodes its own event name, so this is a broken install
+    // that a bare command-set comparison would miss.
+    const doc = JSON.parse(planInstall('antigravity', env())[0]!.content)
+    const set = doc['dasbo-island']
+    const preCommand = set.PreToolUse[0].hooks[0].command
+    set.PreToolUse[0].hooks[0].command = set.PostToolUse[0].hooks[0].command
+    set.PostToolUse[0].hooks[0].command = preCommand
+    const files = { '/home/me/.gemini/config/hooks.json': JSON.stringify(doc) }
+    expect(installState('antigravity', env(files))).toBe('stale')
+  })
+
+  it('reports stale for claude when our commands sit under the wrong events', () => {
+    // Same swap as antigravity, between two of the five Claude events.
+    const doc = JSON.parse(planInstall('claude', env())[0]!.content)
+    const preCommand = doc.hooks.PreToolUse[0].hooks[0].command
+    doc.hooks.PreToolUse[0].hooks[0].command = doc.hooks.PostToolUse[0].hooks[0].command
+    doc.hooks.PostToolUse[0].hooks[0].command = preCommand
+    const files = { '/home/me/.claude/settings.json': JSON.stringify(doc) }
+    expect(installState('claude', env(files))).toBe('stale')
+  })
+
   it('reports stale for antigravity when one of our command entries is duplicated', () => {
     const doc = JSON.parse(planInstall('antigravity', env())[0]!.content)
     doc['dasbo-island'].Stop.push(doc['dasbo-island'].Stop[0])

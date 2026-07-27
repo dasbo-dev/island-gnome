@@ -242,23 +242,29 @@ function sameStrings(a: string[], b: string[]): boolean {
   return x.every((v, i) => v === y[i])
 }
 
-function expectedClaudeCommands(env: InstallEnv): string[] {
-  return CLAUDE_EVENTS.map((event) =>
-    cmd(env, 'claude', event === 'PreToolUse' ? 'permission' : 'notify', event)
+/**
+ * (event, command) pairs planInstall would write, encoded as a single string
+ * per pair (`${event} ${command}`) so the existing sameStrings helper can
+ * compare them. A space is a safe separator: none of our event names
+ * (`PreToolUse`, `PostInvocation`, ...) contain one.
+ */
+function expectedClaudeEntries(env: InstallEnv): string[] {
+  return CLAUDE_EVENTS.map(
+    (event) => `${event} ${cmd(env, 'claude', event === 'PreToolUse' ? 'permission' : 'notify', event)}`
   )
 }
 
-function expectedAntigravityCommands(env: InstallEnv): string[] {
+function expectedAntigravityEntries(env: InstallEnv): string[] {
   return [
-    ...ANTIGRAVITY_GROUPED.map((event) =>
-      cmd(env, 'antigravity', event === 'PreToolUse' ? 'permission' : 'notify', event)
+    ...ANTIGRAVITY_GROUPED.map(
+      (event) => `${event} ${cmd(env, 'antigravity', event === 'PreToolUse' ? 'permission' : 'notify', event)}`
     ),
-    ...ANTIGRAVITY_FLAT.map((event) => cmd(env, 'antigravity', 'notify', event)),
+    ...ANTIGRAVITY_FLAT.map((event) => `${event} ${cmd(env, 'antigravity', 'notify', event)}`),
   ]
 }
 
-/** Commands the file currently attributes to us, across the events we own. */
-function presentClaudeCommands(root: Record<string, any>): string[] {
+/** (event, command) pairs the file currently attributes to us, across the events we own. */
+function presentClaudeEntries(root: Record<string, any>): string[] {
   const hooks = isRecord(root['hooks']) ? root['hooks'] : {}
   const out: string[] = []
   for (const event of CLAUDE_EVENTS) {
@@ -266,14 +272,14 @@ function presentClaudeCommands(root: Record<string, any>): string[] {
     for (const group of groups) {
       if (!isRecord(group) || !Array.isArray(group['hooks'])) continue
       for (const h of group['hooks']) {
-        if (isRecord(h) && isOurs(h['command'])) out.push(h['command'])
+        if (isRecord(h) && isOurs(h['command'])) out.push(`${event} ${h['command']}`)
       }
     }
   }
   return out
 }
 
-function presentAntigravityCommands(root: Record<string, any>): string[] {
+function presentAntigravityEntries(root: Record<string, any>): string[] {
   const set = isRecord(root[ANTIGRAVITY_KEY]) ? root[ANTIGRAVITY_KEY] : {}
   const out: string[] = []
   for (const event of ANTIGRAVITY_GROUPED) {
@@ -281,14 +287,14 @@ function presentAntigravityCommands(root: Record<string, any>): string[] {
     for (const group of groups) {
       if (!isRecord(group) || !Array.isArray(group['hooks'])) continue
       for (const h of group['hooks']) {
-        if (isRecord(h) && typeof h['command'] === 'string') out.push(h['command'])
+        if (isRecord(h) && typeof h['command'] === 'string') out.push(`${event} ${h['command']}`)
       }
     }
   }
   for (const event of ANTIGRAVITY_FLAT) {
     const entries = Array.isArray(set[event]) ? set[event] : []
     for (const h of entries) {
-      if (isRecord(h) && typeof h['command'] === 'string') out.push(h['command'])
+      if (isRecord(h) && typeof h['command'] === 'string') out.push(`${event} ${h['command']}`)
     }
   }
   return out
@@ -316,10 +322,19 @@ function codexMatches(env: InstallEnv, root: Record<string, any>): boolean {
  * A file that does not parse reports `unreadable`, which disables both
  * buttons: planInstall refuses to touch it either.
  *
- * Freshness compares the command strings the file attributes to us against the
- * ones planInstall would write, as sorted lists. Comparing serialized text
- * instead would report a false `stale` for indentation, key order, or a
- * foreign hook appended after ours.
+ * Freshness compares what the file attributes to us against what planInstall
+ * would write, as sorted lists, but *what* gets compared differs by agent.
+ * For Claude and Antigravity it is (event, command) pairs, not bare command
+ * strings: every command we write encodes its own event name (see cmd()), so
+ * a command sitting under the wrong event — say ours for PreToolUse hand-moved
+ * under PostToolUse — is a broken install even though the multiset of command
+ * strings alone looks unchanged. Comparing pairs catches that; rewriting via
+ * planInstall repairs it. For Codex there is only one command shared across
+ * many events (see codexCommand), so the array of event names is what varies
+ * and carries no per-command association — that stays a plain sorted-array
+ * comparison. Comparing serialized text instead of either of these would
+ * report a false `stale` for indentation, key order, or a foreign hook
+ * appended after ours.
  */
 export function installState(agent: AgentId, env: InstallEnv): InstallState {
   const doc = parseOrNull(env.existing(configPath(agent, env)))
@@ -328,9 +343,9 @@ export function installState(agent: AgentId, env: InstallEnv): InstallState {
   const root = doc ?? {}
   const fresh =
     agent === 'claude'
-      ? sameStrings(presentClaudeCommands(root), expectedClaudeCommands(env))
+      ? sameStrings(presentClaudeEntries(root), expectedClaudeEntries(env))
       : agent === 'codex'
         ? codexMatches(env, root)
-        : sameStrings(presentAntigravityCommands(root), expectedAntigravityCommands(env))
+        : sameStrings(presentAntigravityEntries(root), expectedAntigravityEntries(env))
   return fresh ? 'installed' : 'stale'
 }
