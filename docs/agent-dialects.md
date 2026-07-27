@@ -19,7 +19,8 @@ every kept file is still an unedited verbatim payload, just not every
 duplicate step was retained.
 
 Versions actually installed and driven: Claude Code 2.1.220, Codex CLI
-0.142.0, Antigravity CLI (`agy`) 1.1.7.
+0.142.0 (first attempt) / 0.145.0 (second attempt — self-updated between
+attempts), Antigravity CLI (`agy`) 1.1.7.
 
 ---
 
@@ -91,67 +92,141 @@ has `source` (e.g. `"startup"`). `Stop` additionally has
 
 ---
 
-## Codex CLI 0.142.0 — BLOCKED (environmental: not authenticated), but one real dialect finding recovered
+## Codex CLI 0.142.0 → 0.145.0 — BLOCKED (auth fixed; hooks parse but never fire), zero fixtures
 
-**Config file:** `~/.codex/hooks.json`.
+Auth was fixed for this attempt (`codex login status` → `Logged in using
+ChatGPT`), and the installed binary self-updated mid-environment from
+0.142.0 to **0.145.0** (`codex doctor` shows `startup update check: true`,
+`cached latest version 0.145.0`) — so this round's findings are against
+0.145.0, a newer build than the one the first attempt characterized. The
+auth blocker is gone. A **different** blocker replaced it: the hooks
+config is demonstrably read and validated by the binary, but no hook of
+ours ever executed, under any of three attempted event-name spellings, and
+no available diagnostic (trace logging, session rollout log, subprocess
+evidence) explains why. This is reported as **BLOCKED** per the task's
+explicit instruction to keep this status when zero fixtures are captured,
+even though the blocker itself is new information.
 
-**What the brief guessed vs. what Codex's own parser demands:** the brief's
-guessed shape was a bare map at the top level:
-```json
-{ "vibe-island": { "command": "...", "events": [...] } }
-```
-This is the shape that was **already installed** on this machine (the
-foreign `vibe-island` entry). Codex 0.142.0 rejects it. Running `codex exec`
-against it printed, before anything else:
-```
-warning: failed to parse hooks config /home/fsevenm/.codex/hooks.json: unknown field `vibe-island`, expected `hooks` at line 2 column 15
-```
-i.e. the **real** required shape wraps the named-hook map in a `hooks` key:
+**Config file:** `~/.codex/hooks.json` — confirmed still the right path.
+Proof it is actually parsed on 0.145.0, not just silently ignored: feeding
+it deliberately invalid JSON (`{ this is not valid json`) reproduced a
+parse warning at the exact path (`warning: failed to parse hooks config
+/home/fsevenm/.codex/hooks.json: key must be a string at line 1 column 3`),
+confirming the config-discovery/parse code path in
+`hooks/src/engine/discovery.rs` (path recovered from strings embedded in
+the Codex binary) is live in 0.145.0 exactly as documented for 0.142.0.
+
+**Shape used (per this task's brief, activating both entries):**
 ```json
 {
   "hooks": {
-    "vibe-island":   { "command": "...", "events": [...] },
-    "dasbo-capture": { "command": "...", "events": [...] }
+    "vibe-island":   { "command": "python3 /home/fsevenm/.codex/vibe-island-hook.py", "events": [...] },
+    "dasbo-capture": { "command": "env DASBO_FIXTURE_DIR=.../test/fixtures /path/to/tools/capture-hook codex", "events": [...] }
   }
 }
 ```
-This was corrected (see `~/.codex/hooks.json` during the capture window,
-restored afterward) and the parse warning disappeared on the next run,
-confirming the corrected shape is at least syntactically accepted. **This
-was not verified beyond the parser** because every attempt to run a real
-Codex session failed for an unrelated reason described below. Also
-noteworthy: this installed Codex build supports
-`--dangerously-bypass-hook-trust`, implying hook execution is normally
-gated behind a persisted "hook trust" step that was never established for
-`dasbo-capture` — a second variable this task could not isolate from the
-auth failure.
+This shape — a `hooks` map keyed by an **arbitrary hook name** (not an
+event name), each value holding one `command` plus a list of `events` it
+subscribes to — parses with **no warning** on 0.145.0 for all three `events`
+value spellings tried below, confirming the wrapper shape itself
+(established by the first attempt against 0.142.0) is still correct. The
+open question was only ever what strings belong inside `events`.
 
-**Why no session completed:** `codex login status` → `Not logged in`. No
-`OPENAI_API_KEY` or other credential is present in this environment. Every
-`codex exec` attempt (with `--skip-git-repo-check
---dangerously-bypass-hook-trust --dangerously-bypass-approvals-and-sandbox`
-to clear the non-hook blockers) failed with repeated
-`HTTP error: 401 Unauthorized` against `api.openai.com` and eventually gave
-up reconnecting. This is an **authentication/environment failure, not a
-hook-shape failure** — no fixtures could be produced regardless of hook
-config correctness, because the agent never got far enough to run a tool.
+**Backing up / restoring, as required:** `~/.codex/hooks.json` was copied to
+`~/.codex/hooks.json.precapture` before any edits. After all attempts, it
+was restored with `cp -p` and verified two ways: `cmp` reported no
+differences, and `md5sum` of both files matched exactly
+(`b76c3a02ea88dae082149909f296362e`). The backup file was then deleted.
+Restoring **activated** the previously-dormant `vibe-island` entry for the
+duration of the capture window (it was foreign, unwrapped, and thus
+rejected by the parser before this task touched it) — per the task's own
+note, its script only attempts a Unix socket connection and gives up
+quietly, so this was harmless, and it is gone now that the original
+unwrapped (and therefore parser-rejected, therefore inert) file is back.
 
-**What was tried (2 alternative angles, per the task's escalation rule):**
-1. The brief's literal shape (already installed) — rejected by Codex's own
-   parser (`unknown field vibe-island, expected hooks`).
-2. The corrected `{"hooks": {...}}` wrapper implied by that parser error —
-   parses cleanly (warning disappears), but could not be exercised further
-   because of the unrelated 401s.
+**Driving command** (from `/tmp/dasbo-capture`, `a.txt` seeded with
+`hello`):
+```
+codex exec --skip-git-repo-check --dangerously-bypass-hook-trust --dangerously-bypass-approvals-and-sandbox 'read a.txt, append the word world to it, then run `ls -la`'
+```
+This **worked** as an agent session in all three attempts below — Codex
+read the file, appended `world`, and ran `ls -la`, i.e. the tool-use path
+that should trigger `PreToolUse`/`PostToolUse`-equivalent hooks definitely
+executed. No hook fixture was ever written despite that.
 
-No third attempt was made; further iteration would not fix an auth problem,
-and the task instructions are explicit that auth/network failures should be
-reported plainly rather than treated as a hook-shape problem to keep
-guessing at.
+**What was tried (3 alternatives, the task's cap, then stopped):**
 
-**Exact key names:** unknown — **ABSENT** (no payload was ever captured).
-Task 5's Codex adapter should be marked **BLOCKED** until a session can be
-authenticated and re-run against the corrected `{"hooks": {...}}` shape
-above.
+1. **The task brief's literal `events` values** — lowercase, dot-separated,
+   matching the pre-existing `vibe-island` entry's own convention:
+   `["session.start","session.end","tool.start","tool.end"]`. Parsed
+   cleanly. Zero fixtures.
+2. **PascalCase**, matching a cluster of hook-event-name strings found
+   embedded in the Codex 0.145.0 binary itself
+   (`strings <codex-binary> | grep -E 'PreToolUse|SessionStart|...'`,
+   specifically adjacent to a `ManagedHooksRequirements.ts` type listing:
+   `PreToolUse`, `PermissionRequest`, `PostToolUse`, `PreCompact`,
+   `PostCompact`, `SessionStart`, `SessionEnd`, `UserPromptSubmit`,
+   `SubagentStart`, `SubagentStop` — i.e. Claude Code's own vocabulary,
+   found verbatim inside the Codex binary):
+   `["SessionStart","SessionEnd","PreToolUse","PostToolUse"]`. Parsed
+   cleanly. Zero fixtures.
+3. **camelCase**, matching a *different* contiguous string cluster in the
+   same binary (`preToolUse`, `permissionRequest`, `postToolUse`,
+   `preCompact`, `postCompact`, `sessionStart`, `sessionEnd`,
+   `subagentStart`, `subagentStop` — found immediately adjacent to
+   `HookTrustStatus` `trusted`/`untrusted` strings, and to a
+   `HookRunSummary.eventName` TypeScript binding, suggesting a
+   `#[serde(rename_all = "camelCase")]` JS-facing wire encoding distinct
+   from the enterprise-policy PascalCase names above):
+   `["sessionStart","sessionEnd","preToolUse","postToolUse"]`. Parsed
+   cleanly. Zero fixtures.
+
+All three produced **identical negative evidence**, checked three ways:
+- `test/fixtures/codex/` was never created (`capture-hook` never ran).
+- A full `RUST_LOG=trace codex exec ...` run (2,269 log lines) contained
+  **zero** lines matching `hook` case-insensitively — not even a "loaded N
+  hooks" info-level line, despite `codex features list` showing `hooks
+  stable true` (the feature is on) and despite the parser being
+  demonstrably live (see the malformed-JSON control test above).
+- Every session rollout JSONL written this session
+  (`~/.codex/sessions/2026/07/27/*.jsonl`, 9 files across all attempts) was
+  grepped for `hook`; none contains a `HookCompletedEvent` or any other
+  hook-tagged item, even though the binary's own strings show
+  `HookCompletedEvent`/`ItemCompletedEvent` exist as a rollout item type.
+
+**A control that rules out one theory:** `--dangerously-bypass-hook-trust`
+prints `warning: \`--dangerously-bypass-hook-trust\` is enabled. Enabled
+hooks may run without review for this invocation.` **unconditionally**
+whenever the flag is passed — verified by pointing `hooks.json` at
+`{"hooks": {}}` (zero entries) and getting the identical warning, twice.
+So the warning's presence is **not** evidence any hook was recognized,
+trusted, or enabled; it says nothing about `dasbo-capture` specifically.
+
+**Root cause: undetermined, but well bounded.** Two live hypotheses, neither
+confirmed nor ruled out within the task's 3-attempt budget:
+- A fourth, untried `events` spelling is the real one (the binary's strings
+  contain at least two plausible-but-different casings for the same
+  concept, which is itself notable — Codex's own internal vocabulary is not
+  self-consistent across its embedded string tables).
+- The flat `hooks: {name: {command, events}}` map is a **legacy** shape
+  (the binary also contains `hooks/src/legacy_notify.rs` and a `removed`,
+  disabled `plugin_hooks` feature flag) that is still parsed for
+  backward-compatible error messages but is no longer wired to actual
+  execution in 0.145.0, having been superseded by a plugin/marketplace hook
+  mechanism with its own `requirements.toml` manifest under an
+  `enterprise-managed:` directory — a materially different mechanism, not
+  a shape variant of what was tried.
+- A persisted, per-config-hash hook-trust gate
+  (`tui/src/startup_hooks_review.rs`, `HookTrustStatus: trusted/untrusted`)
+  that `--dangerously-bypass-hook-trust` does not actually clear outside
+  interactive TUI review is also possible — the flag's own help text scopes
+  it to "for this invocation," and `codex doctor` has no hooks section at
+  all to check trust state against.
+
+No fourth attempt was made, per the task's explicit 3-alternative cap.
+
+**Exact key names:** unknown — **ABSENT** for every field (no payload was
+ever captured, so there is nothing to read key names off of).
 
 **Fixtures:** none. `test/fixtures/codex/` does not exist.
 
@@ -328,5 +403,5 @@ success payload beyond the keys documented above.
 | Agent | Adapter status | Fixture count | Blocker |
 |---|---|---|---|
 | Claude Code | ready to implement | 17 | none |
-| Codex 0.142.0 | **BLOCKED** | 0 | not authenticated in this environment (401 on every API call); hooks.json shape corrected (`{"hooks": {...}}`) but unverified past the config parser |
+| Codex 0.142.0 / 0.145.0 | **BLOCKED** | 0 | auth is fixed and no longer the issue; `hooks.json` wrapper shape (`{"hooks": {name: {command, events}}}`) parses cleanly (proven via a malformed-JSON control test), but no hook fired under any of 3 tried `events` spellings (lowercase-dot, PascalCase, camelCase) — zero hook-related trace log lines, zero `HookCompletedEvent` in session rollouts, zero fixtures. Root cause undetermined between: wrong spelling, a legacy/superseded config mechanism, or an unbypassable persisted hook-trust gate — see Codex section above |
 | Antigravity 1.1.7 | ready to implement, with a caveat | 12 | none for capture, but the adapter must not rely on any in-payload event-name field — see "Critical dialect gap" above |
