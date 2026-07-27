@@ -1,7 +1,7 @@
 UUID := dasbo-island@ayubaswad.gmail.com
 DEST := $(HOME)/.local/share/gnome-shell/extensions/$(UUID)
 
-.PHONY: build install uninstall schemas test typecheck clean
+.PHONY: build install uninstall schemas test typecheck clean pack
 
 build:
 	npm run build
@@ -25,3 +25,7 @@ typecheck:
 
 clean:
 	rm -rf dist node_modules
+
+pack: build
+	cd dist && zip -qr ../$(UUID).shell-extension.zip . -x '*.map'
+	@echo "Wrote $(UUID).shell-extension.zip"
