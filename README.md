@@ -25,6 +25,12 @@ Then open the preferences and install hooks for each agent you use:
 gnome-extensions prefs dasbo-island@ayubaswad.gmail.com
 ```
 
+Each agent row shows whether its hooks are installed. If the extension
+directory moves, the row offers **Update** — every installed hook command
+embeds an absolute path. Panel box and position changes apply immediately,
+with no reload; note that extensions replacing the top bar, such as Dash to
+Panel, decide where each box ends up on screen.
+
 ## Supported agents
 
 | Agent | Config touched | Status | Permission gating |
