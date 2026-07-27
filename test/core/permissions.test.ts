@@ -272,6 +272,85 @@ describe('PermissionTable', () => {
     expect(pendingTimers(), 'both are active, so both have clocks').toBe(2)
   })
 
+  it('a resolve callback that throws does not prevent removal or block the queue', () => {
+    const store = seeded()
+    const { timers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    const seen: Decision[] = []
+    const first = t.request({ sessionKey: 'claude:s1', tool: 'Bash', timeoutSeconds: 30 }, () => {
+      throw new Error('dead peer')
+    })
+    const second = t.request({ sessionKey: 'claude:s1', tool: 'Edit', timeoutSeconds: 30 }, (d) => seen.push(d))
+
+    // Must not throw out of resolve() itself.
+    expect(() => t.resolve(first, { kind: 'allow' })).not.toThrow()
+
+    // The throwing entry is gone and the queue advanced to the next one.
+    expect(t.pendingCount()).toBe(1)
+    expect(store.get('claude:s1')!.pendingPermission!.id).toBe(second)
+    expect(store.get('claude:s1')!.pendingPermission!.tool).toBe('Edit')
+
+    t.resolve(second, { kind: 'deny' })
+    expect(seen).toEqual([{ kind: 'deny' }])
+    expect(t.pendingCount()).toBe(0)
+  })
+
+  it('resolveAllFallthrough continues past a throwing callback and drains everything', () => {
+    const store = seeded()
+    const { timers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    const seen: Decision[] = []
+    t.request({ sessionKey: 'claude:s1', tool: 'Bash', timeoutSeconds: 30 }, () => {
+      throw new Error('dead peer')
+    })
+    t.request({ sessionKey: 'claude:s1', tool: 'Edit', timeoutSeconds: 30 }, (d) => seen.push(d))
+
+    expect(() => t.resolveAllFallthrough()).not.toThrow()
+    expect(seen).toEqual([{ kind: 'fallthrough', reason: 'Dasbo Island shutting down' }])
+    expect(t.pendingCount()).toBe(0)
+  })
+
+  it('releaseSession resolves the active and every queued entry for one session with fall-through', () => {
+    const store = seeded()
+    const { timers, pendingTimers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    const seen: Decision[] = []
+    t.request({ sessionKey: 'claude:s1', tool: 'Bash', timeoutSeconds: 30 }, (d) => seen.push(d))
+    t.request({ sessionKey: 'claude:s1', tool: 'Edit', timeoutSeconds: 30 }, (d) => seen.push(d))
+
+    t.releaseSession('claude:s1')
+
+    expect(seen).toHaveLength(2)
+    expect(seen.every((d) => d.kind === 'fallthrough')).toBe(true)
+    expect(t.pendingCount()).toBe(0)
+    expect(pendingTimers()).toBe(0)
+  })
+
+  it('releaseSession does not disturb an unrelated session', () => {
+    const store = seeded()
+    store.apply({ agent: 'claude', kind: 'session-start', sessionId: 's2', cwd: '/p/other', pid: 11, ts: 0 })
+    const { timers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    const seen1: Decision[] = []
+    const seen2: Decision[] = []
+    t.request({ sessionKey: 'claude:s1', tool: 'Bash', timeoutSeconds: 30 }, (d) => seen1.push(d))
+    t.request({ sessionKey: 'claude:s2', tool: 'Bash', timeoutSeconds: 30 }, (d) => seen2.push(d))
+
+    t.releaseSession('claude:s1')
+
+    expect(seen1).toEqual([{ kind: 'fallthrough', reason: 'Session reaped' }])
+    expect(seen2).toHaveLength(0)
+    expect(t.pendingCount()).toBe(1)
+  })
+
+  it('releaseSession on a session with nothing pending is a no-op', () => {
+    const store = seeded()
+    const { timers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    expect(() => t.releaseSession('claude:s1')).not.toThrow()
+    expect(t.pendingCount()).toBe(0)
+  })
+
   it('drains active and queued entries exactly once on shutdown', () => {
     const store = seeded()
     const { timers, pendingTimers } = fakeTimers()

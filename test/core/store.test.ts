@@ -118,11 +118,74 @@ describe('SessionStore', () => {
     expect(s.list()).toHaveLength(0)
   })
 
-  it('reap never drops a session with a pending permission', () => {
+  it('reap keeps a pending permission with a live deadline even if the pid is dead', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    s.setPending('claude:s1', { id: 'p1', tool: 'Bash', deadline: 30_000, queued: 0 })
+    s.reap(99_999_999, () => false)
+    expect(s.list()).toHaveLength(1)
+  })
+
+  it('reap keeps a pending permission with deadline 0 while the pid is alive', () => {
     const s = new SessionStore()
     s.apply(ev({ ts: 0 }))
     s.setPending('claude:s1', { id: 'p1', tool: 'Bash', deadline: 0, queued: 0 })
-    s.reap(99_999_999, () => false)
+    s.reap(99_999_999, () => true)
     expect(s.list()).toHaveLength(1)
+  })
+
+  it('reap drops a zombie pending permission: dead pid and deadline 0, and reports its key', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    s.setPending('claude:s1', { id: 'p1', tool: 'Bash', deadline: 0, queued: 0 })
+    const dropped = s.reap(99_999_999, () => false)
+    expect(s.list()).toHaveLength(0)
+    expect(dropped).toEqual(['claude:s1'])
+  })
+
+  it('reap returns the keys it dropped for ordinary abandonment and linger too', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    const fifteenMin = 15 * 60 * 1000
+    const dropped = s.reap(fifteenMin + 1, () => false)
+    expect(dropped).toEqual(['claude:s1'])
+  })
+
+  it('applying tool-end while a permission is pending leaves state waiting, and resolving settles to idle', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    s.setPending('claude:s1', { id: 'p1', tool: 'Bash', detail: 'rm -rf build', deadline: 30_000, queued: 0 })
+    expect(s.list()[0]!.state).toBe('waiting')
+
+    // A parallel tool batch: another tool's tool-end arrives while Bash's
+    // permission is still held open.
+    s.apply(ev({ kind: 'tool-end', tool: 'Edit', ts: 1000 }))
+    expect(s.list()[0]!.state, 'must still say waiting — the agent is still blocked').toBe('waiting')
+    expect(s.list()[0]!.pendingPermission?.id).toBe('p1')
+
+    s.clearPending('claude:s1')
+    expect(s.list()[0]!.state).toBe('idle')
+  })
+
+  it('applying stop while a permission is pending leaves state waiting, and resolving settles to done', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    s.setPending('claude:s1', { id: 'p1', tool: 'Bash', detail: 'rm -rf build', deadline: 30_000, queued: 0 })
+    expect(s.list()[0]!.state).toBe('waiting')
+
+    s.apply(ev({ kind: 'stop', ts: 2000 }))
+    expect(s.list()[0]!.state, 'must still say waiting until the permission resolves').toBe('waiting')
+    expect(s.list()[0]!.doneAt).toBe(2000)
+
+    s.clearPending('claude:s1')
+    expect(s.list()[0]!.state).toBe('done')
+  })
+
+  it('caps the session count so a hostile peer cannot grow the map unbounded', () => {
+    const s = new SessionStore()
+    for (let i = 0; i < 305; i++) {
+      s.apply(ev({ sessionId: `s${i}`, ts: i }))
+    }
+    expect(s.list().length).toBe(300)
   })
 })

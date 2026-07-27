@@ -53,32 +53,62 @@ export default class DasboIslandExtension extends Extension {
 
     this._service = new IslandService(this._store, this._permissions, {
       timeoutSeconds: () => settings.get_int('permission-timeout'),
+      enabledAgents: () => settings.get_strv('enabled-agents'),
       onPermissionOpened: () => this._island?.notifyPermissionOpened(),
     })
     this._service.export()
 
     this._reaperId = GLib.timeout_add_seconds(GLib.PRIORITY_LOW, 60, () => {
-      this._store?.reap(Date.now(), pidAlive)
+      const dropped = this._store?.reap(Date.now(), pidAlive) ?? []
+      for (const key of dropped) this._permissions?.releaseSession(key)
       return GLib.SOURCE_CONTINUE
     })
   }
 
   disable() {
-    if (this._reaperId) {
-      GLib.Source.remove(this._reaperId)
-      this._reaperId = 0
+    // A throw in one teardown step must not skip the rest: it would leave the
+    // remaining agents wedged and, worse, could skip _island.destroy() itself
+    // — leaking the panel button, the store subscription, the settings
+    // handler and the 1s timer, so the next enable() adds a second button.
+    const safely = (label: string, fn: () => void) => {
+      try {
+        fn()
+      } catch (e) {
+        console.warn(`dasbo-island: teardown step "${label}" failed: ${e}`)
+      }
     }
-    this._service?.unexport()
-    this._service = null
-    this._permissions?.resolveAllFallthrough()
-    this._permissions = null
-    this._island?.destroy()
-    this._island = null
+
+    safely('reaper timer', () => {
+      if (this._reaperId) {
+        GLib.Source.remove(this._reaperId)
+        this._reaperId = 0
+      }
+    })
+
+    safely('dbus service', () => {
+      this._service?.unexport()
+      this._service = null
+    })
+
+    safely('pending permissions', () => {
+      this._permissions?.resolveAllFallthrough()
+      this._permissions = null
+    })
+
+    safely('island', () => {
+      this._island?.destroy()
+      this._island = null
+    })
+
     this._store = null
-    if (this._settingsChangedId && this._settings) {
-      this._settings.disconnect(this._settingsChangedId)
-      this._settingsChangedId = 0
-    }
+
+    safely('settings handler', () => {
+      if (this._settingsChangedId && this._settings) {
+        this._settings.disconnect(this._settingsChangedId)
+        this._settingsChangedId = 0
+      }
+    })
+
     this._settings = null
   }
 }

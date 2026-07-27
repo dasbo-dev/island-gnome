@@ -110,6 +110,25 @@ export class PermissionTable {
     }
   }
 
+  /**
+   * Resolve every entry — active and queued — for one session, exactly like
+   * resolveAllFallthrough does globally. Used by the reaper: SessionStore.reap
+   * cannot resolve a held request itself (it must not depend on this table), so
+   * it reports which session keys it dropped and the caller releases them here.
+   */
+  releaseSession(sessionKey: string): void {
+    const queue = this.queues.get(sessionKey)
+    if (!queue || queue.length === 0) return
+    this.draining = true
+    try {
+      for (const id of [...queue]) {
+        this.finish(id, { kind: 'fallthrough', reason: 'Session reaped' })
+      }
+    } finally {
+      this.draining = false
+    }
+  }
+
   /** Make the head of this session's queue the active request and start its clock. */
   private activate(sessionKey: string): void {
     if (this.draining) return
@@ -173,7 +192,15 @@ export class PermissionTable {
       if (queue.length === 0) this.queues.delete(entry.sessionKey)
     }
 
-    entry.resolve(d)
+    // entry.resolve is a D-Bus reply against a peer that may already be dead.
+    // A throw here must not prevent this entry from being removed or the
+    // queue from advancing — otherwise one dead peer wedges every other
+    // session's drain, including during disable().
+    try {
+      entry.resolve(d)
+    } catch (e) {
+      console.warn(`dasbo-island: permission resolve callback for ${id} threw: ${e}`)
+    }
 
     const remaining = this.queues.get(entry.sessionKey)
     if (!remaining || remaining.length === 0) {
