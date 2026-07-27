@@ -173,7 +173,7 @@ reads `installState` and drives the row:
 |---|---|---|---|
 | `absent` | Not installed | label `Install`, sensitive | insensitive |
 | `installed` | Hooks installed | label `Install`, insensitive | sensitive |
-| `stale` | Hooks need updating — they don't match what this version installs | label `Update`, sensitive | sensitive |
+| `stale` | Hooks need updating — they don’t match what this version installs | label `Update`, sensitive | sensitive |
 | `unreadable` | `<path>` is not valid JSON | insensitive | insensitive |
 
 Every row's `refresh()` runs after any install or remove action, and on the

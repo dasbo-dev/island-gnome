@@ -34,7 +34,12 @@ export function placeInPanelBox(container: Clutter.Actor, box: string, index: nu
   const panel = Main.panel as PanelWithBoxes
   const target =
     box === 'left' ? panel._leftBox : box === 'center' ? panel._centerBox : panel._rightBox
-  if (!target) return
+  if (!target) {
+    // Silence here would make every position change an invisible no-op with
+    // nothing to go on.
+    console.warn(`dasbo-island: panel box "${box}" is missing; leaving the pill where it is`)
+    return
+  }
   const parent = container.get_parent()
   if (parent) parent.remove_child(container)
   target.insert_child_at_index(container, index)
