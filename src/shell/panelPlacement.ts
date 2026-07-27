@@ -4,12 +4,14 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 /**
  * The panel exposes its three boxes only as private fields. Widen locally
  * rather than reaching for `any`, the same way island.ts widens the menu's
- * signal map.
+ * signal map. Optional, because private fields carry no compatibility
+ * promise — typing them as always-present would hide the one case worth
+ * handling.
  */
 type PanelWithBoxes = typeof Main.panel & {
-  _leftBox: Clutter.Actor
-  _centerBox: Clutter.Actor
-  _rightBox: Clutter.Actor
+  _leftBox?: Clutter.Actor
+  _centerBox?: Clutter.Actor
+  _rightBox?: Clutter.Actor
 }
 
 /**
@@ -21,13 +23,18 @@ type PanelWithBoxes = typeof Main.panel & {
  * register the same menu repeatedly. Reparenting the container alone leaves
  * both registrations intact.
  *
- * An unknown box name falls back to the right box, matching what
- * `addToStatusArea` does with one.
+ * An unknown box NAME falls back to the right box, matching what
+ * `addToStatusArea` does with one. A missing box ACTOR is a different
+ * condition — a future Shell renaming these private fields — and the pill
+ * stays where it is rather than being orphaned: unparenting it first and only
+ * then discovering there is nowhere to put it would leave it invisible until
+ * the extension was re-enabled.
  */
 export function placeInPanelBox(container: Clutter.Actor, box: string, index: number): void {
   const panel = Main.panel as PanelWithBoxes
   const target =
     box === 'left' ? panel._leftBox : box === 'center' ? panel._centerBox : panel._rightBox
+  if (!target) return
   const parent = container.get_parent()
   if (parent) parent.remove_child(container)
   target.insert_child_at_index(container, index)
