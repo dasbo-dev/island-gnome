@@ -3,7 +3,7 @@ import Gtk from 'gi://Gtk'
 import GLib from 'gi://GLib'
 import type Gio from 'gi://Gio'
 import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js'
-import { planInstall, planUninstall, type InstallEnv } from './core/install/plan.js'
+import { planInstall, planUninstall, isLegacyCodexHooks, type InstallEnv } from './core/install/plan.js'
 import { applyEdits, readFileOrNull } from './shell/applyEdits.js'
 import { adapters } from './core/adapters/index.js'
 import type { AgentId } from './core/types.js'
@@ -100,6 +100,18 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     for (const id of ['claude', 'codex', 'antigravity'] as AgentId[]) {
       const row = new Adw.ActionRow({ title: adapters[id].displayName })
 
+      const enabled = new Gtk.Switch({ valign: Gtk.Align.CENTER, tooltip_text: 'Accept events from this agent' })
+      enabled.active = settings.get_strv('enabled-agents').includes(id)
+      enabled.connect('notify::active', () => {
+        const current = settings.get_strv('enabled-agents')
+        const has = current.includes(id)
+        if (enabled.active && !has) {
+          settings.set_strv('enabled-agents', [...current, id])
+        } else if (!enabled.active && has) {
+          settings.set_strv('enabled-agents', current.filter((a) => a !== id))
+        }
+      })
+
       const install = new Gtk.Button({ label: 'Install', valign: Gtk.Align.CENTER })
       const uninstall = new Gtk.Button({ label: 'Remove', valign: Gtk.Align.CENTER })
 
@@ -110,7 +122,8 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
         }
         // Must be read before applyEdits rewrites the file — afterwards it's
         // already wrapped and this would always report false.
-        const migrating = id === 'codex' && verb === 'install' && this._isUnwrappedCodexHooks(env)
+        const migrating =
+          id === 'codex' && verb === 'install' && isLegacyCodexHooks(env.existing(`${env.home}/.codex/hooks.json`))
         try {
           applyEdits(edits)
           const migrationNote = migrating
@@ -125,6 +138,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
       install.connect('clicked', () => run(planInstall(id, env), 'install'))
       uninstall.connect('clicked', () => run(planUninstall(id, env), 'remove'))
 
+      row.add_suffix(enabled)
       row.add_suffix(install)
       row.add_suffix(uninstall)
       group.add(row)
@@ -132,26 +146,6 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
 
     page.add(group)
     return page
-  }
-
-  /**
-   * True when ~/.codex/hooks.json exists, parses, has no top-level `hooks`
-   * key, and holds at least one entry — the legacy shape Codex 0.142 rejects
-   * outright, silently disabling every entry in the file until install()
-   * wraps it. Checked before applying so the toast can tell the user their
-   * other tooling is about to start firing again, rather than that happening
-   * silently. An empty `{}` has nothing to reactivate, so it's excluded.
-   */
-  private _isUnwrappedCodexHooks(env: InstallEnv): boolean {
-    const text = env.existing(`${env.home}/.codex/hooks.json`)
-    if (text === null) return false
-    try {
-      const doc = JSON.parse(text)
-      if (typeof doc !== 'object' || doc === null || Array.isArray(doc)) return false
-      return !('hooks' in doc) && Object.keys(doc).length > 0
-    } catch {
-      return false
-    }
   }
 
   private _toast(window: Adw.PreferencesWindow, text: string): void {

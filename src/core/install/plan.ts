@@ -43,6 +43,29 @@ function parseOrNull(text: string | null): Record<string, any> | null | undefine
   }
 }
 
+/**
+ * True when ~/.codex/hooks.json exists, parses, and holds at least one entry
+ * in the legacy unwrapped shape — no top-level `hooks` key, or a `hooks` key
+ * whose value is not an object (`null`, a string, an array — a plausible
+ * result of a partial or malformed hand edit). That shape is the one Codex
+ * 0.142 rejects outright, silently disabling every entry in the file until
+ * install() wraps it. Shares the same `isRecord` test codexEdits uses to
+ * decide `wrapped`, so the two can never disagree about what "legacy" means.
+ * An absent file or an empty `{}` has nothing to reactivate, so both are
+ * excluded.
+ */
+export function isLegacyCodexHooks(content: string | null): boolean {
+  if (content === null) return false
+  let doc: unknown
+  try {
+    doc = JSON.parse(content)
+  } catch {
+    return false
+  }
+  if (!isRecord(doc)) return false
+  return !isRecord(doc['hooks']) && Object.keys(doc).length > 0
+}
+
 function isOurs(command: unknown): boolean {
   return typeof command === 'string' && command.includes(MARKER)
 }
@@ -109,11 +132,6 @@ function codexEdits(env: InstallEnv, install: boolean): FileEdit[] {
 
   const wrapped = isRecord(source['hooks'])
   const hooks: Record<string, any> = wrapped ? { ...source['hooks'] } : { ...source }
-  const rest: Record<string, any> = { ...source }
-  delete rest['hooks']
-  // In the legacy unwrapped case every top-level key moved into `hooks`
-  // above, so nothing legitimately survives in `rest`.
-  const outerRest = wrapped ? rest : {}
 
   if (install) {
     hooks[CODEX_KEY] = {
@@ -135,6 +153,15 @@ function codexEdits(env: InstallEnv, install: boolean): FileEdit[] {
       return [{ path, content: JSON.stringify(legacy, null, 2) + '\n', backup: true }]
     }
   }
+
+  // Only reached when writing the wrapped shape (a fresh install, or an
+  // uninstall that was already wrapped — the legacy-unwrapped uninstall path
+  // above returns early). `rest` is whatever else sat beside `hooks` at the
+  // top level; in the legacy unwrapped case every top-level key moved into
+  // `hooks` above, so nothing legitimately survives in `rest`.
+  const rest: Record<string, any> = { ...source }
+  delete rest['hooks']
+  const outerRest = wrapped ? rest : {}
 
   const root = { ...outerRest, hooks }
   return [{ path, content: JSON.stringify(root, null, 2) + '\n', backup: true }]

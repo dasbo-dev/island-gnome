@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { planInstall, planUninstall, type InstallEnv } from '../../../src/core/install/plan.js'
+import { planInstall, planUninstall, isLegacyCodexHooks, type InstallEnv } from '../../../src/core/install/plan.js'
 
 function env(files: Record<string, string> = {}): InstallEnv {
   return {
@@ -232,5 +232,39 @@ describe('planUninstall', () => {
   it('leaves malformed existing antigravity JSON untouched by returning no edits', () => {
     const edits = planUninstall('antigravity', env({ '/home/me/.gemini/config/hooks.json': '{not json' }))
     expect(edits).toEqual([])
+  })
+})
+
+describe('isLegacyCodexHooks', () => {
+  it('is false when the file is absent', () => {
+    expect(isLegacyCodexHooks(null)).toBe(false)
+  })
+
+  it('is false for an empty object — nothing to reactivate', () => {
+    expect(isLegacyCodexHooks(JSON.stringify({}))).toBe(false)
+  })
+
+  it('is false when already wrapped under hooks', () => {
+    const wrapped = JSON.stringify({ hooks: { 'vibe-island': { command: 'x', events: ['session.start'] } } })
+    expect(isLegacyCodexHooks(wrapped)).toBe(false)
+  })
+
+  it('is true for an unwrapped file with entries — the legacy shape Codex silently ignores', () => {
+    const legacy = JSON.stringify({ 'vibe-island': { command: 'x', events: ['session.start'] } })
+    expect(isLegacyCodexHooks(legacy)).toBe(true)
+  })
+
+  it('is true when hooks is present but null — a malformed hand edit, not a valid wrapper', () => {
+    const malformed = JSON.stringify({ hooks: null, 'vibe-island': { command: 'x', events: ['session.start'] } })
+    expect(isLegacyCodexHooks(malformed)).toBe(true)
+  })
+
+  it('is true when hooks is present but not an object (e.g. a string)', () => {
+    const malformed = JSON.stringify({ hooks: 'oops', 'vibe-island': { command: 'x', events: ['session.start'] } })
+    expect(isLegacyCodexHooks(malformed)).toBe(true)
+  })
+
+  it('is false for malformed JSON', () => {
+    expect(isLegacyCodexHooks('{not json')).toBe(false)
   })
 })
