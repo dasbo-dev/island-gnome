@@ -52,7 +52,11 @@ export const SessionRow = GObject.registerClass(
         y_align: Clutter.ActorAlign.CENTER })
 
       this._jump = new St.Button({ label: 'Jump', style_class: 'button dasbo-jump',
-        y_align: Clutter.ActorAlign.CENTER })
+        y_align: Clutter.ActorAlign.CENTER,
+        // St.Button doesn't set this in its own init, and this row is
+        // deliberately can_focus: false, so without it Jump is unreachable
+        // by keyboard — see PopupHeader's gear for the same fix.
+        can_focus: true })
       this._jump.connect('clicked', () => this._cb.onJump(this._session))
 
       this._actionBox = new St.BoxLayout({ style_class: 'dasbo-row-actions' })

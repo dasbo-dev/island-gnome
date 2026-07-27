@@ -34,6 +34,11 @@ export const PopupHeader = GObject.registerClass(
         // screen reader: its only child is an icon, so there is no text to read.
         accessible_name: 'Settings',
         y_align: Clutter.ActorAlign.CENTER,
+        // St.Button doesn't set this in its own init, and the header item
+        // above it is deliberately can_focus: false (see the class comment),
+        // so without it there is no focusable actor in the popup at all and
+        // a keyboard-only user can never tab/arrow to preferences.
+        can_focus: true,
         child: new St.Icon({ icon_name: 'emblem-system-symbolic', icon_size: 16 }),
       })
       gear.connect('clicked', () => this._cb.onPrefs())
