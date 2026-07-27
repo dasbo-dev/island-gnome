@@ -1,0 +1,87 @@
+#!/usr/bin/gjs -m
+// Dasbo Island hook helper.
+// Usage: dasbo-hook <claude|codex|antigravity> <notify|permission> [EventName]
+// Reads one JSON payload on stdin. In permission mode writes the agent's
+// decision JSON to stdout. Every failure path exits 0 with empty stdout so the
+// calling agent is never affected by this extension being absent or broken.
+
+import Gio from 'gi://Gio'
+import GLib from 'gi://GLib'
+
+const BUS_NAME = 'org.dasbo.Island'
+const OBJECT_PATH = '/org/dasbo/Island'
+const IFACE = 'org.dasbo.Island'
+// G_MAXINT means "no timeout" to GDBus. The extension owns timeout policy.
+const NO_TIMEOUT = 2147483647
+
+function readStdin() {
+  const stream = new Gio.DataInputStream({
+    base_stream: new Gio.UnixInputStream({ fd: 0, close_fd: false }),
+  })
+  let out = ''
+  for (;;) {
+    const [line] = stream.read_line_utf8(null)
+    if (line === null) break
+    out += line + '\n'
+  }
+  return out
+}
+
+function getPid() {
+  // GLib has no getpid binding in GJS; read it from /proc/self.
+  try {
+    const target = Gio.File.new_for_path('/proc/self').query_info(
+      'standard::symlink-target', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null
+    ).get_symlink_target()
+    const n = parseInt(target ?? '', 10)
+    if (Number.isFinite(n)) return n
+  } catch { /* fall through */ }
+  try {
+    const [ok, bytes] = GLib.file_get_contents('/proc/self/stat')
+    if (ok) {
+      const n = parseInt(new TextDecoder().decode(bytes).split(' ')[0], 10)
+      if (Number.isFinite(n)) return n
+    }
+  } catch { /* fall through */ }
+  return 0
+}
+
+function main() {
+  const agent = ARGV[0]
+  const mode = ARGV[1] ?? 'notify'
+  const event = ARGV[2] ?? ''
+  if (!agent) return
+
+  let payload
+  try {
+    payload = readStdin()
+    if (!payload.trim()) return
+    JSON.parse(payload) // validate before sending; malformed input is dropped here
+  } catch {
+    return
+  }
+
+  const args = new GLib.Variant('(sssis)', [
+    agent, event, GLib.get_current_dir(), getPid(), payload,
+  ])
+
+  if (mode === 'permission') {
+    const reply = Gio.DBus.session.call_sync(
+      BUS_NAME, OBJECT_PATH, IFACE, 'RequestPermission',
+      args, new GLib.VariantType('(s)'), Gio.DBusCallFlags.NONE, NO_TIMEOUT, null
+    )
+    const [decisionJson] = reply.deepUnpack()
+    if (decisionJson && decisionJson !== '{}') print(decisionJson)
+  } else {
+    Gio.DBus.session.call_sync(
+      BUS_NAME, OBJECT_PATH, IFACE, 'Notify',
+      args, null, Gio.DBusCallFlags.NONE, 5000, null
+    )
+  }
+}
+
+try {
+  main()
+} catch {
+  // Fail open. No stdout, no stderr, exit 0.
+}
