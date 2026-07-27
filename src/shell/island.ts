@@ -17,6 +17,7 @@ import { SessionRow } from './sessionRow.js'
  */
 type MenuWithOpenSignal = PopupMenu.PopupMenu & {
   connect(sigName: 'open-state-changed', callback: (menu: unknown, open: boolean) => void): number
+  disconnect(id: number): void
 }
 
 const STATE_CLASS: Record<SessionState, string> = {
@@ -44,6 +45,8 @@ export const Island = GObject.registerClass(
     private _unsubscribe: (() => void) | null = null
     private _rows = new Map<string, InstanceType<typeof SessionRow>>()
     private _timerId = 0
+    private _settingsChangedId = 0
+    private _menuStateId = 0
     private _onJump: (s: Session) => void = () => {}
 
     constructor(store: SessionStore, settings: Gio.Settings) {
@@ -66,12 +69,22 @@ export const Island = GObject.registerClass(
       this.add_child(box)
 
       this._unsubscribe = this._store.subscribe(() => this.refresh())
-      this._settings.connect('changed::always-show', () => this.refresh())
 
-      ;(this.menu as MenuWithOpenSignal).connect('open-state-changed', (_menu, open) => {
-        if (open) this._startTimer()
-        else this._stopTimer()
-      })
+      // Both ids are captured and released in destroy(). Relying on the objects
+      // becoming unreachable is not enough: the settings object and this widget
+      // reference each other through the closure, and if the handler fires after
+      // destroy() then refresh() touches an already-disposed actor.
+      this._settingsChangedId = this._settings.connect('changed::always-show', () =>
+        this.refresh()
+      )
+
+      this._menuStateId = (this.menu as MenuWithOpenSignal).connect(
+        'open-state-changed',
+        (_menu, open) => {
+          if (open) this._startTimer()
+          else this._stopTimer()
+        }
+      )
 
       this.refresh()
     }
@@ -148,6 +161,14 @@ export const Island = GObject.registerClass(
       this._stopTimer()
       this._unsubscribe?.()
       this._unsubscribe = null
+      if (this._settingsChangedId) {
+        this._settings.disconnect(this._settingsChangedId)
+        this._settingsChangedId = 0
+      }
+      if (this._menuStateId) {
+        ;(this.menu as MenuWithOpenSignal).disconnect(this._menuStateId)
+        this._menuStateId = 0
+      }
       for (const row of this._rows.values()) row.destroy()
       this._rows.clear()
       super.destroy()
