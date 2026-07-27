@@ -18,6 +18,7 @@ export interface ServiceOptions {
 export class IslandService {
   private impl: Gio.DBusExportedObject | null = null
   private nameOwnerId = 0
+  private nameAcquired = false
 
   constructor(
     private store: SessionStore,
@@ -28,13 +29,20 @@ export class IslandService {
   export(): void {
     this.impl = Gio.DBusExportedObject.wrapJSObject(IFACE_XML, this)
     this.impl.export(Gio.DBus.session, OBJECT_PATH)
+    // GDBus calls the name-lost handler both when the name cannot be acquired
+    // and later when it goes away — including the ordinary case of the session
+    // bus closing at shutdown. Track acquisition so only a genuine failure warns.
+    this.nameAcquired = false
     this.nameOwnerId = Gio.bus_own_name(
       Gio.BusType.SESSION,
       BUS_NAME,
       Gio.BusNameOwnerFlags.NONE,
       null,
-      null,
       () => {
+        this.nameAcquired = true
+      },
+      () => {
+        if (this.nameAcquired) return
         console.warn(`dasbo-island: could not own ${BUS_NAME}; another instance may be running`)
       }
     )
