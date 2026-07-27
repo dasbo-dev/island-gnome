@@ -105,7 +105,7 @@ export class IslandService {
     this.store.apply(e)
     const key = sessionKey(e.agent, e.sessionId)
 
-    this.permissions.request(
+    const id = this.permissions.request(
       {
         sessionKey: key,
         tool: e.tool ?? 'unknown',
@@ -115,6 +115,11 @@ export class IslandService {
       (decision) => reply(JSON.stringify(adapter.encodeDecision(decision)))
     )
 
-    if (this.store.get(key)?.pendingPermission) this.opts.onPermissionOpened()
+    // A request that merely queues behind an active one leaves the session's
+    // pendingPermission id unchanged (see PermissionTable.publishDepth), so this
+    // only fires when the new request actually became — or immediately became —
+    // the active one. Short-circuited requests (unknown session, always-allowed)
+    // never set a pendingPermission with this id, so they stay silent too.
+    if (this.store.get(key)?.pendingPermission?.id === id) this.opts.onPermissionOpened()
   }
 }

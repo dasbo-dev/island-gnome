@@ -189,6 +189,26 @@ describe('PermissionTable', () => {
     expect(seen).toEqual([{ kind: 'allow' }])
   })
 
+  it('promotion swaps the pending id without ever passing through undefined', () => {
+    // Pins the invariant the island.ts control-cluster fix relies on: activate()
+    // promotes the queue by calling store.setPending() with a new id/tool, so
+    // pendingPermission never clears to undefined between the two requests. A
+    // consumer that keys off "pending truthy" rather than "pending.id changed"
+    // would keep a stale reference to the resolved id.
+    const store = seeded()
+    const { timers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    const first = t.request({ sessionKey: 'claude:s1', tool: 'Bash', timeoutSeconds: 30 }, () => {})
+    t.request({ sessionKey: 'claude:s1', tool: 'Edit', timeoutSeconds: 30 }, () => {})
+
+    t.resolve(first, { kind: 'allow' })
+
+    const pending = store.get('claude:s1')!.pendingPermission!
+    expect(pending.id).not.toBe(first)
+    expect(pending.id).toBeDefined()
+    expect(store.get('claude:s1')!.state).toBe('waiting')
+  })
+
   it('does not start a queued request clock until it becomes active', () => {
     const store = seeded()
     const { timers, advance, pendingTimers } = fakeTimers()

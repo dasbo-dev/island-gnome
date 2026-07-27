@@ -49,7 +49,7 @@ export const Island = GObject.registerClass(
     private _settingsChangedId = 0
     private _menuStateId = 0
     private _onJump: (s: Session) => void = () => {}
-    private _controls = new Map<string, PermissionControls>()
+    private _controls = new Map<string, { id: string; controls: PermissionControls }>()
     private _pulsing = false
     private _transientIds = new Set<number>()
     private _permHandlers: {
@@ -180,6 +180,11 @@ export const Island = GObject.registerClass(
         if (!live.has(key)) {
           row.destroy()
           this._rows.delete(key)
+          const stale = this._controls.get(key)
+          if (stale) {
+            stale.controls.destroy()
+            this._controls.delete(key)
+          }
         }
       }
 
@@ -198,9 +203,15 @@ export const Island = GObject.registerClass(
         const row = this._rows.get(s.key)
         if (!row) continue
         const pending = s.pendingPermission
-        const existingControls = this._controls.get(s.key)
+        const existing = this._controls.get(s.key)
 
-        if (pending && !existingControls) {
+        // Promotion (see PermissionTable.activate) swaps `pendingPermission` to a
+        // new id/tool without ever clearing it, so `existing` can be truthy even
+        // though it is bound to a request that already resolved. Rebuild whenever
+        // the id has moved on, not merely on the pending/absent transition, or the
+        // stale cluster's closures keep resolving the wrong (already-finished) id.
+        if (pending && existing?.id !== pending.id) {
+          existing?.controls.destroy()
           const controls = new PermissionControls({
             onAllow: () => this._permHandlers?.resolve(pending.id, 'allow'),
             onDeny: () => this._permHandlers?.resolve(pending.id, 'deny'),
@@ -208,14 +219,18 @@ export const Island = GObject.registerClass(
               this._permHandlers?.grantAllowAlways(s.key, pending.tool, pending.id),
           })
           controls.attachTo(row.actionBox)
-          this._controls.set(s.key, controls)
-        } else if (!pending && existingControls) {
-          existingControls.destroy()
+          this._controls.set(s.key, { id: pending.id, controls })
+        } else if (!pending && existing) {
+          existing.controls.destroy()
           this._controls.delete(s.key)
         }
       }
 
-      if (this._store.worstState() !== 'waiting') this._stopPulse()
+      // Base this on whether a permission control is actually on screen, not on
+      // worstState(): RANK puts 'error' above 'waiting', so another session sitting
+      // in 'error' would otherwise silence the pulse while this one still has live
+      // Allow/Deny/Always buttons.
+      if (this._controls.size === 0) this._stopPulse()
     }
 
     refresh(): void {
@@ -241,7 +256,7 @@ export const Island = GObject.registerClass(
 
     destroy(): void {
       this._stopPulse()
-      for (const c of this._controls.values()) c.destroy()
+      for (const c of this._controls.values()) c.controls.destroy()
       this._controls.clear()
       this._stopTimer()
       for (const id of this._transientIds) GLib.Source.remove(id)
