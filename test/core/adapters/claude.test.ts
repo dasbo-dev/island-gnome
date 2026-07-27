@@ -29,6 +29,13 @@ describe('claudeAdapter.normalize', () => {
     expect(e?.cwd).toBe('/hook/cwd')
   })
 
+  it('returns null when neither the payload nor the hook supplies a cwd', () => {
+    const e = claudeAdapter.normalize(
+      { hook_event_name: 'Stop', session_id: 's1' }, { ...ctx, cwd: '' }
+    )
+    expect(e).toBeNull()
+  })
+
   it('falls back to the argv event when the payload has no hook_event_name', () => {
     const e = claudeAdapter.normalize(
       { session_id: 's1', cwd: '/p' }, { ...ctx, event: 'Stop' }
