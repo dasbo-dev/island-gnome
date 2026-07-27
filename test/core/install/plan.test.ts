@@ -181,6 +181,39 @@ describe('planUninstall', () => {
     expect(planUninstall('claude', env())).toEqual([])
   })
 
+  // Removing our hooks must not double as a normaliser for the rest of the
+  // file: each of these holds nothing of ours, so there is nothing to remove.
+  // Reporting an edit here also made the row claim `stale`, offering Remove
+  // for hooks the user never installed.
+  const foreignOnlyClaude: Record<string, unknown> = {
+    'a foreign group with an empty hooks array': { hooks: { Stop: [{ matcher: '*', hooks: [] }] } },
+    'a foreign group that is not a record': { hooks: { Stop: ['nonsense'] } },
+    'a foreign group whose hooks is not an array': { hooks: { Stop: [{ matcher: '*', hooks: 'oops' }] } },
+    'an event whose value is not an array': { hooks: { Stop: { matcher: '*' } } },
+  }
+
+  for (const [label, doc] of Object.entries(foreignOnlyClaude)) {
+    it(`returns no edits for claude given ${label}`, () => {
+      const files = { '/home/me/.claude/settings.json': JSON.stringify(doc) }
+      expect(planUninstall('claude', env(files))).toEqual([])
+    })
+  }
+
+  it('leaves foreign junk under an event we hold nothing under alone', () => {
+    // Ours under Stop, but PreToolUse now holds only a malformed foreign
+    // group (a hand edit having dropped ours). Removing must clear Stop and
+    // leave PreToolUse byte-identical.
+    const doc = JSON.parse(planInstall('claude', env())[0]!.content)
+    doc.hooks.PreToolUse = [{ matcher: '*', hooks: [] }]
+    const parsed = JSON.parse(
+      planUninstall('claude', env({ '/home/me/.claude/settings.json': JSON.stringify(doc) }))[0]!.content
+    )
+    expect(parsed.hooks.Stop, 'our own entry is cleared').toBeUndefined()
+    expect(parsed.hooks.PreToolUse, 'the foreign group survives, untouched').toEqual([
+      { matcher: '*', hooks: [] },
+    ])
+  })
+
   it('removes only the dasbo-island key from codex hooks.json', () => {
     const before = JSON.stringify({
       hooks: {
@@ -343,6 +376,24 @@ describe('installState', () => {
     })
     expect(installState('claude', env({ '/home/me/.claude/settings.json': before }))).toBe('absent')
   })
+
+  // Presence must key on our marker, not on "the cleaning pass would change
+  // something": each of these holds nothing of ours, so Remove has no work and
+  // the row must not offer one.
+  const foreignOnlyClaude: Record<string, unknown> = {
+    'a foreign group with an empty hooks array': { hooks: { Stop: [{ matcher: '*', hooks: [] }] } },
+    'a foreign group that is not a record': { hooks: { Stop: ['nonsense'] } },
+    'a foreign group whose hooks is not an array': { hooks: { Stop: [{ matcher: '*', hooks: 'oops' }] } },
+    'an event whose value is not an array': { hooks: { Stop: { matcher: '*' } } },
+  }
+
+  for (const [label, doc] of Object.entries(foreignOnlyClaude)) {
+    it(`reports absent for claude given ${label}, with no uninstall work`, () => {
+      const e = env({ '/home/me/.claude/settings.json': JSON.stringify(doc) })
+      expect(planUninstall('claude', e)).toEqual([])
+      expect(installState('claude', e)).toBe('absent')
+    })
+  }
 
   it('reports absent for codex when only a foreign entry is present', () => {
     const before = JSON.stringify({

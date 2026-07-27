@@ -78,8 +78,31 @@ export function isLegacyCodexHooks(content: string | null): boolean {
   return !isRecord(doc['hooks']) && Object.keys(doc).length > 0
 }
 
-function isOurs(command: unknown): boolean {
+function isOurs(command: unknown): command is string {
   return typeof command === 'string' && command.includes(MARKER)
+}
+
+/**
+ * The commands one Claude-style event array attributes to us.
+ *
+ * Presence on uninstall and presence in installState both read the file
+ * through this single traversal, so the two can never drift into disagreeing
+ * about whether anything of ours is in the file — which is exactly what a
+ * round-trip diff of the *cleaned* array got wrong: it also fired for foreign
+ * groups that the cleaning pass happened to normalise away.
+ */
+function ourCommandsIn(groups: unknown): string[] {
+  if (!Array.isArray(groups)) return []
+  const out: string[] = []
+  for (const group of groups) {
+    if (!isRecord(group) || !Array.isArray(group['hooks'])) continue
+    for (const h of group['hooks']) {
+      if (!isRecord(h)) continue
+      const command = h['command']
+      if (isOurs(command)) out.push(command)
+    }
+  }
+  return out
 }
 
 /** Strip every dasbo group from a Claude-style event array. */
@@ -103,18 +126,23 @@ function claudeEdits(env: InstallEnv, install: boolean): FileEdit[] {
 
   let changed = false
   for (const event of CLAUDE_EVENTS) {
-    const cleaned = withoutOurs(hooks[event])
     if (install) {
       const mode = event === 'PreToolUse' ? 'permission' : 'notify'
       const group: Record<string, any> = {
         hooks: [{ type: 'command', command: cmd(env, 'claude', mode, event) }],
       }
       if (event === 'PreToolUse' || event === 'PostToolUse') group['matcher'] = '*'
-      hooks[event] = [...cleaned, group]
+      hooks[event] = [...withoutOurs(hooks[event]), group]
       changed = true
     } else {
-      const had = JSON.stringify(hooks[event] ?? []) !== JSON.stringify(cleaned)
-      if (had) changed = true
+      // Only rewrite an event we actually have an entry under. Comparing the
+      // cleaned array against the original instead would also fire for events
+      // holding nothing but foreign junk — an empty `hooks` array, a group
+      // that is not a record — and a Remove is not a licence to normalise
+      // parts of the user's file that were never ours.
+      if (ourCommandsIn(hooks[event]).length === 0) continue
+      changed = true
+      const cleaned = withoutOurs(hooks[event])
       if (cleaned.length > 0) hooks[event] = cleaned
       else delete hooks[event]
     }
@@ -268,13 +296,7 @@ function presentClaudeEntries(root: Record<string, any>): string[] {
   const hooks = isRecord(root['hooks']) ? root['hooks'] : {}
   const out: string[] = []
   for (const event of CLAUDE_EVENTS) {
-    const groups = Array.isArray(hooks[event]) ? hooks[event] : []
-    for (const group of groups) {
-      if (!isRecord(group) || !Array.isArray(group['hooks'])) continue
-      for (const h of group['hooks']) {
-        if (isRecord(h) && isOurs(h['command'])) out.push(`${event} ${h['command']}`)
-      }
-    }
+    for (const command of ourCommandsIn(hooks[event])) out.push(`${event} ${command}`)
   }
   return out
 }
