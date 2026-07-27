@@ -127,6 +127,15 @@ export class IslandService {
       this.store.apply(e)
       const key = sessionKey(e.agent, e.sessionId)
 
+      // The agent is in a mode that asks about nothing, yet still runs its
+      // pre-tool hook. Gating here would put the island in front of a decision
+      // the agent already made — the very prompting the mode exists to remove.
+      // Reply with no opinion at all rather than the fall-through encoding: an
+      // empty object makes the hook print nothing, whereas Claude's
+      // fall-through is an explicit "ask" that could re-introduce a prompt.
+      // The session row is already updated above, so activity still shows.
+      if (e.permissionsBypassed) return reply('{}')
+
       const id = this.permissions.request(
         {
           sessionKey: key,

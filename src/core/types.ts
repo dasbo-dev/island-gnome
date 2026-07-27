@@ -40,6 +40,13 @@ export interface AgentEvent {
   pid: number
   /** Milliseconds since epoch, supplied by the caller, never read from a clock here. */
   ts: number
+  /**
+   * Set when the agent is in a mode that never asks the user about tools. Agents
+   * still run their pre-tool hook in such a mode, so without this the island
+   * would gate a call the agent had already decided to allow. Left undefined
+   * whenever the agent would ask, so absence always means "gate normally".
+   */
+  permissionsBypassed?: boolean
 }
 
 export interface PendingPermission {

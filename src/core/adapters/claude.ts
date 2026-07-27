@@ -50,6 +50,11 @@ export const claudeAdapter: AgentAdapter = {
       transcriptPath: str(raw['transcript_path']),
       pid: ctx.pid,
       ts: ctx.ts,
+      // `bypassPermissions` is the only mode that asks about nothing at all.
+      // `acceptEdits` still prompts for everything but file edits, and `plan`
+      // still prompts, so both stay gated.
+      permissionsBypassed:
+        str(raw['permission_mode']) === 'bypassPermissions' ? true : undefined,
     }
   },
 

@@ -77,6 +77,26 @@ describe('claudeAdapter.normalize', () => {
     expect(kinds).toEqual(['tool-end', 'prompt-submit', 'stop'])
   })
 
+  it('flags a bypassPermissions payload so the island does not gate it', () => {
+    const e = claudeAdapter.normalize(
+      { hook_event_name: 'PreToolUse', session_id: 's1', cwd: '/p', tool_name: 'Bash',
+        permission_mode: 'bypassPermissions' },
+      ctx
+    )
+    expect(e?.permissionsBypassed).toBe(true)
+  })
+
+  it('leaves permissionsBypassed unset in every asking mode', () => {
+    for (const mode of ['default', 'acceptEdits', 'plan', undefined]) {
+      const e = claudeAdapter.normalize(
+        { hook_event_name: 'PreToolUse', session_id: 's1', cwd: '/p', tool_name: 'Bash',
+          permission_mode: mode },
+        ctx
+      )
+      expect(e?.permissionsBypassed, `mode ${mode} must still be gated`).toBeUndefined()
+    }
+  })
+
   it('returns null for an unknown event', () => {
     expect(claudeAdapter.normalize({ hook_event_name: 'Nope', session_id: 's', cwd: '/p' }, ctx)).toBeNull()
   })
@@ -135,6 +155,14 @@ describe('claudeAdapter against captured fixtures', () => {
       expect(e!.sessionId, `${f} must yield a session id`).toBeTruthy()
       expect(e!.cwd, `${f} must yield a cwd`).toBeTruthy()
     }
+  })
+
+  it('flags the captured bypassPermissions tool call and not the default-mode one', () => {
+    const read = (f: string) => claudeAdapter.normalize(
+      JSON.parse(readFileSync(`${dir}/${f}`, 'utf8')), ctx
+    )
+    expect(read('PreToolUse-14.json')?.permissionsBypassed).toBe(true)
+    expect(read('PreToolUse-5.json')?.permissionsBypassed).toBeUndefined()
   })
 
   it('covers every event kind the fixtures contain', () => {
