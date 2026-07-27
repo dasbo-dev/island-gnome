@@ -14,17 +14,17 @@ const IFACE = 'org.dasbo.Island'
 // G_MAXINT means "no timeout" to GDBus. The extension owns timeout policy.
 const NO_TIMEOUT = 2147483647
 
+// Read stdin through /dev/stdin rather than Gio.UnixInputStream, which is
+// deprecated in GJS 1.80 and prints a warning plus a stack trace to stderr on
+// every single invocation. That noise would reach the agent's output on every
+// tool call. GioUnix.InputStream is the named replacement, but importing it
+// statically would abort before the fail-open catch on any runtime that lacks
+// it; GLib is already imported and handles pipes, empty input and large
+// payloads fine.
 function readStdin() {
-  const stream = new Gio.DataInputStream({
-    base_stream: new Gio.UnixInputStream({ fd: 0, close_fd: false }),
-  })
-  let out = ''
-  for (;;) {
-    const [line] = stream.read_line_utf8(null)
-    if (line === null) break
-    out += line + '\n'
-  }
-  return out
+  const [ok, bytes] = GLib.file_get_contents('/dev/stdin')
+  if (!ok) return ''
+  return new TextDecoder().decode(bytes)
 }
 
 function getPid() {
