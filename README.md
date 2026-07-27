@@ -30,7 +30,7 @@ gnome-extensions prefs dasbo-island@ayubaswad.gmail.com
 | Agent | Config touched | Status | Permission gating |
 |---|---|---|---|
 | Claude Code | `~/.claude/settings.json` | verified against 17 real hook-payload fixtures | yes |
-| Antigravity CLI (`agy`) | `~/.gemini/config/hooks.json` | verified against 12 real hook-payload fixtures | see notes |
+| Antigravity CLI (`agy`) | `~/.gemini/config/hooks.json` | verified against 12 real hook-payload fixtures | unverified — see notes |
 | Codex CLI | `~/.codex/hooks.json` | **unverified** — see below | see notes |
 
 Hook installation preserves entries belonging to other tools and writes a
@@ -47,6 +47,24 @@ have reported a failure if one had occurred. The Codex adapter is written
 against key names read out of a third-party hook script, not from anything
 Codex itself has actually sent. Treat the Codex integration as best-effort and
 unverified until someone confirms it against a real payload.
+
+Separately, Codex has **no permission gate at all**: the installed hook is
+notify-only, so `codexAdapter.encodeDecision` is never reached from a real
+Codex session. Its permission-encoding logic is exercised only by unit tests,
+not by anything Codex itself calls.
+
+### A note on Antigravity CLI
+
+Status reporting (session start, tool start/end, stop) is verified against 12
+real captured hook-payload fixtures. The **permission decision path is
+unverified**: no fixture exercises a real Antigravity permission round-trip,
+and `docs/agent-dialects.md` documents payload shapes but never a response
+schema, so `antigravityAdapter.encodeDecision`'s `{permissionDecision,
+permissionDecisionReason}` shape is a guess. If `agy` ignores an unrecognised
+stdout shape, clicking Deny reports the tool as denied while it executes
+anyway — a security control failing open, silently. Treat the Antigravity
+permission gate as best-effort and unverified until someone confirms it
+against a real payload.
 
 ## Fail-open guarantee
 
