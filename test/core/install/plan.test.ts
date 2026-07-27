@@ -395,6 +395,15 @@ describe('installState', () => {
     })
   }
 
+  it('reports stale for codex when our key sits in an unwrapped file', () => {
+    // Codex 0.142 rejects the whole file, so the entry never fires. Calling it
+    // installed would grey out Install — the one action that wraps the file
+    // and brings the entry back to life.
+    const doc = JSON.parse(planInstall('codex', env())[0]!.content)
+    const files = { '/home/me/.codex/hooks.json': JSON.stringify(doc.hooks) }
+    expect(installState('codex', env(files))).toBe('stale')
+  })
+
   it('reports absent for codex when only a foreign entry is present', () => {
     const before = JSON.stringify({
       hooks: { 'vibe-island': { command: 'python3 /x/y.py', events: ['session.start'] } },

@@ -322,9 +322,19 @@ function presentAntigravityEntries(root: Record<string, any>): string[] {
   return out
 }
 
-/** Our codex entry, wherever the file's shape puts it. */
+/**
+ * Our codex entry, and whether Codex would actually run it.
+ *
+ * An unwrapped file is never fresh, however well-formed our key looks inside
+ * it: Codex 0.142 rejects such a file wholesale (`unknown field …, expected
+ * 'hooks'`), so nothing fires. Reporting `installed` there would strand the
+ * user — the row would say so with Install greyed out, and Install, which
+ * wraps the file, is the one action that repairs it. Returning false makes
+ * the state `stale`, the button `Update`, and the fix reachable.
+ */
 function codexMatches(env: InstallEnv, root: Record<string, any>): boolean {
-  const hooks = isRecord(root['hooks']) ? root['hooks'] : root
+  if (!isRecord(root['hooks'])) return false
+  const hooks = root['hooks']
   const entry = hooks[CODEX_KEY]
   if (!isRecord(entry)) return false
   if (entry['command'] !== codexCommand(env)) return false
