@@ -199,12 +199,37 @@ describe('SessionStore', () => {
     // resolveAgentPid returns 0 when it cannot read /proc, and pidAlive(0) is
     // false. Without the pid > 0 guard, a live session with an unresolved pid
     // and permission-timeout=0 would be dropped on the first sweep, silently
-    // resolving the held D-Bus reply as fallthrough.
+    // resolving the held D-Bus reply as fallthrough. The zombie rule checks
+    // pid > 0, so an unresolved pid can never match it — it's only caught by
+    // the stale escape hatch if no events arrive for 15 minutes.
     const s = new SessionStore()
     s.apply(ev({ ts: 0, pid: 0 }))
     s.setPending('claude:s1', { id: 'p1', tool: 'Bash', deadline: 0, queued: 0 })
-    s.reap(99_999_999, () => false)
+    s.reap(1000, () => false)
+    expect(s.list(), 'not treated as a zombie on first sweep').toHaveLength(1)
+    const fifteenMin = 15 * 60 * 1000
+    s.reap(fifteenMin + 1, () => false)
+    expect(s.list(), 'but dropped by stale escape hatch after 15 minutes').toHaveLength(0)
+  })
+
+  it('reap collects a pending permission with unresolved pid once the stale window expires, and reports its key', () => {
+    // With permission-timeout=0 and an unresolved pid, a zombie can never fire
+    // (pid > 0 guard), and no timer will ever resolve it. Without a stale escape
+    // hatch this session would sit forever. The 15-minute stale window is safe:
+    // a pending permission that blocked on a slow human should not be collected
+    // merely because /proc was unreadable, but fifteen minutes with no events is
+    // genuinely wedged.
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0, pid: 0 }))
+    s.setPending('claude:s1', { id: 'p1', tool: 'Bash', deadline: 0, queued: 0 })
+    const fifteenMin = 15 * 60 * 1000
+    // Within the stale window, it survives
+    s.reap(fifteenMin - 1, () => false)
     expect(s.list()).toHaveLength(1)
+    // Past the stale window, it is dropped and its key is reported
+    const dropped = s.reap(fifteenMin + 1, () => false)
+    expect(s.list()).toHaveLength(0)
+    expect(dropped).toEqual(['claude:s1'])
   })
 
   it('reap drops an abandoned session with an unresolved pid after the stale window, and reports its key', () => {

@@ -187,6 +187,21 @@ export class SessionStore {
         if (zombie) {
           this.sessions.delete(key)
           dropped.push(key)
+        } else if (
+          // Escape hatch for a permission wedged by both unresolved pid and deadline=0:
+          // the pid > 0 guard above means such a session can never be collected as a
+          // zombie, and no timer will ever fire, so it would sit forever. A session
+          // with no events for 15 minutes and a dead or unresolved pid is genuinely
+          // stuck, not merely waiting on a slow human — that signal is safer than
+          // liveness alone. Guarded on deadline=0 (no timer to eventually resolve it)
+          // and !pidAlive so a live agent with deadline=0 can wait indefinitely for
+          // the user to respond to the permission.
+          s.pendingPermission.deadline === 0 &&
+          now - s.lastEventAt > STALE_MS &&
+          !pidAlive(s.pid)
+        ) {
+          this.sessions.delete(key)
+          dropped.push(key)
         }
         continue
       }
