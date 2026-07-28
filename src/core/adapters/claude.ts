@@ -8,6 +8,7 @@ const KIND_BY_EVENT: Record<string, EventKind> = {
   PreToolUse: 'tool-start',
   PostToolUse: 'tool-end',
   Stop: 'turn-end',
+  SessionEnd: 'session-end',
 }
 
 /** Pick the most useful human-readable detail out of a Claude tool_input blob. */

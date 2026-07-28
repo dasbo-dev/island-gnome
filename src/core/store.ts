@@ -100,6 +100,15 @@ export class SessionStore {
         s.detail = undefined
         break
       case 'turn-end':
+        // The agent finished talking, not the session. Claude fires Stop at the
+        // end of every assistant turn while the terminal stays open, so this is
+        // 'waiting on a human', not 'finished' — and it must stamp no doneAt,
+        // or the linger sweep would delete a live session.
+        kindState = 'idle'
+        s.currentTool = undefined
+        s.detail = undefined
+        break
+      case 'session-end':
         kindState = 'done'
         s.doneAt = e.ts
         s.currentTool = undefined

@@ -49,10 +49,18 @@ describe('SessionStore', () => {
     expect(s.list()[0]!.currentTool).toBeUndefined()
   })
 
-  it('marks done on turn-end and stamps doneAt', () => {
+  it('settles to idle on turn-end and stamps no doneAt', () => {
     const s = new SessionStore()
     s.apply(ev())
     s.apply(ev({ kind: 'turn-end', ts: 5000 }))
+    expect(s.list()[0]!.state, 'a finished turn is not a finished session').toBe('idle')
+    expect(s.list()[0]!.doneAt).toBeUndefined()
+  })
+
+  it('marks done on session-end and stamps doneAt', () => {
+    const s = new SessionStore()
+    s.apply(ev())
+    s.apply(ev({ kind: 'session-end', ts: 5000 }))
     expect(s.list()[0]!.state).toBe('done')
     expect(s.list()[0]!.doneAt).toBe(5000)
   })
@@ -113,7 +121,7 @@ describe('SessionStore', () => {
   it('reap drops a done session after the linger window', () => {
     const s = new SessionStore()
     s.apply(ev({ ts: 0 }))
-    s.apply(ev({ kind: 'turn-end', ts: 1000 }))
+    s.apply(ev({ kind: 'session-end', ts: 1000 }))
     s.reap(1000 + 10_000 + 1, () => true)
     expect(s.list()).toHaveLength(0)
   })
@@ -167,13 +175,27 @@ describe('SessionStore', () => {
     expect(s.list()[0]!.state).toBe('idle')
   })
 
-  it('applying turn-end while a permission is pending leaves state waiting, and resolving settles to done', () => {
+  it('applying turn-end while a permission is pending leaves state waiting, and resolving settles to idle', () => {
     const s = new SessionStore()
     s.apply(ev({ ts: 0 }))
     s.setPending('claude:s1', { id: 'p1', tool: 'Bash', detail: 'rm -rf build', deadline: 30_000, queued: 0 })
     expect(s.list()[0]!.state).toBe('waiting')
 
     s.apply(ev({ kind: 'turn-end', ts: 2000 }))
+    expect(s.list()[0]!.state, 'must still say waiting until the permission resolves').toBe('waiting')
+    expect(s.list()[0]!.doneAt).toBeUndefined()
+
+    s.clearPending('claude:s1')
+    expect(s.list()[0]!.state).toBe('idle')
+  })
+
+  it('applying session-end while a permission is pending leaves state waiting, and resolving settles to done', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    s.setPending('claude:s1', { id: 'p1', tool: 'Bash', detail: 'rm -rf build', deadline: 30_000, queued: 0 })
+    expect(s.list()[0]!.state).toBe('waiting')
+
+    s.apply(ev({ kind: 'session-end', ts: 2000 }))
     expect(s.list()[0]!.state, 'must still say waiting until the permission resolves').toBe('waiting')
     expect(s.list()[0]!.doneAt).toBe(2000)
 
@@ -182,12 +204,13 @@ describe('SessionStore', () => {
   })
 
   it('does not settle a resumed session to done from a stale doneAt', () => {
-    // A session that finished a turn and was resumed still carried its old
-    // doneAt, so resolving a later permission marked the live session done and
-    // the next reaper sweep deleted its row.
+    // A session that had finished and was resumed still carried its old doneAt,
+    // so resolving a later permission marked the live session done and the next
+    // reaper sweep deleted its row. Reaching 'done' now takes a session-end,
+    // but the stale stamp must still be cleared when the session comes back.
     const s = new SessionStore()
     s.apply(ev({ ts: 0 }))
-    s.apply(ev({ kind: 'turn-end', ts: 1000 }))
+    s.apply(ev({ kind: 'session-end', ts: 1000 }))
     expect(s.list()[0]!.state).toBe('done')
 
     s.apply(ev({ kind: 'prompt-submit', ts: 2000 }))

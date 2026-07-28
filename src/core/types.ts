@@ -23,6 +23,7 @@ export type EventKind =
   | 'tool-start'
   | 'tool-end'
   | 'turn-end'
+  | 'session-end'
   | 'error'
 
 /** An agent hook payload after dialect normalisation. */
@@ -71,7 +72,7 @@ export interface Session {
   pid: number
   startedAt: number
   lastEventAt: number
-  /** Set when state became 'done'; used for the done-linger sweep. */
+  /** Set when a session-end arrives; used for the done-linger sweep. */
   doneAt?: number
   transcriptPath?: string
   pendingPermission?: PendingPermission

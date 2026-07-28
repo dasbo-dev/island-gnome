@@ -70,11 +70,11 @@ describe('claudeAdapter.normalize', () => {
     expect(e?.detail).toBe('/p/app/src/main.js')
   })
 
-  it('maps PostToolUse, UserPromptSubmit and Stop', () => {
-    const kinds = ['PostToolUse', 'UserPromptSubmit', 'Stop'].map(
+  it('maps PostToolUse, UserPromptSubmit, Stop and SessionEnd', () => {
+    const kinds = ['PostToolUse', 'UserPromptSubmit', 'Stop', 'SessionEnd'].map(
       (n) => claudeAdapter.normalize({ hook_event_name: n, session_id: 's1', cwd: '/p' }, ctx)?.kind
     )
-    expect(kinds).toEqual(['tool-end', 'prompt-submit', 'turn-end'])
+    expect(kinds).toEqual(['tool-end', 'prompt-submit', 'turn-end', 'session-end'])
   })
 
   it('flags a bypassPermissions payload so the island does not gate it', () => {

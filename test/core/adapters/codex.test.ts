@@ -16,7 +16,7 @@ describe('codexAdapter.normalize (UNVERIFIED — no captured fixtures)', () => {
   it('maps dotted event names from the type field', () => {
     const cases: Array<[string, string]> = [
       ['session.start', 'session-start'],
-      ['session.end', 'turn-end'],
+      ['session.end', 'session-end'],
       ['tool.start', 'tool-start'],
       ['tool.end', 'tool-end'],
     ]
@@ -32,6 +32,13 @@ describe('codexAdapter.normalize (UNVERIFIED — no captured fixtures)', () => {
     )
     expect(e?.kind).toBe('tool-start')
     expect(e?.tool).toBe('shell')
+  })
+
+  it('maps the CamelCase terminal events apart, as Claude does', () => {
+    const kinds = ['Stop', 'SessionEnd'].map(
+      (n) => codexAdapter.normalize({ hook_event_name: n, session_id: 's1', cwd: '/p' }, ctx)?.kind
+    )
+    expect(kinds).toEqual(['turn-end', 'session-end'])
   })
 
   it('falls back to the argv event and the hook cwd', () => {
