@@ -72,27 +72,22 @@
    widening the popup (see sessionRow.ts). */
 .dasbo-fixed-width { width: 26em; }
 
-/* The pill's robot head. `-dasbo-accent` is a custom St theme property read by
-   robotHead.ts via lookup_color(); the head's shell is drawn in the panel's
-   own foreground colour, so it follows light and dark themes without a rule
-   here. The hexes are the same ones .dasbo-dot uses, so retuning a state's
-   colour stays one edit for the pill and the popup rows alike.
+/* The pill's 2×2 grid. Its silhouette never moves; only per-block alpha and
+   the fill colour change, which is what keeps it legible at panel size.
 
-   em, not px, so the head tracks shell font scaling — the same reasoning as
-   .dasbo-pill-label's width.
+   `-dasbo-accent` is a custom St theme property read by gridIcon.ts via
+   lookup_color(). It is declared only for the three states that use it: idle
+   and running are drawn in the panel's own foreground colour and separate by
+   rhythm, not hue. The hexes match .dasbo-dot, so retuning a state's colour
+   stays one edit for the pill and the popup rows alike.
 
-   width is deliberately wider than height: robotHead.ts sizes the head itself
-   from S = min(width, height), which still resolves to the height, so the
-   head is unchanged. The extra horizontal room is so the sleep glyphs
-   (ZZZ_X in robotHead.ts) have somewhere to sit beside the head instead of
-   overlapping its right wall. */
-.dasbo-robot {
-  width: 2em;
+   em, not px, so the icon tracks shell font scaling, and square because the
+   grid uses its whole box. */
+.dasbo-grid {
+  width: 1.4em;
   height: 1.4em;
-  -dasbo-accent: #9e9e9e;
 }
 
-.dasbo-robot.state-running { -dasbo-accent: #62a0ea; }
-.dasbo-robot.state-waiting { -dasbo-accent: #f5c211; }
-.dasbo-robot.state-error   { -dasbo-accent: #e01b24; }
-.dasbo-robot.state-done    { -dasbo-accent: #57e389; }
+.dasbo-grid.state-waiting { -dasbo-accent: #f5c211; }
+.dasbo-grid.state-error   { -dasbo-accent: #e01b24; }
+.dasbo-grid.state-done    { -dasbo-accent: #57e389; }
