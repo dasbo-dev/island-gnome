@@ -418,3 +418,22 @@ success payload beyond the keys documented above.
 | Claude Code | ready to implement | 17 | none |
 | Codex 0.142.0 / 0.145.0 | **BLOCKED** | 0 | auth is fixed and no longer the issue; `hooks.json` wrapper shape (`{"hooks": {name: {command, events}}}`) parses cleanly (proven via a malformed-JSON control test), but no hook fired under any of 3 tried `events` spellings (lowercase-dot, PascalCase, camelCase) — zero hook-related trace log lines, zero `HookCompletedEvent` in session rollouts, zero fixtures. Root cause undetermined between: wrong spelling, a legacy/superseded config mechanism, or an unbypassable persisted hook-trust gate — see Codex section above |
 | Antigravity 1.1.7 | ready to implement, with a caveat | 12 | none for capture, but the adapter must not rely on any in-payload event-name field — see "Critical dialect gap" above |
+
+## How agents spawn hooks
+
+Claude runs a hook the way it runs any shell command: through a wrapper shell
+executing a compound command, roughly
+
+```
+zsh -c 'source <shell-snapshot>.sh ... && eval <hook command>'
+```
+
+Because the command is compound, the shell never `exec`s the hook. It stays
+alive as the hook's parent and exits the moment the hook does. So the hook's
+ppid is a process that is dead milliseconds later, and it is not the agent.
+
+`resolveAgent` therefore walks the ancestor chain and identifies the agent by
+`comm` (`AgentAdapter.procNames`), falling back to the nearest non-shell
+ancestor, and to `0` — meaning unknown — when neither matches. The session's
+`startedAt` comes from that process's own start time in `/proc`, which makes it
+recoverable at any point rather than observable only when `SessionStart` fires.

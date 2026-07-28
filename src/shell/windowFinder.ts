@@ -1,11 +1,13 @@
 import GLib from 'gi://GLib'
 import type Meta from 'gi://Meta'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
-import { ancestorPids, parsePpid } from '../core/procParse.js'
+import { adapters } from '../core/adapters/index.js'
+import { agentStartMs, ancestorPids, selectAgentPid } from '../core/procParse.js'
+import type { AgentId } from '../core/types.js'
 
-function readStat(pid: number): string | null {
+function readFile(path: string): string | null {
   try {
-    const [ok, bytes] = GLib.file_get_contents(`/proc/${pid}/stat`)
+    const [ok, bytes] = GLib.file_get_contents(path)
     if (!ok) return null
     return new TextDecoder().decode(bytes)
   } catch {
@@ -13,18 +15,43 @@ function readStat(pid: number): string | null {
   }
 }
 
+function readStat(pid: number): string | null {
+  return readFile(`/proc/${pid}/stat`)
+}
+
 /**
- * The hook process exits as soon as its D-Bus call returns, so its own pid is
- * useless a moment later. Its parent is the agent process, which lives for the
- * whole session — that is the correct seed for both jump-back ancestry and
- * liveness. Must be called while the hook is still blocked in its call, i.e.
- * from inside the D-Bus method handler.
+ * The agent process behind a hook call, and when it started.
+ *
+ * The hook's parent is not the agent. Agents spawn hooks through a wrapper
+ * shell running a compound command, which never execs and dies the instant the
+ * hook exits — storing that pid made the reaper drop live sessions, reset the
+ * elapsed clock on every recreation, and left jump-back with a dead ancestry
+ * seed. `selectAgentPid` walks past it to the real process.
+ *
+ * `startedAt` is derived from that process rather than from this event, so it
+ * is the same number every time it is computed: after a reap, after a shell
+ * reload, or for a session that predates the extension being enabled. Omitted
+ * whenever /proc cannot supply a value the store should trust.
+ *
+ * Must be called while the hook is still blocked in its D-Bus call, i.e. from
+ * inside the method handler — a moment later the chain is gone.
  */
-export function resolveAgentPid(hookPid: number): number {
-  if (hookPid <= 0) return 0
-  const stat = readStat(hookPid)
-  if (stat === null) return 0
-  return parsePpid(stat) ?? 0
+export function resolveAgent(
+  agent: AgentId,
+  hookPid: number
+): { pid: number; startedAt?: number } {
+  if (hookPid <= 0) return { pid: 0 }
+
+  const pid = selectAgentPid(hookPid, adapters[agent].procNames, readStat)
+  if (pid <= 0) return { pid: 0 }
+
+  const stat = readStat(pid)
+  // Read fresh, never cached: the kernel recomputes btime, and it jitters by
+  // about a second across suspend. One small read per hook event.
+  const procStat = readFile('/proc/stat')
+  if (stat === null || procStat === null) return { pid }
+
+  return { pid, startedAt: agentStartMs(stat, procStat, Date.now()) ?? undefined }
 }
 
 export function pidAlive(pid: number): boolean {

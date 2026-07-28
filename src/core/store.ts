@@ -167,7 +167,7 @@ export class SessionStore {
         // so a killed agent mid-permission would otherwise wedge this session
         // forever. Only collect it once the process is confirmed gone AND no
         // timer will ever fire. Guarded on pid > 0 for the same reason as the
-        // liveness check below: resolveAgentPid returns 0 when it cannot read
+        // liveness check below: resolveAgent returns pid 0 when it cannot read
         // /proc, and pidAlive(0) is false, which would otherwise drop a live
         // session with an unresolved pid on the first sweep.
         const zombie = s.pid > 0 && s.pendingPermission.deadline === 0 && !pidAlive(s.pid)
@@ -212,10 +212,10 @@ export class SessionStore {
         continue
       }
       // `pid` is the agent process, not the hook — the D-Bus handlers resolve it
-      // through resolveAgentPid while the hook is still blocked in its call — so
+      // through resolveAgent while the hook is still blocked in its call — so
       // this is a real liveness test. It is the only thing that clears the pill
       // for an agent with no session-end event, or a Claude install predating the
-      // SessionEnd hook. Guarded on pid > 0 because resolveAgentPid returns 0
+      // SessionEnd hook. Guarded on pid > 0 because resolveAgent returns pid 0
       // when it cannot read /proc and pidAlive(0) is false, which would otherwise
       // reap a perfectly live session on the very first sweep. Those fall back to
       // the stale window below.
