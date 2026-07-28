@@ -155,9 +155,10 @@ export class SessionStore {
     if (!s?.pendingPermission) return
     s.pendingPermission = undefined
     // Settle to whatever the last event actually meant while the permission was
-    // held — a stop settles to 'done', an error to 'error'. With no event in
-    // that window there is nothing deferred, so 'idle' is right.
-    if (s.state === 'waiting') s.state = s.deferredState ?? 'idle'
+    // held — a turn-end settles to 'idle', a session-end to 'done', an error to
+    // 'error'. With no event during the hold, the agent simply proceeds with
+    // (or without) the tool it asked about, so 'running' is the right settle.
+    if (s.state === 'waiting') s.state = s.deferredState ?? 'running'
     s.deferredState = undefined
     this.emit()
   }

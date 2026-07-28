@@ -53,13 +53,23 @@ describe('PermissionTable', () => {
 
   it('resolves with the user decision and clears the pending state', () => {
     const store = seeded()
+    // A permission request always follows a tool-start in production
+    // (service.ts applies tool-start, then calls permissions.request) — a
+    // bare session-start into request() is not a reachable sequence.
+    store.apply({
+      agent: 'claude', kind: 'tool-start', sessionId: 's1',
+      cwd: '/p/app', pid: 10, ts: 1, tool: 'Bash',
+    })
     const { timers } = fakeTimers()
     const t = new PermissionTable(store, timers)
     const seen: Decision[] = []
     const id = t.request({ sessionKey: 'claude:s1', tool: 'Bash', timeoutSeconds: 30 }, (d) => seen.push(d))
     t.resolve(id, { kind: 'allow' })
     expect(seen).toEqual([{ kind: 'allow' }])
-    expect(store.get('claude:s1')!.state).toBe('idle')
+    expect(
+      store.get('claude:s1')!.state,
+      'nothing was deferred during the hold, so the agent proceeds with the tool it asked about'
+    ).toBe('running')
     expect(t.pendingCount()).toBe(0)
   })
 
@@ -353,6 +363,12 @@ describe('PermissionTable', () => {
 
   it('drains active and queued entries exactly once on shutdown', () => {
     const store = seeded()
+    // See the comment in the previous test: a permission request always
+    // follows a tool-start, never a bare session-start.
+    store.apply({
+      agent: 'claude', kind: 'tool-start', sessionId: 's1',
+      cwd: '/p/app', pid: 10, ts: 1, tool: 'Bash',
+    })
     const { timers, pendingTimers } = fakeTimers()
     const t = new PermissionTable(store, timers)
     const seen: Decision[] = []
@@ -366,6 +382,9 @@ describe('PermissionTable', () => {
     expect(seen.every((d) => d.kind === 'fallthrough')).toBe(true)
     expect(t.pendingCount()).toBe(0)
     expect(pendingTimers(), 'draining must not leave or start a timer').toBe(0)
-    expect(store.get('claude:s1')!.state).toBe('idle')
+    expect(
+      store.get('claude:s1')!.state,
+      'nothing was deferred during the hold, so the agent proceeds with the tool it asked about'
+    ).toBe('running')
   })
 })

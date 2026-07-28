@@ -84,14 +84,17 @@ describe('SessionStore', () => {
     expect(n).toBe(1)
   })
 
-  it('setPending puts the session into waiting and clearPending restores idle', () => {
+  it('setPending puts the session into waiting and clearPending restores running', () => {
+    // A permission request always follows a tool-start (service.ts applies
+    // tool-start, then calls permissions.request) — session-start into
+    // setPending is not a reachable sequence.
     const s = new SessionStore()
-    s.apply(ev())
+    s.apply(ev({ kind: 'tool-start', tool: 'Bash' }))
     s.setPending('claude:s1', { id: 'p1', tool: 'Bash', detail: 'rm -rf build', deadline: 31000, queued: 0 })
     expect(s.list()[0]!.state).toBe('waiting')
     expect(s.list()[0]!.pendingPermission?.tool).toBe('Bash')
     s.clearPending('claude:s1')
-    expect(s.list()[0]!.state).toBe('idle')
+    expect(s.list()[0]!.state).toBe('running')
     expect(s.list()[0]!.pendingPermission).toBeUndefined()
   })
 
@@ -258,12 +261,13 @@ describe('SessionStore', () => {
     expect(s.list()[0]!.state).toBe('running')
     expect(s.list()[0]!.doneAt, 'resuming clears the finish stamp').toBeUndefined()
 
-    // No event arrives during the hold, so there is nothing deferred and idle
-    // is the correct settle — but it must not be 'done', and the session must
-    // not be reapable as finished.
+    // No event arrives during the hold, so there is nothing deferred: the
+    // agent simply proceeds with the tool it asked about, so 'running' is the
+    // correct settle — but it must not be 'done', and the session must not be
+    // reapable as finished.
     s.setPending('claude:s1', { id: 'p1', tool: 'Bash', deadline: 30_000, queued: 0 })
     s.clearPending('claude:s1')
-    expect(s.list()[0]!.state, 'a live session must not settle to done').toBe('idle')
+    expect(s.list()[0]!.state, 'a live session must not settle to done').toBe('running')
 
     expect(s.reap(20_000, () => true), 'and must not be reaped as finished').toEqual([])
     expect(s.list()).toHaveLength(1)
