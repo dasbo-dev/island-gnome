@@ -26,6 +26,7 @@ export function detailFromToolInput(input: unknown): string | undefined {
 export const claudeAdapter: AgentAdapter = {
   id: 'claude',
   displayName: 'Claude Code',
+  procNames: ['claude'],
 
   normalize(raw, ctx) {
     if (!isRecord(raw)) return null
@@ -50,6 +51,7 @@ export const claudeAdapter: AgentAdapter = {
       detail: detailFromToolInput(raw['tool_input']),
       transcriptPath: str(raw['transcript_path']),
       pid: ctx.pid,
+      agentStartedAt: ctx.agentStartedAt,
       ts: ctx.ts,
       // `bypassPermissions` is the only mode that asks about nothing at all.
       // `acceptEdits` still prompts for everything but file edits, and `plan`

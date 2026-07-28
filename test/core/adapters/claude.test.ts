@@ -138,6 +138,21 @@ describe('claudeAdapter.encodeDecision', () => {
   })
 })
 
+describe('claudeAdapter agentStartedAt', () => {
+  it('copies the hook context agentStartedAt onto the event', () => {
+    const e = claudeAdapter.normalize(
+      { hook_event_name: 'Stop', session_id: 's1', cwd: '/p' },
+      { ...ctx, agentStartedAt: 4242 }
+    )
+    expect(e?.agentStartedAt).toBe(4242)
+  })
+
+  it('leaves agentStartedAt undefined when the context has none', () => {
+    const e = claudeAdapter.normalize({ hook_event_name: 'Stop', session_id: 's1', cwd: '/p' }, ctx)
+    expect(e?.agentStartedAt).toBeUndefined()
+  })
+})
+
 describe('claudeAdapter against captured fixtures', () => {
   const dir = 'test/fixtures/claude'
 

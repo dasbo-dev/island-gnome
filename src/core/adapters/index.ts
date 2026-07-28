@@ -6,6 +6,12 @@ import { antigravityAdapter } from './antigravity.js'
 export interface AgentAdapter {
   id: AgentId
   displayName: string
+  /**
+   * `comm` values (/proc field 2) identifying this agent's own process, used to
+   * pick it out of a hook's ancestor chain. Max 15 characters: the kernel
+   * truncates `comm` there.
+   */
+  procNames: string[]
   normalize(raw: unknown, ctx: HookContext): AgentEvent | null
   encodeDecision(d: Decision): unknown
 }

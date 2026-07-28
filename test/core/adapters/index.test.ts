@@ -21,3 +21,31 @@ describe('adapter dispatch', () => {
     expect(e?.agent).toBe('claude')
   })
 })
+
+describe('adapter process signatures', () => {
+  it('gives every adapter at least one comm to match', () => {
+    for (const id of ['claude', 'codex', 'antigravity'] as const) {
+      expect(adapters[id].procNames.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('keeps every signature within the kernel comm truncation of 15 chars', () => {
+    for (const id of ['claude', 'codex', 'antigravity'] as const) {
+      for (const name of adapters[id].procNames) {
+        expect(name.length, `${id}: ${name}`).toBeLessThanOrEqual(15)
+      }
+    }
+  })
+
+  it('every adapter copies agentStartedAt from the hook context', () => {
+    const withStart: HookContext = { ...ctx, event: 'Stop', agentStartedAt: 4242 }
+    const payloads = {
+      claude: { hook_event_name: 'Stop', session_id: 's', cwd: '/p' },
+      codex: { type: 'session.start', session_id: 's', cwd: '/p' },
+      antigravity: { conversationId: 's', workspacePaths: ['/p'] },
+    } as const
+    for (const id of ['claude', 'codex', 'antigravity'] as const) {
+      expect(normalizeFor(id, payloads[id], withStart)?.agentStartedAt, id).toBe(4242)
+    }
+  })
+})
