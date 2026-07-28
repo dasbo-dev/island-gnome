@@ -26,6 +26,12 @@ export class PermissionControls {
         label,
         style_class: `button ${cls}`,
         y_align: Clutter.ActorAlign.CENTER,
+        // St.Button doesn't set this in its own init, and the SessionRow these
+        // land in is deliberately can_focus: false, so without it a
+        // keyboard-only user cannot reach Allow, Deny or Always at all — the
+        // one place in this extension where that is a security control, not a
+        // convenience. Jump and the header gear carry it for the same reason.
+        can_focus: true,
       })
       b.connect('clicked', () => fn())
       return b

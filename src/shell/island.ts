@@ -217,13 +217,17 @@ export const Island = GObject.registerClass(
 
       for (const [key, row] of [...this._rows]) {
         if (!live.has(key)) {
-          row.destroy()
-          this._rows.delete(key)
+          // Controls first: they are parented to the row, and destroying the
+          // row destroys them with it — so releasing them afterwards makes
+          // PermissionControls.detach() call remove_child on a dead parent,
+          // which Clutter reports as a "not a child" warning in the journal.
           const stale = this._controls.get(key)
           if (stale) {
             stale.controls.destroy()
             this._controls.delete(key)
           }
+          row.destroy()
+          this._rows.delete(key)
         }
       }
 
