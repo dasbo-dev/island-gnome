@@ -23,10 +23,19 @@ const DONE_TICK_MS = 100
 const IDLE_STEPS = IDLE_PERIOD_MS / IDLE_TICK_MS
 const RUN_STEPS = RUN_PERIOD_MS / RUN_TICK_MS
 
-const IDLE_DIM = 0.14
+/** Exported so the tests can assert the tick divides the period, rather than
+ *  restating the numbers and passing against a drifting one. */
+export const PERIOD_MS: Partial<Record<SessionState, number>> = {
+  idle: IDLE_PERIOD_MS,
+  running: RUN_PERIOD_MS,
+  waiting: WAIT_PERIOD_MS,
+  done: DONE_WINDOW_MS,
+}
+
+const IDLE_DIM = 0.3
 const IDLE_LOW = 0.45
-const RUN_TRAIL = 0.45
-const RUN_DIM = 0.2
+const RUN_TRAIL = 0.6
+const RUN_DIM = 0.3
 const WAIT_DIM = 0.16
 const ERROR_DIM = 0.16
 const DONE_DELAYS_MS = [0, 100, 200, 300] as const

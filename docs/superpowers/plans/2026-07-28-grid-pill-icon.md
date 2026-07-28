@@ -765,8 +765,12 @@ Expected: **236** tests (249 minus the 13 in `robot.test.ts`), `built dist/`.
 Run: `glib-compile-schemas --dry-run schemas`
 Expected: no output, exit 0.
 
-Run: `grep -c "gi://cairo" dist/extension.js`
-Expected: `1` — `GridIcon` is now reachable and no longer tree-shaken.
+Run: `grep -c "dasbo-grid" dist/extension.js`
+Expected: `2` — `GridIcon` is reachable and its style-class strings survived the
+bundle. (The original `grep -c "gi://cairo"` check here was unsatisfiable:
+`gridIcon.ts` imports `cairo` as a type only, which erases at build, unlike
+the deleted `robotHead.ts`, which imported the runtime `gi://cairo` for its
+stroke line caps.)
 
 - [ ] **Step 9: Commit**
 
@@ -861,7 +865,7 @@ alpha values are the cheaper thing to change and should be tried first.
 | `done` stops after its last block lights | Unit test | Task 1 |
 | A sixth session state cannot ship unhandled | `tsc` TS2366 | Task 1 Step 5 |
 | `src/core` stays free of `gi://` | `test/core/purity.test.ts` | Task 1 |
-| Widget compiles, bundles, and is reachable | `typecheck`, `build`, `grep gi://cairo` | Tasks 2, 3 |
+| Widget compiles, bundles, and is reachable | `typecheck`, `build`, `grep dasbo-grid` | Tasks 2, 3 |
 | No robot or `animate-idle` reference survives | `grep` | Task 3 Step 7 |
 | Schema still valid without the key | `glib-compile-schemas --dry-run` | Task 3 Step 8 |
 | Reads as four blocks; rhythms distinguishable | Manual | Task 4 |

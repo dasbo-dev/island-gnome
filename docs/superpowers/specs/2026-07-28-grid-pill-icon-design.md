@@ -182,11 +182,20 @@ common state — cost zero compositor wakeups. The grid's idle state animates
 unconditionally, so the key, its preferences row, and the island's
 `changed::animate-idle` handler are all deleted.
 
-This is a deliberate reversal, and the cost is bounded: idle is 2.5 wakeups per
-second against the robot's 6 while running. It applies only while the pill is
-*visible*, and with `always-show` off the pill is hidden entirely at zero
-sessions — so the always-animating case requires a session actually sitting
-idle, not merely an idle desktop.
+This is a deliberate reversal, and the honest trade is worse than a first pass
+made it look: the robot's `tickIntervalMs('idle', p, false)` returned **0**,
+and `animate-idle` defaulted to `false`, so the robot's idle cost was **zero**
+wakeups, not a smaller number to compare against — the "6 while running"
+figure earlier drafts compared against was the robot's *running* rate, not its
+idle one. The real change is idle going from zero wakeups to the grid's steady
+**2.5 per second**, and there is no opt-out left to claw it back down to zero:
+the setting that used to buy that is gone. It applies only while the pill is
+*visible* with a session present, and with `always-show` off the pill is
+hidden entirely at zero sessions — but `store.reap()` only drops a session on
+a dead PID, so a terminal left open all day, whether or not the agent inside
+it is doing anything, keeps a session present and the shell repainting for as
+long as it sits there. The owner reaffirmed this decision after seeing the
+corrected figure; idle keeps breathing unconditionally.
 
 Removing a key from the schema leaves any value already in the user's dconf
 orphaned. That is harmless: nothing reads it.

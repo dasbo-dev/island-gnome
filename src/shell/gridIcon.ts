@@ -10,10 +10,14 @@ import { gridPose, tickIntervalMs, type GridPose } from '../core/grid.js'
  * Deliberately a local copy of the same table in sessionRow.ts rather than a
  * shared import: the two carry different CSS properties (-dasbo-accent here,
  * background-color there) and are free to diverge.
+ *
+ * Only the three accent-carrying states need a class here — idle and running
+ * both draw in the panel foreground (`fill: 'base'`), so there is no
+ * `.dasbo-grid.state-running` rule for a class to select.
  */
 const STATE_CLASS: Record<SessionState, string> = {
   idle: '',
-  running: 'state-running',
+  running: '',
   waiting: 'state-waiting',
   error: 'state-error',
   done: 'state-done',
