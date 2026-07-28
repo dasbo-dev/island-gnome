@@ -93,11 +93,16 @@ state:
 .dasbo-fixed-width { width: 26em; }
 ```
 
+Each container's `style_class` then carries both names:
+
 ```
-.dasbo-header dasbo-fixed-width
-.dasbo-row-outer dasbo-fixed-width
-.dasbo-empty-outer dasbo-fixed-width
+"dasbo-header dasbo-fixed-width"
+"dasbo-row-outer dasbo-fixed-width"
+"dasbo-empty-outer dasbo-fixed-width"
 ```
+
+`.dasbo-empty-outer` declares nothing of its own once the width moves out; it
+stays as a marker so the empty row reads like its siblings.
 
 `.dasbo-empty-outer` is new. `EmptyRow` currently adds its label directly to
 the menu item (`src/shell/popupHeader.ts:68`); the label is wrapped in an
@@ -125,7 +130,7 @@ reintroducing the defect this change exists to remove.
 an ellipsize mode is active; leaving it to the default would silently produce a
 single truncated line.
 
-Three knock-on adjustments in the same row:
+Four knock-on adjustments in the same row:
 
 - The activity dot's `y_align` moves from `CENTER` to `START`
   (`sessionRow.ts:42`), so it sits beside the first line rather than floating
@@ -143,11 +148,18 @@ Three knock-on adjustments in the same row:
   lines running off the bottom of a `PopupMenu`, which (unlike a
   `PopupSubMenu`) does not scroll. Elapsed and Jump stay put; only the
   permission cluster moves.
+- `_project` gains `Pango.EllipsizeMode.END`, for the same reason the pill's
+  label does in section 2 but a subtler one. St's `width` sets an actor's
+  minimum as well as its natural width, so the row's fixed width bounds the
+  *menu* without clamping a child whose own minimum exceeds it — the content
+  spills past the popup's background instead. `_activity`'s minimum collapses
+  because it wraps; `_project` has no such escape, and its text is
+  `basename(cwd)`, a string the user controls by naming a directory.
 
 `truncateDetail` keeps its 120-character cap and its call sites. Its role
 changes: it no longer bounds the popup's width — the CSS does that — it now
-bounds the label's *height*, to roughly three wrapped lines. Its doc comment is
-corrected to say so.
+bounds the label's *height*, to a few wrapped lines. The exact count depends on
+the column width, so neither the doc comment nor this spec names one.
 
 ## Data flow
 
@@ -186,9 +198,12 @@ lives in `src/core` and is unit-tested.
      width never moves and long commands wrap to two or three lines.
    - Confirm the popup keeps its width when the last session ends and
      `No active sessions` appears (requires `always-show`).
-   - Confirm a pending permission's Allow / Deny / Always cluster fits: at
-     26em the text column is squeezed, and the command should wrap further
-     rather than the buttons clipping.
+   - Confirm a pending permission renders on two lines: status and command
+     above, Allow / Deny / Always right-aligned on their own line beneath,
+     with the cluster fitting inside 26em and the command keeping the full
+     text column above it.
+   - Confirm a long project name ellipsizes rather than pushing **Jump** or
+     the permission cluster past the popup's edge.
    - Watch a session past `59s`, confirming `59s` -> `1m` and that **Jump**
      does not shift.
 

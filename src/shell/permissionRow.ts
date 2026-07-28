@@ -10,7 +10,9 @@ export interface PermissionCallbacks {
 /**
  * The Allow / Deny / Always-allow control cluster.
  * Not a GObject class — it is a plain owner of three St.Buttons so it can be
- * attached to and detached from an existing SessionRow action box.
+ * attached to and detached from a SessionRow's permission box — its own line
+ * beneath the row, because this cluster cannot shrink and would otherwise
+ * starve the wrapping activity label of width.
  */
 export class PermissionControls {
   private box: St.BoxLayout
