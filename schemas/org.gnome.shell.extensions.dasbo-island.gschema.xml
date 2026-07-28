@@ -22,6 +22,11 @@
       <summary>Show the pill with zero sessions</summary>
       <description>When false the pill is hidden entirely while no agent session is active.</description>
     </key>
+    <key name="animate-idle" type="b">
+      <default>false</default>
+      <summary>Animate the robot while idle</summary>
+      <description>Play the sleep animation while no agent is running. Costs a small amount of battery.</description>
+    </key>
     <key name="permission-timeout" type="i">
       <default>30</default>
       <summary>Permission prompt timeout in seconds</summary>
