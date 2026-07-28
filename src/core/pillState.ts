@@ -16,7 +16,7 @@ const RANK: Record<SessionState, number> = {
 /**
  * Which state the pill's icon shows for the whole session set.
  *
- * A pending permission wins outright, ahead of `error`. The head has one pose
+ * A pending permission wins outright, ahead of `error`. The icon has one pose
  * slot, and a permission is the only state that blocks an agent on the user —
  * an error is informational, and the popup still reports it per session. This
  * replaces the workaround in `Island._rebuildRows`, which drove the old pulse

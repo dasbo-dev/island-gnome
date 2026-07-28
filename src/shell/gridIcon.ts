@@ -63,8 +63,8 @@ function roundedRect(
   r: number
 ): void {
   const rr = Math.min(r, w / 2, h / 2)
-  // Guards a pathological allocation (a zero- or negative-size block), where
-  // cairo's arc would degenerate; no realistic panel size reaches this.
+  // Unreachable in practice: rr is zero only when the snapped radius rounds to
+  // zero, which needs S <= 5. Kept because cairo's arc degenerates at r = 0.
   if (rr <= 0) {
     cr.rectangle(x, y, w, h)
     return

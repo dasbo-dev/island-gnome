@@ -305,7 +305,7 @@ export const Island = GObject.registerClass(
       }
       this.visible = true
 
-      // One call decides both the head's pose and the label's word, so they
+      // One call decides both the icon's state and the label's word, so they
       // can never disagree — a pending permission reads "waiting" in both.
       const state = pillState(sessions)
       this._icon.setState(state)
