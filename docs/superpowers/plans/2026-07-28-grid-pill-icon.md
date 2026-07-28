@@ -18,7 +18,8 @@ Supersedes: `docs/superpowers/plans/2026-07-28-robot-pill-icon.md`
 - `src/shell/**` has no unit tests — GJS widgets are not constructible under vitest. Shell changes are verified by `npm run typecheck`, `npm run build`, and the manual pass in Task 4.
 - Verification gates: `npm test`, `npm run typecheck`, `npm run build`. **All three must be green before any commit** — no task may leave the tree broken for a later one to fix.
 - Colours are declared in `stylesheet.css`, never as literals in drawing code. Accent hexes are the same ones `.dasbo-dot` uses: waiting `#f5c211`, error `#e01b24`, done `#57e389`. Idle and running use the panel foreground and need no accent.
-- `src/shell/sessionRow.ts`, the `.dasbo-dot` CSS rules, and `src/core/pillState.ts` are **out of scope** and must not change.
+- `src/shell/sessionRow.ts` and the `.dasbo-dot` CSS rules are **out of scope** and must not change.
+- `src/core/pillState.ts`'s **logic** is out of scope. Its doc comment names "the pill's robot head" and must be reworded in Task 3 so no stale reference survives — a comment-only edit, with the `RANK` table and every branch untouched.
 - Every `GLib` timer and signal handler id must be released — timers via `GLib.Source.remove`, handlers via `disconnect`, and anything connected to an object that outlives the widget must additionally be released from the widget's own `destroy` **signal**.
 - **Every animation assertion must walk the phases the widget actually visits** — step `p += tickIntervalMs(...)` rather than picking arbitrary millisecond values. The robot's shake test asserted amplitude at `phaseMs = 60`, a phase the renderer never reached, and so passed against a feature that did not exist.
 - Do not change any gsettings/dconf values on this machine.
@@ -378,8 +379,8 @@ base rule, and all four `state-*` rules — with:
    rhythm, not hue. The hexes match .dasbo-dot, so retuning a state's colour
    stays one edit for the pill and the popup rows alike.
 
-   em, not px, so the icon tracks shell font scaling. Square, unlike the robot,
-   whose extra width existed only to hold its sleep glyphs. */
+   em, not px, so the icon tracks shell font scaling, and square because the
+   grid uses its whole box. */
 .dasbo-grid {
   width: 1.4em;
   height: 1.4em;
@@ -637,6 +638,7 @@ green before and after.
 - Modify: `src/shell/island.ts`
 - Modify: `schemas/org.gnome.shell.extensions.dasbo-island.gschema.xml`
 - Modify: `src/prefs.ts`
+- Modify: `src/core/pillState.ts` (**doc comment only** — one phrase)
 - Delete: `src/core/robot.ts`, `test/core/robot.test.ts`, `src/shell/robotHead.ts`
 
 **Interfaces:**
@@ -721,13 +723,30 @@ In `src/prefs.ts`, delete the block added for the setting (lines 58-63):
 
 Leave the `alwaysShow` row above it and everything below it alone.
 
-- [ ] **Step 5: Delete the superseded files**
+- [ ] **Step 5: Reword the three stale robot references in comments**
+
+Deleting `robotHead.ts` strands three comments that name it or the robot. All
+three are comment-only edits; no logic changes.
+
+In `src/shell/island.ts`, inside `_releaseExternalRefs()`'s comment, the
+cross-reference `(see robotHead.ts:79-83)` becomes `(see gridIcon.ts)` — drop
+the line numbers, which will drift.
+
+Also in `src/shell/island.ts`, `_applyPause()`'s comment opens "The robot
+animates only when it can actually be seen." Change "The robot" to "The icon".
+
+In `src/core/pillState.ts`, the `pillState` doc comment opens "Which state the
+pill's robot head shows for the whole session set." Change "robot head" to
+"icon". **Nothing else in that file may change** — not the `RANK` table, not a
+branch, not the permission-outranks-error reasoning below it.
+
+- [ ] **Step 6: Delete the superseded files**
 
 ```bash
 git rm src/core/robot.ts test/core/robot.test.ts src/shell/robotHead.ts
 ```
 
-- [ ] **Step 6: Verify nothing still references the robot**
+- [ ] **Step 7: Verify nothing still references the robot**
 
 Run: `grep -rn "robot\|Robot" src/ test/ stylesheet.css schemas/`
 Expected: no matches.
@@ -738,7 +757,7 @@ Expected: no matches.
 Run: `npm run typecheck`
 Expected: no output, exit 0.
 
-- [ ] **Step 7: Run all three gates and confirm the wiring took**
+- [ ] **Step 8: Run all three gates and confirm the wiring took**
 
 Run: `npm test && npm run build`
 Expected: **236** tests (249 minus the 13 in `robot.test.ts`), `built dist/`.
@@ -749,7 +768,7 @@ Expected: no output, exit 0.
 Run: `grep -c "gi://cairo" dist/extension.js`
 Expected: `1` — `GridIcon` is now reachable and no longer tree-shaken.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
 git add -A src/ test/ schemas/
@@ -843,8 +862,8 @@ alpha values are the cheaper thing to change and should be tried first.
 | A sixth session state cannot ship unhandled | `tsc` TS2366 | Task 1 Step 5 |
 | `src/core` stays free of `gi://` | `test/core/purity.test.ts` | Task 1 |
 | Widget compiles, bundles, and is reachable | `typecheck`, `build`, `grep gi://cairo` | Tasks 2, 3 |
-| No robot or `animate-idle` reference survives | `grep` | Task 3 Step 6 |
-| Schema still valid without the key | `glib-compile-schemas --dry-run` | Task 3 Step 7 |
+| No robot or `animate-idle` reference survives | `grep` | Task 3 Step 7 |
+| Schema still valid without the key | `glib-compile-schemas --dry-run` | Task 3 Step 8 |
 | Reads as four blocks; rhythms distinguishable | Manual | Task 4 |
 | Timer genuinely stops on `error` | `top` against `gnome-shell` | Task 4 |
 | No leaked timers or handlers | `journalctl` after disable | Task 4 |
