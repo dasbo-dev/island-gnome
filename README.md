@@ -27,9 +27,13 @@ gnome-extensions prefs dasbo-island@ayubaswad.gmail.com
 
 Whenever the pill is visible, the preferences window is one click away: click
 the pill, then the gear in the popup's header. (The pill stays hidden while no
-session is running unless you enable **Always show the pill**. When a session is
-idle with no tool active, the robot head pose remains static unless you enable
-**Animate while idle**, which runs the idle animation continuously.)
+session is running unless you enable **Always show the pill**.)
+
+The pill shows a robot head that reflects the busiest session: asleep when
+nothing is running, working while an agent is, and asking when a permission
+needs your answer. The sleeping pose is drawn but held still, because idle is
+the common case and a top bar that never stops animating costs battery. Enable
+**Animate while idle** if you would rather it breathe.
 
 Each agent row shows whether its hooks are installed. If the extension
 directory moves, or a release adds a hook event the installed set is missing,
