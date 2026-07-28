@@ -29,11 +29,10 @@ Whenever the pill is visible, the preferences window is one click away: click
 the pill, then the gear in the popup's header. (The pill stays hidden while no
 session is running unless you enable **Always show the pill**.)
 
-The pill shows a robot head that reflects the busiest session: asleep when
-nothing is running, working while an agent is, and asking when a permission
-needs your answer. The sleeping pose is drawn but held still, because idle is
-the common case and a top bar that never stops animating costs battery. Enable
-**Animate while idle** if you would rather it breathe.
+The pill shows a 2×2 grid that reflects the busiest session: a light travelling
+clockwise while an agent works, all four blocks blinking together when a
+permission needs your answer, a static diagonal pair on error, and a green
+stagger when a session finishes.
 
 Each agent row shows whether its hooks are installed. If the extension
 directory moves, or a release adds a hook event the installed set is missing,
