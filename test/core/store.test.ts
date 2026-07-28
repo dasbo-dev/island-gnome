@@ -362,4 +362,31 @@ describe('SessionStore', () => {
     }
     expect(s.list().length).toBe(300)
   })
+
+  it('stamps startedAt from the agent process when the event carries it', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 9000, agentStartedAt: 1500 }))
+    expect(s.list()[0]!.startedAt).toBe(1500)
+  })
+
+  it('falls back to the event timestamp when /proc supplied nothing', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 9000 }))
+    expect(s.list()[0]!.startedAt).toBe(9000)
+  })
+
+  it('keeps lastEventAt on the event timestamp, not the process start', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 9000, agentStartedAt: 1500 }))
+    expect(s.list()[0]!.lastEventAt).toBe(9000)
+  })
+
+  it('reports the same startedAt after a reap recreates the session', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 9000, agentStartedAt: 1500 }))
+    s.reap(9000, () => false)
+    expect(s.list()).toHaveLength(0)
+    s.apply(ev({ kind: 'tool-start', tool: 'Edit', ts: 20000, agentStartedAt: 1500 }))
+    expect(s.list()[0]!.startedAt, 'the clock must not restart with the record').toBe(1500)
+  })
 })

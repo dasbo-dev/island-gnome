@@ -45,7 +45,10 @@ export class SessionStore {
         cwd: e.cwd,
         state: 'idle',
         pid: e.pid,
-        startedAt: e.ts,
+        // The agent process's own start time when the shell layer could read it,
+        // so a record recreated after a reap or a shell reload reports the same
+        // number rather than restarting the clock at the current task.
+        startedAt: e.agentStartedAt ?? e.ts,
         lastEventAt: e.ts,
       }
       this.sessions.set(key, s)
