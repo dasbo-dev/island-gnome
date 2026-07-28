@@ -64,14 +64,20 @@ blocks rather than one square**, so it is snapped to device pixels and floored
 at 1px, even where that costs a block a pixel of width:
 
 ```
+S      = min(width, height)
 u      = S / 24
-block  = round(9.4 * u)
+block  = max(1, round(9.4 * u))
 gap    = max(1, round(0.8 * u))
-origin = floor((S - (2 * block + gap)) / 2)
 radius = round(2.2 * u)
+span   = 2 * block + gap
+left   = floor((width  - span) / 2)
+top    = floor((height - span) / 2)
 ```
 
-Verified across the realistic range:
+`left` and `top` are derived from width and height independently rather than
+from `S`, so a surface that is not square still centres the grid inside it.
+
+Verified across the realistic range (`x positions` assume a square surface):
 
 | S | block | gap | radius | x positions |
 |---|---|---|---|---|
@@ -116,10 +122,10 @@ curve, and no interpolation anywhere in this file.
 | running | current 1.00, previous 0.45, other two 0.20; step advances clockwise | base | 800ms | 200ms | 5 |
 | waiting | all four together, 1.00 / 0.16 square wave | accent | 1300ms | 650ms | 1.54 |
 | error | 1 and 3 at 1.00, 2 and 4 at 0.16 — **static** | accent | — | **0** | 0 |
-| done | block *i* snaps to 1.00 at 0 / 100 / 200 / 300ms, then holds | accent | once | 100ms → 0 | 10 for 400ms |
+| done | block *i* snaps to 1.00 at 0 / 100 / 200 / 300ms, then holds | accent | once, 300ms | 100ms → 0 | 3, once |
 
 **Every tick divides its period exactly** — 3200/400 = 8, 800/200 = 4,
-1300/650 = 2, 400/100 = 4. Phase advances by exactly the tick, so the sampled
+1300/650 = 2, 300/100 = 3. Phase advances by exactly the tick, so the sampled
 sequence is the definition of the animation rather than an approximation of a
 continuous curve. The aliasing that erased the robot's error shake is
 structurally impossible here.
@@ -135,7 +141,10 @@ The frames were computed and checked for redundancy:
 - **waiting** — 2 frames, both distinct. An earlier 325ms tick was rejected: it
   produced 4 frames of which only 2 were distinct, so half its wakeups redrew an
   identical frame — the same waste the robot's error shake was guilty of.
-- **done** — 4 frames, 4 distinct, then the timer stops with all four lit.
+- **done** — 4 frames, 4 distinct, then the timer stops with all four lit. The
+  window ends at 300ms rather than 400ms because the widget advances the phase,
+  repaints, *then* asks whether to continue: a 400ms window would render a final
+  frame identical to the one at 300ms, where the fourth block already lit.
 
 `error` is the only state that never schedules a timer. The static diagonal
 pair is its whole signal, and it needs no motion to read.
@@ -270,7 +279,7 @@ manual pass. The pose model is unit-tested.
      one alpha.
    - `error` returns tick `0` at every phase, and its alphas are invariant.
    - `done` lights one more block per frame and holds all four after 300ms;
-     `tickIntervalMs` returns `0` past 400ms.
+     `tickIntervalMs` returns `0` at 300ms and beyond.
    - Every alpha is within 0..1 for every state and phase.
    - Negative `phaseMs` yields the state's first frame.
 2. `test/core/purity.test.ts` covers `grid.ts` for free — it walks `src/core`.
