@@ -67,3 +67,98 @@ export function tickIntervalMs(
       return p < DONE_POP_MS ? TICK_ONESHOT : 0
   }
 }
+
+const WAIT_TILT_RAD = 0.14
+
+/** The neutral pose. Every state spreads this and overrides what it changes. */
+const REST: RobotPose = {
+  eyeOpen: 1,
+  eyeX: 0,
+  eyeY: 0,
+  eyeShape: 'round',
+  mouth: 'flat',
+  antennaLit: 0.35,
+  headTilt: 0,
+  headShakeX: 0,
+  zzz: [],
+  scale: 1,
+}
+
+/** 0..1 sawtooth over one cycle. */
+function cyclePhase(phaseMs: number, cycleMs: number): number {
+  return (Math.max(0, phaseMs) % cycleMs) / cycleMs
+}
+
+/**
+ * -1..1, and continuous across the cycle wrap. A sine rather than a triangle
+ * because the ease at each extreme is what makes the gaze read as looking
+ * rather than sliding.
+ */
+function oscillate(t: number): number {
+  return Math.sin(t * 2 * Math.PI)
+}
+
+/**
+ * The robot's appearance at `phaseMs` into `state`. Pure: no clock, no random,
+ * no I/O — so the shell can call it every repaint and the tests can call it at
+ * any instant they like.
+ *
+ * Exhaustive over `SessionState` for the same reason `tickIntervalMs` is.
+ */
+export function robotPose(
+  state: SessionState,
+  phaseMs: number,
+  animateIdle: boolean
+): RobotPose {
+  const p = Math.max(0, phaseMs)
+  switch (state) {
+    case 'idle': {
+      // With animation off the phase is pinned at zero, which still yields
+      // three glyphs at fixed heights — a static sleep pose, not a bare head.
+      const t = animateIdle ? cyclePhase(p, IDLE_CYCLE_MS) : 0
+      return {
+        ...REST,
+        eyeOpen: 0,
+        mouth: 'none',
+        zzz: [0, 1, 2].map((i) => (t + i / 3) % 1),
+      }
+    }
+    case 'running': {
+      const t = cyclePhase(p, RUN_CYCLE_MS)
+      return {
+        ...REST,
+        eyeX: oscillate(t),
+        antennaLit: 0.6 + 0.4 * (0.5 + 0.5 * oscillate(t)),
+      }
+    }
+    case 'waiting': {
+      const t = cyclePhase(p, WAIT_BLINK_MS)
+      return {
+        ...REST,
+        headTilt: WAIT_TILT_RAD,
+        antennaLit: t < 0.5 ? 1 : 0.15,
+      }
+    }
+    case 'error': {
+      // Three oscillations damped linearly to zero, so the head settles rather
+      // than stopping mid-swing when the timer is released.
+      const t = p >= ERROR_SHAKE_MS ? 1 : p / ERROR_SHAKE_MS
+      return {
+        ...REST,
+        eyeShape: 'cross',
+        headShakeX: Math.sin(t * 3 * 2 * Math.PI) * (1 - t),
+      }
+    }
+    case 'done': {
+      // One half-sine hump: 1.0 at both ends, 1.18 at the middle.
+      const t = p >= DONE_POP_MS ? 1 : p / DONE_POP_MS
+      return {
+        ...REST,
+        eyeShape: 'arc',
+        mouth: 'smile',
+        antennaLit: 1,
+        scale: 1 + 0.18 * Math.sin(t * Math.PI),
+      }
+    }
+  }
+}
