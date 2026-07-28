@@ -30,8 +30,10 @@ the pill, then the gear in the popup's header. (The pill stays hidden while no
 session is running unless you enable **Always show the pill**.)
 
 Each agent row shows whether its hooks are installed. If the extension
-directory moves, the row offers **Update** — every installed hook command
-embeds an absolute path. Panel box and position changes apply immediately,
+directory moves, or a release adds a hook event the installed set is missing,
+the row offers **Update** — every installed hook command embeds an absolute
+path, and an install written before a new event existed is out of date.
+Panel box and position changes apply immediately,
 with no reload; note that extensions replacing the top bar, such as Dash to
 Panel, decide where each box ends up on screen.
 

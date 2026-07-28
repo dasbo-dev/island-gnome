@@ -20,7 +20,9 @@ const MARKER = 'dasbo-hook'
 const CODEX_KEY = 'dasbo-island'
 const ANTIGRAVITY_KEY = 'dasbo-island'
 
-const CLAUDE_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop'] as const
+const CLAUDE_EVENTS = [
+  'SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop', 'SessionEnd',
+] as const
 const CODEX_EVENTS = ['session.start', 'session.end', 'tool.start', 'tool.end'] as const
 const ANTIGRAVITY_GROUPED = ['PreToolUse', 'PostToolUse'] as const
 const ANTIGRAVITY_FLAT = ['PreInvocation', 'PostInvocation', 'Stop'] as const

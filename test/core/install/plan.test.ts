@@ -17,15 +17,22 @@ function env(files: Record<string, string> = {}): InstallEnv {
 }
 
 describe('planInstall for claude', () => {
-  it('creates settings.json with all five hook events when the file is absent', () => {
+  it('creates settings.json with all six hook events when the file is absent', () => {
     const edits = planInstall('claude', env())
     expect(edits).toHaveLength(1)
     expect(edits[0]!.path).toBe('/home/me/.claude/settings.json')
     expect(edits[0]!.backup).toBe(true)
     const parsed = JSON.parse(edits[0]!.content)
     expect(Object.keys(parsed.hooks).sort()).toEqual(
-      ['PostToolUse', 'PreToolUse', 'SessionStart', 'Stop', 'UserPromptSubmit']
+      ['PostToolUse', 'PreToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'UserPromptSubmit']
     )
+  })
+
+  it('reports an install predating SessionEnd as stale, so the row offers Update', () => {
+    const full = JSON.parse(planInstall('claude', env())[0]!.content)
+    delete full.hooks.SessionEnd
+    const fs = { '/home/me/.claude/settings.json': JSON.stringify(full) }
+    expect(installState('claude', env(fs))).toBe('stale')
   })
 
   it('uses permission mode for PreToolUse and notify mode elsewhere', () => {
@@ -426,7 +433,7 @@ describe('installState', () => {
     expect(installState('claude', env(files))).toBe('installed')
   })
 
-  it('reports stale for claude when one of the five events lost its hook', () => {
+  it('reports stale for claude when one of the six events lost its hook', () => {
     const doc = JSON.parse(planInstall('claude', env())[0]!.content)
     delete doc.hooks.Stop
     const files = { '/home/me/.claude/settings.json': JSON.stringify(doc) }
@@ -481,7 +488,7 @@ describe('installState', () => {
   })
 
   it('reports stale for claude when our commands sit under the wrong events', () => {
-    // Same swap as antigravity, between two of the five Claude events.
+    // Same swap as antigravity, between two of the six Claude events.
     const doc = JSON.parse(planInstall('claude', env())[0]!.content)
     const preCommand = doc.hooks.PreToolUse[0].hooks[0].command
     doc.hooks.PreToolUse[0].hooks[0].command = doc.hooks.PostToolUse[0].hooks[0].command
