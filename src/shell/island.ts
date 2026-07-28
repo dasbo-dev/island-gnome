@@ -124,6 +124,15 @@ export const Island = GObject.registerClass(
       this._fullscreenId = global.display.connect('in-fullscreen-changed', () =>
         this._applyPause()
       )
+      // global.display outlives the extension, so Clutter-driven teardowns that
+      // skip the JS destroy() override need the destroy signal to release this
+      // handler. See robotHead.ts:79-83.
+      this.connect('destroy', () => {
+        if (this._fullscreenId) {
+          global.display.disconnect(this._fullscreenId)
+          this._fullscreenId = 0
+        }
+      })
 
       this._menuStateId = (this.menu as MenuWithOpenSignal).connect(
         'open-state-changed',
