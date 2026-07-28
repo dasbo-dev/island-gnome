@@ -48,7 +48,7 @@ export const SessionRow = GObject.registerClass(
       textCol.add_child(this._project)
       textCol.add_child(activityRow)
 
-      this._elapsed = new St.Label({ text: '00:00', style_class: 'dasbo-row-elapsed',
+      this._elapsed = new St.Label({ text: '0s', style_class: 'dasbo-row-elapsed',
         y_align: Clutter.ActorAlign.CENTER })
 
       this._jump = new St.Button({ label: 'Jump', style_class: 'button dasbo-jump',
