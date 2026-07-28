@@ -1,3 +1,5 @@
+import { basename } from './types.js'
+
 /**
  * Extract the fields after the LAST ')' in a /proc stat line.
  * The comm field may itself contain spaces and parentheses, and after the
@@ -36,8 +38,8 @@ export function parseComm(statContent: string): string | null {
 
 /**
  * Extract `starttime` (field 22, clock ticks since boot) from the contents of
- * /proc/<pid>/stat. Same last-')' slice as parsePpid: after it, field 3 sits at
- * index 0, so field 22 sits at index 19.
+ * /proc/<pid>/stat. Same `statFields` last-')' slice as `parsePpid`: after it,
+ * field 3 sits at index 0, so field 22 sits at index 19.
  */
 export function parseStartTicks(statContent: string): number | null {
   const rest = statFields(statContent)
@@ -92,11 +94,31 @@ export function ancestorPids(
 }
 
 /**
- * Processes that are never the agent: the shells an agent spawns its hooks
- * through, and the interpreters a hook itself runs under. `comm` values, so
- * already basenames.
+ * Shells an agent spawns its hooks through. `comm` values, so already
+ * basenames. Skipped outright: the walk keeps going past a shell, since the
+ * agent is expected further up (a login shell wrapping the wrapper shell, for
+ * instance).
  */
-const NEVER_THE_AGENT = new Set(['sh', 'dash', 'bash', 'zsh', 'fish', 'gjs', 'node', 'env'])
+const SHELLS = new Set(['sh', 'dash', 'bash', 'zsh', 'fish', 'env'])
+
+/**
+ * Interpreters a hook (or the agent itself) may run under. `comm` values, so
+ * already basenames. Unlike a shell, the walk STOPS here rather than
+ * continuing past it — see `selectAgentPid` for why. Deliberately just these
+ * two: every name in this set is a process the walk stops at, so speculative
+ * additions (`python3`, `pwsh`, ...) would silently start truncating chains
+ * for agents that never come through them. Add one only when a real agent
+ * shim needs it.
+ */
+const INTERPRETERS = new Set(['node', 'gjs'])
+
+/**
+ * Split the NUL-separated contents of /proc/<pid>/cmdline into its argv
+ * entries, dropping the empty string a trailing NUL otherwise produces.
+ */
+export function parseCmdlineArgs(cmdlineContent: string): string[] {
+  return cmdlineContent.split('\0').filter((arg) => arg.length > 0)
+}
 
 /**
  * The agent process that owns a hook, or 0 when it cannot be identified.
@@ -106,6 +128,22 @@ const NEVER_THE_AGENT = new Set(['sh', 'dash', 'bash', 'zsh', 'fish', 'gjs', 'no
  * which never execs and dies the moment the hook exits. Walking the chain and
  * identifying the process by name is what survives that, and it also handles a
  * login shell in between, or no wrapper at all.
+ *
+ * Shells and interpreters are told apart on the way up. A shell (`SHELLS`) is
+ * skipped: the walk keeps going, since a login shell wrapping the wrapper
+ * shell is a real shape. An interpreter (`INTERPRETERS`) STOPS the walk,
+ * because an npm-installed agent runs behind a `#!/usr/bin/env node` shim, so
+ * its own `comm` is `node` — walking past it the way a shell is skipped would
+ * land the fallback on whatever sits above it, typically a terminal emulator
+ * that outlives every session. Before stopping, the interpreter's own
+ * `/proc/<pid>/cmdline` is checked: if any argument's basename is in
+ * `procNames` (e.g. `node /home/u/.npm-global/bin/claude` matching `claude`),
+ * that process IS the agent and its pid is returned outright. Otherwise the
+ * walk stops there and returns whatever fallback was already found — never
+ * the terminal emulator above it. cmdline is only trusted for interpreters:
+ * the wrapper shell's own cmdline contains the hook command itself (`...
+ * dasbo-hook claude notify SessionStart`), so testing it the same way would
+ * match the wrong process.
  *
  * 0 rather than a best guess when nothing matches: every caller guards on
  * `pid > 0`, so an unknown pid merely disables liveness reaping and jump-back
@@ -117,7 +155,8 @@ const NEVER_THE_AGENT = new Set(['sh', 'dash', 'bash', 'zsh', 'fish', 'gjs', 'no
 export function selectAgentPid(
   hookPid: number,
   procNames: string[],
-  readStat: (pid: number) => string | null
+  readStat: (pid: number) => string | null,
+  readCmdline: (pid: number) => string | null
 ): number {
   const chain = ancestorPids(hookPid, readStat)
   let fallback = 0
@@ -132,9 +171,18 @@ export function selectAgentPid(
     const comm = parseComm(stat)
     if (comm === null) continue
     if (procNames.includes(comm)) return pid
+    if (SHELLS.has(comm)) continue
+    if (INTERPRETERS.has(comm)) {
+      const cmdline = readCmdline(pid)
+      if (cmdline !== null) {
+        const args = parseCmdlineArgs(cmdline)
+        if (args.some((arg) => procNames.includes(basename(arg)))) return pid
+      }
+      break
+    }
     // Nearest first: a terminal emulator further up must not win over the
     // agent sitting just above the wrapper shell.
-    if (fallback === 0 && !NEVER_THE_AGENT.has(comm)) fallback = pid
+    if (fallback === 0) fallback = pid
   }
 
   return fallback

@@ -19,6 +19,10 @@ function readStat(pid: number): string | null {
   return readFile(`/proc/${pid}/stat`)
 }
 
+function readCmdline(pid: number): string | null {
+  return readFile(`/proc/${pid}/cmdline`)
+}
+
 /**
  * The agent process behind a hook call, and when it started.
  *
@@ -42,7 +46,7 @@ export function resolveAgent(
 ): { pid: number; startedAt?: number } {
   if (hookPid <= 0) return { pid: 0 }
 
-  const pid = selectAgentPid(hookPid, adapters[agent].procNames, readStat)
+  const pid = selectAgentPid(hookPid, adapters[agent].procNames, readStat, readCmdline)
   if (pid <= 0) return { pid: 0 }
 
   const stat = readStat(pid)
