@@ -225,11 +225,15 @@ into the D-Bus handlers, which already wrap their bodies in `try`/`catch`.
 
 ## Testing
 
-- `test/core/procParse.test.ts` — `parseComm` and `parseStartTicks` against a
-  `comm` containing spaces and parentheses; `parseBtime` against a `/proc/stat`
-  sample and one missing the line; `selectAgentPid` over fabricated chains:
-  direct spawn, `zsh -c` wrapper, wrapper plus login shell, all-shells (`0`),
-  15-character truncated `comm`, unreadable link mid-chain, cycle, depth cap.
+- `test/core/procParse.test.ts` — `parseCmdlineArgs` splitting and filtering;
+  `parseComm` and `parseStartTicks` against a `comm` containing spaces and
+  parentheses; `parseBtime` against a `/proc/stat` sample and one missing the
+  line; `selectAgentPid` over fabricated chains: direct spawn, `zsh -c`
+  wrapper, wrapper plus login shell, all-shells (`0`), 15-character truncated
+  `comm`, unreadable link mid-chain, cycle, depth cap; an interpreter named by
+  its cmdline; an interpreter whose cmdline does not name the agent (stops, does
+  not select the process above it); an interpreter whose cmdline is unreadable
+  (stops); a fallback found below an interpreter surviving the stop.
 - `test/core/store.test.ts` — creation prefers `agentStartedAt`; falls back to
   `e.ts` when absent; a record reaped and then recreated reports the same
   `startedAt`.

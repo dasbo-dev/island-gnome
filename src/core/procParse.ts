@@ -114,7 +114,7 @@ const INTERPRETERS = new Set(['node', 'gjs'])
 
 /**
  * Split the NUL-separated contents of /proc/<pid>/cmdline into its argv
- * entries, dropping the empty string a trailing NUL otherwise produces.
+ * entries, dropping every empty string that the split otherwise produces.
  */
 export function parseCmdlineArgs(cmdlineContent: string): string[] {
   return cmdlineContent.split('\0').filter((arg) => arg.length > 0)

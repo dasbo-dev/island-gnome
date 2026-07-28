@@ -142,7 +142,7 @@ describe('selectAgentPid', () => {
     expect(selectAgentPid(900, ['claude'], readStat, noCmdline)).toBe(0)
   })
 
-  it('falls back to the nearest non-shell ancestor for an unknown agent', () => {
+  it('falls back to the nearest non-shell, non-interpreter ancestor for an unknown agent', () => {
     const readStat = reader({
       900: [800, 'gjs'], 800: [700, 'zsh'], 700: [600, 'someagent'], 600: [1, 'kitty'], 1: [0, 'systemd'],
     })
@@ -212,6 +212,16 @@ describe('selectAgentPid', () => {
       900: [800, 'gjs'], 800: [700, 'zsh'], 700: [600, 'claude'], 600: [1, 'node'], 1: [0, 'systemd'],
     })
     expect(selectAgentPid(900, ['claude'], readStat, noCmdline)).toBe(700)
+  })
+
+  it('stops at an interpreter whose cmdline cannot be read', () => {
+    // hook -> wrapper shell -> node (unreadable cmdline, stops) -> terminal -> init
+    const readStat = reader({
+      900: [800, 'gjs'], 800: [700, 'zsh'], 700: [600, 'node'],
+      600: [500, 'gnome-terminal-'], 500: [1, 'systemd'],
+    })
+    const readCmdline = (pid: number) => (pid === 700 ? null : null)
+    expect(selectAgentPid(900, ['claude'], readStat, readCmdline)).toBe(0)
   })
 })
 
