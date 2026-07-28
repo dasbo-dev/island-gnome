@@ -9,14 +9,6 @@ const STALE_MS = 15 * 60 * 1000
  */
 const MAX_SESSIONS = 300
 
-const RANK: Record<SessionState, number> = {
-  done: 0,
-  idle: 1,
-  running: 2,
-  waiting: 3,
-  error: 4,
-}
-
 export class SessionStore {
   private sessions = new Map<string, Session>()
   private subscribers = new Set<() => void>()
@@ -38,14 +30,6 @@ export class SessionStore {
 
   get(key: string): Session | undefined {
     return this.sessions.get(key)
-  }
-
-  worstState(): SessionState {
-    let worst: SessionState = 'idle'
-    for (const s of this.sessions.values()) {
-      if (RANK[s.state] > RANK[worst]) worst = s.state
-    }
-    return worst
   }
 
   private ensure(e: AgentEvent): Session | null {

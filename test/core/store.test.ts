@@ -98,15 +98,6 @@ describe('SessionStore', () => {
     expect(s.list()[0]!.pendingPermission).toBeUndefined()
   })
 
-  it('worstState ranks waiting above running above idle', () => {
-    const s = new SessionStore()
-    s.apply(ev({ sessionId: 'a' }))
-    s.apply(ev({ sessionId: 'b', kind: 'tool-start', tool: 'Edit' }))
-    expect(s.worstState()).toBe('running')
-    s.setPending('claude:a', { id: 'p1', tool: 'Bash', deadline: 0, queued: 0 })
-    expect(s.worstState()).toBe('waiting')
-  })
-
   it('reap drops a session whose pid is dead even once it is also stale', () => {
     const s = new SessionStore()
     s.apply(ev({ ts: 0 }))

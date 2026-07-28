@@ -2,8 +2,8 @@ import type { Session, SessionState } from './types.js'
 
 /**
  * Ranked so a finished session can never mask a live one when both are
- * present. Duplicates `store.ts`'s table for one task only — Task 6 deletes
- * that one along with `worstState()`, its sole consumer.
+ * present. `store.ts` used to keep its own copy of this table for a ranking
+ * method that has since been removed; this is the only copy left.
  */
 const RANK: Record<SessionState, number> = {
   done: 0,
