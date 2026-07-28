@@ -2,6 +2,7 @@ import St from 'gi://St'
 import Clutter from 'gi://Clutter'
 import GObject from 'gi://GObject'
 import GLib from 'gi://GLib'
+import Pango from 'gi://Pango'
 import type Gio from 'gi://Gio'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js'
@@ -77,6 +78,11 @@ export const Island = GObject.registerClass(
         style_class: 'dasbo-pill-label',
         y_align: Clutter.ActorAlign.CENTER,
       })
+      // The label's width is pinned in the stylesheet so the pill cannot resize
+      // the top bar. St's CSS engine has no `text-overflow`, so the ellipsis has
+      // to be set on the ClutterText — the same lesson as the opacity note in
+      // popupHeader.ts. Without it, overlong content is clipped mid-glyph.
+      this._label.clutter_text.ellipsize = Pango.EllipsizeMode.END
       box.add_child(this._dot)
       box.add_child(this._label)
       this.add_child(box)
@@ -211,13 +217,17 @@ export const Island = GObject.registerClass(
 
       for (const [key, row] of [...this._rows]) {
         if (!live.has(key)) {
-          row.destroy()
-          this._rows.delete(key)
+          // Controls first: they are parented to the row, and destroying the
+          // row destroys them with it — so releasing them afterwards makes
+          // PermissionControls.detach() call remove_child on a dead parent,
+          // which Clutter reports as a "not a child" warning in the journal.
           const stale = this._controls.get(key)
           if (stale) {
             stale.controls.destroy()
             this._controls.delete(key)
           }
+          row.destroy()
+          this._rows.delete(key)
         }
       }
 
@@ -251,7 +261,7 @@ export const Island = GObject.registerClass(
             onAlways: () =>
               this._permHandlers?.grantAllowAlways(s.key, pending.tool, pending.id),
           })
-          controls.attachTo(row.actionBox)
+          controls.attachTo(row.permissionBox)
           this._controls.set(s.key, { id: pending.id, controls })
         } else if (!pending && existing) {
           existing.controls.destroy()

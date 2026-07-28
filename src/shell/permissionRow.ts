@@ -10,7 +10,9 @@ export interface PermissionCallbacks {
 /**
  * The Allow / Deny / Always-allow control cluster.
  * Not a GObject class — it is a plain owner of three St.Buttons so it can be
- * attached to and detached from an existing SessionRow action box.
+ * attached to and detached from a SessionRow's permission box — its own line
+ * beneath the row, because this cluster cannot shrink and would otherwise
+ * starve the wrapping activity label of width.
  */
 export class PermissionControls {
   private box: St.BoxLayout
@@ -24,6 +26,12 @@ export class PermissionControls {
         label,
         style_class: `button ${cls}`,
         y_align: Clutter.ActorAlign.CENTER,
+        // St.Button doesn't set this in its own init, and the SessionRow these
+        // land in is deliberately can_focus: false, so without it a
+        // keyboard-only user cannot reach Allow, Deny or Always at all — the
+        // one place in this extension where that is a security control, not a
+        // convenience. Jump and the header gear carry it for the same reason.
+        can_focus: true,
       })
       b.connect('clicked', () => fn())
       return b
