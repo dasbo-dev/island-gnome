@@ -104,7 +104,7 @@ describe('SessionStore', () => {
     expect(s.worstState()).toBe('waiting')
   })
 
-  it('reap drops a stale session whose pid is dead', () => {
+  it('reap drops a session whose pid is dead even once it is also stale', () => {
     const s = new SessionStore()
     s.apply(ev({ ts: 0 }))
     const fifteenMin = 15 * 60 * 1000
@@ -117,6 +117,46 @@ describe('SessionStore', () => {
     s.apply(ev({ ts: 0 }))
     s.reap(15 * 60 * 1000 + 1, () => true)
     expect(s.list()).toHaveLength(1)
+  })
+
+  it('reap drops a session whose agent process is gone, without waiting for the stale window', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    const dropped = s.reap(1000, () => false)
+    expect(s.list()).toHaveLength(0)
+    expect(dropped).toEqual(['claude:s1'])
+  })
+
+  it('reap keeps a fresh session whose agent process is alive', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    s.reap(1000, () => true)
+    expect(s.list()).toHaveLength(1)
+  })
+
+  it('reap never uses liveness on an unresolved pid, which would delete a live session', () => {
+    // resolveAgentPid returns 0 when it cannot read /proc, and pidAlive(0) is
+    // false. Without the pid > 0 guard this session would go on the first sweep.
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0, pid: 0 }))
+    s.reap(1000, () => false)
+    expect(s.list(), 'an unresolved pid falls back to the stale window').toHaveLength(1)
+    s.reap(15 * 60 * 1000 + 1, () => false)
+    expect(s.list()).toHaveLength(0)
+  })
+
+  it('reap lets a done session finish its linger even though the agent has exited', () => {
+    // A session ends because the agent exited, so session-end and process death
+    // land in the same sweep. Liveness must not pre-empt the linger, or 'done'
+    // would never be visible.
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    s.apply(ev({ kind: 'session-end', ts: 1000 }))
+    s.reap(2000, () => false)
+    expect(s.list(), 'still lingering').toHaveLength(1)
+    expect(s.list()[0]!.state).toBe('done')
+    s.reap(1000 + 10_000 + 1, () => false)
+    expect(s.list()).toHaveLength(0)
   })
 
   it('reap drops a done session after the linger window', () => {

@@ -163,8 +163,8 @@ export class SessionStore {
   }
 
   /**
-   * Drop finished and abandoned sessions. Returns the keys it dropped, so the
-   * caller can release anything (e.g. a held D-Bus permission reply) tied to
+   * Drop finished, dead and abandoned sessions. Returns the keys it dropped, so
+   * the caller can release anything (e.g. a held D-Bus permission reply) tied to
    * them — this store must not depend on PermissionTable to do that itself.
    * `pidAlive` is injected so this stays free of any filesystem dependency.
    */
@@ -184,11 +184,28 @@ export class SessionStore {
         }
         continue
       }
-      const lingerExpired =
-        s.state === 'done' && s.doneAt !== undefined &&
-        now - s.doneAt > this.doneLingerSeconds * 1000
+      // Linger is checked before liveness, and the order is load-bearing: a
+      // session ends because its agent exited, so the session-end event and the
+      // process's death land inside the same sweep. Testing liveness first would
+      // delete the row before its linger elapsed and 'done' would never be seen.
+      if (s.state === 'done' && s.doneAt !== undefined) {
+        if (now - s.doneAt > this.doneLingerSeconds * 1000) {
+          this.sessions.delete(key)
+          dropped.push(key)
+        }
+        continue
+      }
+      // `pid` is the agent process, not the hook — the D-Bus handlers resolve it
+      // through resolveAgentPid while the hook is still blocked in its call — so
+      // this is a real liveness test. It is the only thing that clears the pill
+      // for an agent with no session-end event, or a Claude install predating the
+      // SessionEnd hook. Guarded on pid > 0 because resolveAgentPid returns 0
+      // when it cannot read /proc and pidAlive(0) is false, which would otherwise
+      // reap a perfectly live session on the very first sweep. Those fall back to
+      // the stale window below.
+      const agentGone = s.pid > 0 && !pidAlive(s.pid)
       const abandoned = now - s.lastEventAt > STALE_MS && !pidAlive(s.pid)
-      if (lingerExpired || abandoned) {
+      if (agentGone || abandoned) {
         this.sessions.delete(key)
         dropped.push(key)
       }
