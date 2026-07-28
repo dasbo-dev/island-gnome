@@ -99,7 +99,7 @@ export class SessionStore {
         s.currentTool = undefined
         s.detail = undefined
         break
-      case 'stop':
+      case 'turn-end':
         kindState = 'done'
         s.doneAt = e.ts
         s.currentTool = undefined

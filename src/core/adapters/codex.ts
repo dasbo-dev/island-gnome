@@ -12,14 +12,14 @@ import { isRecord, str } from './shared.js'
  */
 const KIND_BY_EVENT: Record<string, EventKind> = {
   'session.start': 'session-start',
-  'session.end': 'stop',
+  'session.end': 'turn-end',
   'tool.start': 'tool-start',
   'tool.end': 'tool-end',
   SessionStart: 'session-start',
   UserPromptSubmit: 'prompt-submit',
   PreToolUse: 'tool-start',
   PostToolUse: 'tool-end',
-  Stop: 'stop',
+  Stop: 'turn-end',
 }
 
 export const codexAdapter: AgentAdapter = {

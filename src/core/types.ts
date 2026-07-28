@@ -22,7 +22,7 @@ export type EventKind =
   | 'prompt-submit'
   | 'tool-start'
   | 'tool-end'
-  | 'stop'
+  | 'turn-end'
   | 'error'
 
 /** An agent hook payload after dialect normalisation. */

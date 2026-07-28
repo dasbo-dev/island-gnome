@@ -40,7 +40,7 @@ describe('claudeAdapter.normalize', () => {
     const e = claudeAdapter.normalize(
       { session_id: 's1', cwd: '/p' }, { ...ctx, event: 'Stop' }
     )
-    expect(e?.kind).toBe('stop')
+    expect(e?.kind).toBe('turn-end')
   })
 
   it('prefers the payload event over the argv event', () => {
@@ -74,7 +74,7 @@ describe('claudeAdapter.normalize', () => {
     const kinds = ['PostToolUse', 'UserPromptSubmit', 'Stop'].map(
       (n) => claudeAdapter.normalize({ hook_event_name: n, session_id: 's1', cwd: '/p' }, ctx)?.kind
     )
-    expect(kinds).toEqual(['tool-end', 'prompt-submit', 'stop'])
+    expect(kinds).toEqual(['tool-end', 'prompt-submit', 'turn-end'])
   })
 
   it('flags a bypassPermissions payload so the island does not gate it', () => {
@@ -176,6 +176,6 @@ describe('claudeAdapter against captured fixtures', () => {
     expect(kinds).toContain('prompt-submit')
     expect(kinds).toContain('tool-start')
     expect(kinds).toContain('tool-end')
-    expect(kinds).toContain('stop')
+    expect(kinds).toContain('turn-end')
   })
 })

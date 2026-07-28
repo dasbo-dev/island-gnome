@@ -49,10 +49,10 @@ describe('SessionStore', () => {
     expect(s.list()[0]!.currentTool).toBeUndefined()
   })
 
-  it('marks done on stop and stamps doneAt', () => {
+  it('marks done on turn-end and stamps doneAt', () => {
     const s = new SessionStore()
     s.apply(ev())
-    s.apply(ev({ kind: 'stop', ts: 5000 }))
+    s.apply(ev({ kind: 'turn-end', ts: 5000 }))
     expect(s.list()[0]!.state).toBe('done')
     expect(s.list()[0]!.doneAt).toBe(5000)
   })
@@ -71,7 +71,7 @@ describe('SessionStore', () => {
     s.apply(ev())
     expect(n).toBe(1)
     off()
-    s.apply(ev({ kind: 'stop', ts: 2000 }))
+    s.apply(ev({ kind: 'turn-end', ts: 2000 }))
     expect(n).toBe(1)
   })
 
@@ -113,7 +113,7 @@ describe('SessionStore', () => {
   it('reap drops a done session after the linger window', () => {
     const s = new SessionStore()
     s.apply(ev({ ts: 0 }))
-    s.apply(ev({ kind: 'stop', ts: 1000 }))
+    s.apply(ev({ kind: 'turn-end', ts: 1000 }))
     s.reap(1000 + 10_000 + 1, () => true)
     expect(s.list()).toHaveLength(0)
   })
@@ -167,13 +167,13 @@ describe('SessionStore', () => {
     expect(s.list()[0]!.state).toBe('idle')
   })
 
-  it('applying stop while a permission is pending leaves state waiting, and resolving settles to done', () => {
+  it('applying turn-end while a permission is pending leaves state waiting, and resolving settles to done', () => {
     const s = new SessionStore()
     s.apply(ev({ ts: 0 }))
     s.setPending('claude:s1', { id: 'p1', tool: 'Bash', detail: 'rm -rf build', deadline: 30_000, queued: 0 })
     expect(s.list()[0]!.state).toBe('waiting')
 
-    s.apply(ev({ kind: 'stop', ts: 2000 }))
+    s.apply(ev({ kind: 'turn-end', ts: 2000 }))
     expect(s.list()[0]!.state, 'must still say waiting until the permission resolves').toBe('waiting')
     expect(s.list()[0]!.doneAt).toBe(2000)
 
@@ -187,7 +187,7 @@ describe('SessionStore', () => {
     // the next reaper sweep deleted its row.
     const s = new SessionStore()
     s.apply(ev({ ts: 0 }))
-    s.apply(ev({ kind: 'stop', ts: 1000 }))
+    s.apply(ev({ kind: 'turn-end', ts: 1000 }))
     expect(s.list()[0]!.state).toBe('done')
 
     s.apply(ev({ kind: 'prompt-submit', ts: 2000 }))

@@ -16,7 +16,7 @@ describe('codexAdapter.normalize (UNVERIFIED — no captured fixtures)', () => {
   it('maps dotted event names from the type field', () => {
     const cases: Array<[string, string]> = [
       ['session.start', 'session-start'],
-      ['session.end', 'stop'],
+      ['session.end', 'turn-end'],
       ['tool.start', 'tool-start'],
       ['tool.end', 'tool-end'],
     ]

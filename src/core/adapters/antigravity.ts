@@ -7,7 +7,7 @@ const KIND_BY_EVENT: Record<string, EventKind> = {
   PostInvocation: 'tool-end',
   PreToolUse: 'tool-start',
   PostToolUse: 'tool-end',
-  Stop: 'stop',
+  Stop: 'turn-end',
 }
 
 /**
@@ -49,7 +49,7 @@ export const antigravityAdapter: AgentAdapter = {
     // as 'error' would mean the session never reaches 'done', never gets a
     // doneAt, and lingers for the full 15-minute stale window instead of
     // done-linger. The error text is still surfaced via `detail` below.
-    const kind = baseKind === 'stop' ? 'stop' : error ? 'error' : baseKind
+    const kind = baseKind === 'turn-end' ? 'turn-end' : error ? 'error' : baseKind
 
     return {
       agent: 'antigravity',

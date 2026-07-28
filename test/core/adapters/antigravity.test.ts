@@ -50,7 +50,7 @@ describe('antigravityAdapter.normalize', () => {
       ['PostInvocation', 'tool-end'],
       ['PreToolUse', 'tool-start'],
       ['PostToolUse', 'tool-end'],
-      ['Stop', 'stop'],
+      ['Stop', 'turn-end'],
     ]
     for (const [event, kind] of pairs) {
       const e = antigravityAdapter.normalize({ conversationId: 'c1' }, ctx(event))
@@ -77,7 +77,7 @@ describe('antigravityAdapter.normalize', () => {
     const e = antigravityAdapter.normalize(
       { conversationId: 'c1', error: 'boom' }, ctx('Stop')
     )
-    expect(e?.kind).toBe('stop')
+    expect(e?.kind).toBe('turn-end')
     expect(e?.detail, 'the error text is still surfaced as detail').toBe('boom')
   })
 
