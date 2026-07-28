@@ -121,17 +121,17 @@ export const Island = GObject.registerClass(
         this._applyPause()
       )
 
-      // All three of these connect to objects that outlive the Island —
-      // this._settings and global.display — so they are released from both
-      // destroy() and the widget's own 'destroy' signal, not destroy() alone.
-      // Clutter tears children down through clutter_actor_destroy(), which
-      // emits the signal and does not necessarily route through a JS method
+      // Anything held by, or connected to, an object that outlives this
+      // widget must be released here, not only from destroy() below. Clutter
+      // tears children down through clutter_actor_destroy(), which emits the
+      // 'destroy' signal and does not necessarily route through a JS method
       // override (see robotHead.ts:79-83); a panel rebuild by an extension
       // like Dash to Panel can destroy this button that way without disable()
-      // ever running. The extension object — and this._settings with it —
-      // stays alive in that case, so a subsequent settings change would
-      // otherwise reach a disposed widget with nothing to catch it.
-      this.connect('destroy', () => this._releaseHandlers())
+      // ever running. this._settings, global.display, and this._store all
+      // stay alive in that case, so a subsequent settings change, a pending
+      // GLib source, or a store event would otherwise reach a disposed
+      // widget with nothing to catch it.
+      this.connect('destroy', () => this._releaseExternalRefs())
 
       this._menuStateId = (this.menu as MenuWithOpenSignal).connect(
         'open-state-changed',
@@ -205,7 +205,7 @@ export const Island = GObject.registerClass(
       this._robot.setPaused(!this.visible || fullscreen)
     }
 
-    private _releaseHandlers(): void {
+    private _releaseExternalRefs(): void {
       if (this._settingsChangedId) {
         this._settings.disconnect(this._settingsChangedId)
         this._settingsChangedId = 0
@@ -218,6 +218,11 @@ export const Island = GObject.registerClass(
         global.display.disconnect(this._fullscreenId)
         this._fullscreenId = 0
       }
+      this._unsubscribe?.()
+      this._unsubscribe = null
+      for (const id of this._transientIds) GLib.Source.remove(id)
+      this._transientIds.clear()
+      this._stopTimer()
     }
 
     private _tickAll(): void {
@@ -326,12 +331,7 @@ export const Island = GObject.registerClass(
     destroy(): void {
       for (const c of this._controls.values()) c.controls.destroy()
       this._controls.clear()
-      this._stopTimer()
-      for (const id of this._transientIds) GLib.Source.remove(id)
-      this._transientIds.clear()
-      this._unsubscribe?.()
-      this._unsubscribe = null
-      this._releaseHandlers()
+      this._releaseExternalRefs()
       if (this._menuStateId) {
         ;(this.menu as MenuWithOpenSignal).disconnect(this._menuStateId)
         this._menuStateId = 0

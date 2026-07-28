@@ -35,10 +35,11 @@ const TICK_WAITING = 500
 const TICK_IDLE = 333
 const TICK_ONESHOT = 166
 // The error shake is three sine cycles over ERROR_SHAKE_MS (500ms), i.e. 6Hz.
-// TICK_ONESHOT (166ms, 6.024Hz) samples almost exactly at that frequency's
-// own zero crossings, so the widget would repaint five pixel-identical
-// frames instead of a shake. 83ms is a second harmonic that aliases just as
-// badly; 50ms is the first rate that neither aliases nor beats.
+// A tick near 166ms (6.024Hz) — or its second harmonic, 83ms — samples the
+// wave at almost exactly its own zero crossings and renders nothing. 50ms
+// is not the first rate that avoids that; it's the one with the most
+// amplitude headroom among the alternatives, at the cost of 10 wakeups
+// (vs. 5 at 120ms) across this bounded one-shot window.
 const TICK_SHAKE = 50
 
 /**
