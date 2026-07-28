@@ -74,34 +74,56 @@ matches the shell — precisely the wrong process.
 
 ### 2. Pid selection — `src/core/procParse.ts`
 
-A pure function beside `ancestorPids`, taking the same injected `readStat`, so
-core stays free of any filesystem dependency (enforced by
-`test/core/purity.test.ts`):
+A pure function beside `ancestorPids`, taking the same injected `readStat`
+plus a second injected reader for cmdline, so core stays free of any
+filesystem dependency (enforced by `test/core/purity.test.ts`):
 
 ```ts
 /** `comm` is field 2 of /proc/<pid>/stat, wrapped in parentheses. */
 export function parseComm(statContent: string): string | null
 
+/** Split the NUL-separated contents of /proc/<pid>/cmdline into its argv entries. */
+export function parseCmdlineArgs(cmdlineContent: string): string[]
+
 export function selectAgentPid(
   hookPid: number,
   procNames: string[],
-  readStat: (pid: number) => string | null
+  readStat: (pid: number) => string | null,
+  readCmdline: (pid: number) => string | null
 ): number
 ```
 
 `comm` comes out of the same `stat` content the walk already reads, so no
-second reader and no second file per process. `parseComm` slices between the
-first `(` and the last `)`, the same boundary `parsePpid` uses — a `comm` may
-contain both spaces and parentheses.
+second reader and no second file per process for the common case. `parseComm`
+slices between the first `(` and the last `)`, the same boundary `parsePpid`
+uses — a `comm` may contain both spaces and parentheses.
 
 Walking the chain `ancestorPids` already builds, bounded at its existing depth
 of 20, skipping index 0 (the hook itself):
 
 1. First ancestor whose `comm` is in `procNames`.
-2. Otherwise, first ancestor whose `comm` is not a shell or interpreter —
-   `sh`, `dash`, `bash`, `zsh`, `fish`, `gjs`, `node`, `env`. Covers an agent
-   binary whose name we do not know.
-3. Otherwise `0`.
+2. Otherwise, a shell (`sh`, `dash`, `bash`, `zsh`, `fish`, `env`) is skipped
+   and the walk continues — a login shell wrapping the wrapper shell is a real
+   shape.
+3. Otherwise, an interpreter (`node`, `gjs`) STOPS the walk rather than being
+   skipped like a shell. An npm-installed agent runs behind a
+   `#!/usr/bin/env node` shim, so its own `comm` is `node`; walking past it the
+   way a shell is skipped would land the fallback on whatever sits above it —
+   typically a terminal emulator that outlives every session. Before
+   stopping, `readCmdline` reads that process's `/proc/<pid>/cmdline` and
+   `parseCmdlineArgs` splits it on `\0`; if any argument's basename (already
+   exported from `src/core/types.ts`) is in `procNames`, that process IS the
+   agent and its pid is returned outright. Otherwise the walk stops there and
+   returns whatever fallback was already found — never the process above the
+   interpreter. cmdline is only trusted for interpreters: the wrapper shell's
+   own cmdline contains the hook command itself (`... dasbo-hook claude notify
+   SessionStart`), so testing it the same way would match the wrong process.
+   The interpreter set stays exactly `node` and `gjs` — every name in it is a
+   process the walk stops at, so speculative entries (`python3`, `pwsh`, ...)
+   are deliberately left out.
+4. Otherwise, first ancestor that is neither a shell nor an interpreter.
+   Covers an agent binary whose name we do not know.
+5. Otherwise `0`.
 
 Returning `0` rather than the bare ppid is deliberate. An unknown pid is safer
 than a wrong one: the store guards every use on `pid > 0`
@@ -194,8 +216,10 @@ into the D-Bus handlers, which already wrap their bodies in `try`/`catch`.
 | Case | Result |
 |---|---|
 | `/proc/<pid>/stat` unreadable mid-walk | Chain stops there; selection uses what it has, else `0` |
-| No signature match, a non-shell ancestor exists | That pid; liveness and Jump both work |
+| No signature match, a non-shell, non-interpreter ancestor exists | That pid; liveness and Jump both work |
 | Every ancestor is a shell | pid `0`; stale-window reaping only, Jump reports "no window" |
+| An interpreter (`node`, `gjs`) sits on the chain and its cmdline names the agent | That interpreter's pid, via `readCmdline` + `parseCmdlineArgs`; liveness and Jump both work |
+| An interpreter sits on the chain but its cmdline does not name the agent | Walk stops there; whatever fallback was already found, else `0` — never a process above the interpreter |
 | `/proc/stat` has no `btime`, or either parse fails | `startedAt` omitted; store falls back to `e.ts` |
 | Computed time outside bounds | `startedAt` omitted; store falls back to `e.ts` |
 

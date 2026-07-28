@@ -129,7 +129,7 @@ describe('SessionStore', () => {
   })
 
   it('reap never uses liveness on an unresolved pid, which would delete a live session', () => {
-    // resolveAgentPid returns 0 when it cannot read /proc, and pidAlive(0) is
+    // resolveAgent returns 0 when it cannot read /proc, and pidAlive(0) is
     // false. Without the pid > 0 guard this session would go on the first sweep.
     const s = new SessionStore()
     s.apply(ev({ ts: 0, pid: 0 }))
@@ -187,7 +187,7 @@ describe('SessionStore', () => {
   })
 
   it('reap does not treat a pending permission with an unresolved pid as a zombie', () => {
-    // resolveAgentPid returns 0 when it cannot read /proc, and pidAlive(0) is
+    // resolveAgent returns 0 when it cannot read /proc, and pidAlive(0) is
     // false. Without the pid > 0 guard, a live session with an unresolved pid
     // and permission-timeout=0 would be dropped on the first sweep, silently
     // resolving the held D-Bus reply as fallthrough. The zombie rule checks
