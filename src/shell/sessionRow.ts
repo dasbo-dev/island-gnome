@@ -1,5 +1,6 @@
 import St from 'gi://St'
 import Clutter from 'gi://Clutter'
+import Pango from 'gi://Pango'
 import GObject from 'gi://GObject'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 import { formatElapsed, truncateDetail } from '../core/format.js'
@@ -38,10 +39,23 @@ export const SessionRow = GObject.registerClass(
       const textCol = new St.BoxLayout({ vertical: true, x_expand: true })
       this._project = new St.Label({ text: session.project, style_class: 'dasbo-row-project' })
 
-      const activityRow = new St.BoxLayout({ style_class: 'dasbo-pill' })
-      this._dot = new St.Widget({ style_class: 'dasbo-dot', y_align: Clutter.ActorAlign.CENTER })
+      // x_expand on both so the label is allocated the row's full remaining
+      // width: wrapping needs a bounded width to wrap against, and that bound
+      // comes from .dasbo-row-outer's fixed width in the stylesheet.
+      const activityRow = new St.BoxLayout({ style_class: 'dasbo-pill', x_expand: true })
+      // START, not CENTER: over three wrapped lines a centred dot floats beside
+      // the middle line instead of beside the status it belongs to.
+      this._dot = new St.Widget({ style_class: 'dasbo-dot', y_align: Clutter.ActorAlign.START })
       this._activity = new St.Label({ text: '', style_class: 'dasbo-row-activity',
-        y_align: Clutter.ActorAlign.CENTER })
+        x_expand: true })
+      // WORD_CHAR, not WORD: a long path, URL or flag string has no word
+      // boundary to break at, and WORD alone lets such a token overhang the
+      // fixed width — reintroducing the jumping this exists to remove.
+      // ellipsize must be NONE explicitly: Pango ignores line_wrap while an
+      // ellipsize mode is set, which would silently yield one truncated line.
+      this._activity.clutter_text.line_wrap = true
+      this._activity.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR
+      this._activity.clutter_text.ellipsize = Pango.EllipsizeMode.NONE
       activityRow.add_child(this._dot)
       activityRow.add_child(this._activity)
 

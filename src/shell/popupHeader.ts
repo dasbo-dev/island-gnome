@@ -54,6 +54,11 @@ export const EmptyRow = GObject.registerClass(
   class EmptyRow extends PopupMenu.PopupBaseMenuItem {
     constructor() {
       super({ reactive: false, can_focus: false, style_class: 'dasbo-row' })
+      // The label goes in a box carrying the popup's fixed width, the way a
+      // SessionRow's .dasbo-row-outer does. Without it this row is narrower
+      // than the session rows and the popup visibly shrinks when the last
+      // session ends.
+      const outer = new St.BoxLayout({ style_class: 'dasbo-empty-outer' })
       const label = new St.Label({
         text: 'No active sessions',
         style_class: 'dasbo-empty',
@@ -65,7 +70,8 @@ export const EmptyRow = GObject.registerClass(
       // actor property directly so the label actually reads as dimmed.
       // 178 == 0.7 * 255.
       label.opacity = 178
-      this.add_child(label)
+      outer.add_child(label)
+      this.add_child(outer)
     }
   }
 )

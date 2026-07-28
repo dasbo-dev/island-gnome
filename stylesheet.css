@@ -30,12 +30,21 @@
   opacity: 0.7;
 }
 
+/* min-width because the row's total width is now fixed and the action box is
+   right-hand: "5s" growing to "12m" would otherwise slide Jump sideways.
+   tnum handles jitter within a digit count, min-width handles the change in
+   digit count. 3em covers the widest output, e.g. "100h". */
 .dasbo-row-elapsed {
   font-feature-settings: "tnum";
   opacity: 0.7;
+  min-width: 3em;
 }
 
-.dasbo-row-outer { spacing: 12px; }
+/* The popup's width. A PopupMenu sizes to its widest child, so .dasbo-header
+   and .dasbo-empty-outer carry the same value — pinning one alone leaves the
+   others free to exceed it. Fixed here, the command wraps instead of widening
+   the popup (see sessionRow.ts). */
+.dasbo-row-outer { spacing: 12px; width: 26em; }
 .dasbo-row-actions { spacing: 8px; }
 .dasbo-jump { padding: 2px 10px; }
 .dasbo-perm-actions { spacing: 6px; }
@@ -44,7 +53,7 @@
 .dasbo-deny   { padding: 2px 10px; }
 .dasbo-always { padding: 2px 10px; font-size: 0.85em; }
 
-.dasbo-header { spacing: 12px; }
+.dasbo-header { spacing: 12px; width: 26em; }
 
 .dasbo-header-title {
   font-weight: bold;
@@ -56,3 +65,5 @@
   font-size: 0.85em;
   opacity: 0.7;
 }
+
+.dasbo-empty-outer { width: 26em; }
