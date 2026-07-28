@@ -9,6 +9,17 @@ import { isRecord, str } from './shared.js'
  * script, which reads `type`, `session_id`, `cwd` and `tool_name`. Both the
  * dotted `type` names and the CamelCase `hook_event_name` names are accepted,
  * since the installed build and the published docs disagree about which is used.
+ *
+ * Latent dead end: `CODEX_EVENTS` in `../install/plan.ts` only installs the
+ * dotted lowercase spelling (`session.start`, `session.end`, `tool.start`,
+ * `tool.end`) — there is no turn-level event in that spelling. The only
+ * mapping to `turn-end` here is the CamelCase `Stop`, which Codex's installer
+ * never writes. So an installed Codex session has no route back to `idle`
+ * between tool calls; it would sit at `running` from its first tool call
+ * until `session.end`. Impact today is zero — `docs/agent-dialects.md`
+ * records that Codex hooks parse but never fire — but whoever revives Codex
+ * support needs to either add a dotted turn event to `CODEX_EVENTS` (if one
+ * exists) or install the CamelCase spelling instead.
  */
 const KIND_BY_EVENT: Record<string, EventKind> = {
   'session.start': 'session-start',

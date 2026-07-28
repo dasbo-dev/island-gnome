@@ -1,6 +1,6 @@
 #!/usr/bin/gjs -m
 // Drives the extension over D-Bus without running a real agent.
-// Usage: tools/fake-agent.js session|tool|perm [session-id]
+// Usage: tools/fake-agent.js session|tool|perm|sessionend [session-id]
 // The session id defaults to fake-1. Pass distinct ids to create distinct
 // sessions — the store keys on agent + session id, so reusing one id updates
 // the same row instead of adding another.
@@ -19,6 +19,7 @@ const events = {
   session: 'SessionStart',
   tool: 'PreToolUse',
   perm: 'PreToolUse',
+  sessionend: 'SessionEnd',
 }
 
 const payloads = {
@@ -31,6 +32,7 @@ const payloads = {
     hook_event_name: 'PreToolUse', session_id: sessionId, cwd: GLib.get_current_dir(),
     tool_name: 'Bash', tool_input: { command: 'rm -rf build' },
   },
+  sessionend: { hook_event_name: 'SessionEnd', session_id: sessionId, cwd: GLib.get_current_dir() },
 }
 
 const EVENT = events[mode] ?? events.session

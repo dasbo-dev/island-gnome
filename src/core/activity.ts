@@ -24,6 +24,13 @@ export interface Activity {
  * There is deliberately no branch that prints `session.state`. The pill renders
  * `running` as "working" (STATE_WORD in island.ts), so a row falling back to the
  * raw word made the same session read two ways at once.
+ *
+ * The catch-all at the end returns 'error' for any state that isn't
+ * `running`/`idle`/`done` — safe only because `store.ts` enforces that
+ * `waiting` always implies a pending permission (`setPending` sets both in one
+ * statement, `apply`'s guard is inside `if (s.pendingPermission)`, and
+ * `clearPending` clears both together). This function is pure and does not
+ * re-check that invariant itself.
  */
 export function activityText(session: Session): Activity {
   const pending = session.pendingPermission
