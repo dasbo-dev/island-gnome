@@ -90,3 +90,52 @@ export function ancestorPids(
 
   return chain
 }
+
+/**
+ * Processes that are never the agent: the shells an agent spawns its hooks
+ * through, and the interpreters a hook itself runs under. `comm` values, so
+ * already basenames.
+ */
+const NEVER_THE_AGENT = new Set(['sh', 'dash', 'bash', 'zsh', 'fish', 'gjs', 'node', 'env'])
+
+/**
+ * The agent process that owns a hook, or 0 when it cannot be identified.
+ *
+ * The hook's parent is NOT the agent: agents spawn hooks through a wrapper
+ * shell running a compound command (`zsh -c 'source <snapshot> && eval <hook>'`),
+ * which never execs and dies the moment the hook exits. Walking the chain and
+ * identifying the process by name is what survives that, and it also handles a
+ * login shell in between, or no wrapper at all.
+ *
+ * 0 rather than a best guess when nothing matches: every caller guards on
+ * `pid > 0`, so an unknown pid merely disables liveness reaping and jump-back
+ * for that session, whereas a wrong pid makes the reaper drop a live one.
+ *
+ * Must be called while the hook is still blocked in its D-Bus call, i.e. from
+ * inside the method handler, since the whole chain has to be readable.
+ */
+export function selectAgentPid(
+  hookPid: number,
+  procNames: string[],
+  readStat: (pid: number) => string | null
+): number {
+  const chain = ancestorPids(hookPid, readStat)
+  let fallback = 0
+
+  // From 1: index 0 is the hook process itself.
+  for (let i = 1; i < chain.length; i++) {
+    const pid = chain[i]!
+    // init owns every process on the system and identifies nothing.
+    if (pid <= 1) continue
+    const stat = readStat(pid)
+    if (stat === null) continue
+    const comm = parseComm(stat)
+    if (comm === null) continue
+    if (procNames.includes(comm)) return pid
+    // Nearest first: a terminal emulator further up must not win over the
+    // agent sitting just above the wrapper shell.
+    if (fallback === 0 && !NEVER_THE_AGENT.has(comm)) fallback = pid
+  }
+
+  return fallback
+}
