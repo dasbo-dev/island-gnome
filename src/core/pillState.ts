@@ -14,7 +14,7 @@ const RANK: Record<SessionState, number> = {
 }
 
 /**
- * Which state the pill's robot head shows for the whole session set.
+ * Which state the pill's icon shows for the whole session set.
  *
  * A pending permission wins outright, ahead of `error`. The head has one pose
  * slot, and a permission is the only state that blocks an agent on the user —

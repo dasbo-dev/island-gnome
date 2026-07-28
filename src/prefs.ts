@@ -55,13 +55,6 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     settings.bind('always-show', alwaysShow, 'active', 0)
     group.add(alwaysShow)
 
-    const animateIdle = new Adw.SwitchRow({
-      title: 'Animate while idle',
-      subtitle: 'Play the sleep animation while no agent is running. Costs a little battery.',
-    })
-    settings.bind('animate-idle', animateIdle, 'active', 0)
-    group.add(animateIdle)
-
     page.add(group)
     return page
   }

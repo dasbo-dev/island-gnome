@@ -12,7 +12,7 @@ import type { Session, SessionState } from '../core/types.js'
 import { SessionRow } from './sessionRow.js'
 import { PermissionControls } from './permissionRow.js'
 import { PopupHeader, EmptyRow } from './popupHeader.js'
-import { RobotHead } from './robotHead.js'
+import { GridIcon } from './gridIcon.js'
 import { pillState } from '../core/pillState.js'
 
 /**
@@ -37,7 +37,7 @@ export const Island = GObject.registerClass(
   class Island extends PanelMenu.Button {
     private _store!: SessionStore
     private _settings!: Gio.Settings
-    private _robot!: InstanceType<typeof RobotHead>
+    private _icon!: InstanceType<typeof GridIcon>
     private _label!: St.Label
     private _unsubscribe: (() => void) | null = null
     private _rows = new Map<string, InstanceType<typeof SessionRow>>()
@@ -46,7 +46,6 @@ export const Island = GObject.registerClass(
     private _emptyRow: InstanceType<typeof EmptyRow> | null = null
     private _timerId = 0
     private _settingsChangedId = 0
-    private _animateIdleId = 0
     private _fullscreenId = 0
     private _menuStateId = 0
     private _onJump: (s: Session) => void = () => {}
@@ -64,7 +63,7 @@ export const Island = GObject.registerClass(
       this._settings = settings
 
       const box = new St.BoxLayout({ style_class: 'dasbo-pill' })
-      this._robot = new RobotHead()
+      this._icon = new GridIcon()
       this._label = new St.Label({
         text: '',
         style_class: 'dasbo-pill-label',
@@ -75,7 +74,7 @@ export const Island = GObject.registerClass(
       // to be set on the ClutterText — the same lesson as the opacity note in
       // popupHeader.ts. Without it, overlong content is clipped mid-glyph.
       this._label.clutter_text.ellipsize = Pango.EllipsizeMode.END
-      box.add_child(this._robot)
+      box.add_child(this._icon)
       box.add_child(this._label)
       this.add_child(box)
 
@@ -109,11 +108,6 @@ export const Island = GObject.registerClass(
         this.refresh()
       )
 
-      this._animateIdleId = this._settings.connect('changed::animate-idle', () => {
-        this._robot.setAnimateIdle(this._settings.get_boolean('animate-idle'))
-      })
-      this._robot.setAnimateIdle(this._settings.get_boolean('animate-idle'))
-
       // Fullscreen is not a store event, so refresh() never runs for it. The
       // pill is invisible under a fullscreen window; animating it there is
       // pure waste.
@@ -125,7 +119,7 @@ export const Island = GObject.registerClass(
       // widget must be released here, not only from destroy() below. Clutter
       // tears children down through clutter_actor_destroy(), which emits the
       // 'destroy' signal and does not necessarily route through a JS method
-      // override (see robotHead.ts:79-83); a panel rebuild by an extension
+      // override (see gridIcon.ts); a panel rebuild by an extension
       // like Dash to Panel can destroy this button that way without disable()
       // ever running. this._settings, global.display, and this._store all
       // stay alive in that case, so a subsequent settings change, a pending
@@ -195,24 +189,20 @@ export const Island = GObject.registerClass(
     }
 
     /**
-     * The robot animates only when it can actually be seen. Both inputs are
+     * The icon animates only when it can actually be seen. Both inputs are
      * checked together because they change independently: `visible` follows
      * the session count and the always-show setting, fullscreen follows the
      * window manager.
      */
     private _applyPause(): void {
       const fullscreen = Main.layoutManager.primaryMonitor?.inFullscreen ?? false
-      this._robot.setPaused(!this.visible || fullscreen)
+      this._icon.setPaused(!this.visible || fullscreen)
     }
 
     private _releaseExternalRefs(): void {
       if (this._settingsChangedId) {
         this._settings.disconnect(this._settingsChangedId)
         this._settingsChangedId = 0
-      }
-      if (this._animateIdleId) {
-        this._settings.disconnect(this._animateIdleId)
-        this._animateIdleId = 0
       }
       if (this._fullscreenId) {
         global.display.disconnect(this._fullscreenId)
@@ -318,7 +308,7 @@ export const Island = GObject.registerClass(
       // One call decides both the head's pose and the label's word, so they
       // can never disagree — a pending permission reads "waiting" in both.
       const state = pillState(sessions)
-      this._robot.setState(state)
+      this._icon.setState(state)
 
       if (count === 0) {
         this._label.text = 'idle'

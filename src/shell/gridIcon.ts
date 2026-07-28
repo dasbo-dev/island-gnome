@@ -38,8 +38,8 @@ interface Metrics {
  *
  * The gap is 0.53px at S=16 and 0.73px at S=22 — under a device pixel at every
  * realistic size. It is the only thing that makes four blocks read as four
- * rather than as one square, so it is floored at 1px even where that costs a
- * block a pixel of width.
+ * rather than as one square, so it is floored at 1px even where that widens
+ * the grid past its design proportion.
  */
 function metrics(s: number): Metrics {
   const u = s / UNITS
@@ -63,8 +63,8 @@ function roundedRect(
   r: number
 ): void {
   const rr = Math.min(r, w / 2, h / 2)
-  // At the smallest sizes the snapped radius rounds to zero; cairo's arc would
-  // then degenerate, so fall back to a plain rectangle.
+  // Guards a pathological allocation (a zero- or negative-size block), where
+  // cairo's arc would degenerate; no realistic panel size reaches this.
   if (rr <= 0) {
     cr.rectangle(x, y, w, h)
     return
