@@ -1,12 +1,22 @@
 /**
+ * Extract the fields after the LAST ')' in a /proc stat line.
+ * The comm field may itself contain spaces and parentheses, and after the
+ * slice, field 3 sits at index 0. Returns null if no closing paren is found.
+ */
+function statFields(statContent: string): string[] | null {
+  const close = statContent.lastIndexOf(')')
+  if (close === -1) return null
+  return statContent.slice(close + 1).trim().split(/\s+/)
+}
+
+/**
  * Extract the parent pid from the contents of /proc/<pid>/stat.
  * The comm field is wrapped in parentheses and may itself contain spaces and
  * parentheses, so everything up to the LAST ')' is skipped.
  */
 export function parsePpid(statContent: string): number | null {
-  const close = statContent.lastIndexOf(')')
-  if (close === -1) return null
-  const rest = statContent.slice(close + 1).trim().split(/\s+/)
+  const rest = statFields(statContent)
+  if (rest === null) return null
   // rest[0] is the state character, rest[1] is the ppid.
   const ppid = Number(rest[1])
   return Number.isInteger(ppid) ? ppid : null
@@ -30,9 +40,8 @@ export function parseComm(statContent: string): string | null {
  * index 0, so field 22 sits at index 19.
  */
 export function parseStartTicks(statContent: string): number | null {
-  const close = statContent.lastIndexOf(')')
-  if (close === -1) return null
-  const rest = statContent.slice(close + 1).trim().split(/\s+/)
+  const rest = statFields(statContent)
+  if (rest === null) return null
   const raw = rest[19]
   if (raw === undefined) return null
   const ticks = Number(raw)
