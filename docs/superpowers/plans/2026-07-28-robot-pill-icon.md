@@ -30,8 +30,8 @@ Spec: `docs/superpowers/specs/2026-07-28-robot-pill-icon-design.md`
 | `test/core/robot.test.ts` | create | Unit tests for the above. |
 | `src/core/pillState.ts` | create | Pure rule for which state the pill shows across all sessions. |
 | `test/core/pillState.test.ts` | create | Unit tests for the above. |
-| `src/core/store.ts` | modify | Delete `RANK` and `worstState()`; both move to `pillState.ts`. |
-| `test/core/store.test.ts` | modify | Delete the `worstState` test, now covered by `pillState.test.ts`. |
+| `src/core/store.ts` | modify (Task 6) | Delete `RANK` and `worstState()` once `island.ts` stops calling them. |
+| `test/core/store.test.ts` | modify (Task 6) | Delete the `worstState` test, now covered by `pillState.test.ts`. |
 | `src/shell/robotHead.ts` | create | `St.DrawingArea` subclass. Cairo drawing, one timer, theme colours. |
 | `stylesheet.css` | modify | Add `.dasbo-robot` sizing and `-dasbo-accent` per state. `.dasbo-dot` untouched. |
 | `schemas/org.gnome.shell.extensions.dasbo-island.gschema.xml` | modify | Add the `animate-idle` key. |
@@ -430,14 +430,17 @@ pill outright. Extracting it into `src/core/pillState.ts` makes it testable,
 and absorbs the `allDone` special case currently inlined in `island.ts`.
 
 `store.worstState()` has exactly one production caller (`island.ts:310`), which
-this replaces. Rather than leave a tested-but-dead method behind, `RANK` and
-`worstState` move here.
+this eventually replaces. `pillState` gets its own copy of the ranking now;
+Task 6 deletes the store's once nothing calls it, so no commit in between is
+left broken or carrying dead code.
 
 **Files:**
 - Create: `src/core/pillState.ts`
 - Create: `test/core/pillState.test.ts`
-- Modify: `src/core/store.ts` (delete `RANK` at lines 12-18 and `worstState()` at lines 43-49)
-- Modify: `test/core/store.test.ts` (delete the `worstState` test at lines 101-108)
+
+`store.worstState()` is **not** touched here. `island.ts` still calls it until
+Task 6, and deleting it now would leave the tree failing typecheck between two
+commits. Task 6 removes it in the same commit that stops calling it.
 
 **Interfaces:**
 - Consumes: `Session`, `SessionState` from `src/core/types.ts`.
@@ -519,8 +522,8 @@ import type { Session, SessionState } from './types.js'
 
 /**
  * Ranked so a finished session can never mask a live one when both are
- * present. Moved here from `store.ts`, which no longer needs it: the pill was
- * its only consumer.
+ * present. Duplicates `store.ts`'s table for one task only — Task 6 deletes
+ * that one along with `worstState()`, its sole consumer.
  */
 const RANK: Record<SessionState, number> = {
   done: 0,
@@ -562,66 +565,20 @@ export function pillState(sessions: Session[]): SessionState {
 Run: `npx vitest run test/core/pillState.test.ts`
 Expected: PASS, 5 tests.
 
-- [ ] **Step 5: Delete the superseded store code**
+- [ ] **Step 5: Run the full suite**
 
-In `src/core/store.ts`, delete the `RANK` constant (lines 12-18) and the
-`worstState()` method (lines 43-49):
+Run: `npm test && npm run typecheck && npm run build`
+Expected: all green, no output from typecheck, `built dist/`. Nothing outside
+`src/core` changed, so the shell still compiles.
 
-```ts
-  worstState(): SessionState {
-    let worst: SessionState = 'idle'
-    for (const s of this.sessions.values()) {
-      if (RANK[s.state] > RANK[worst]) worst = s.state
-    }
-    return worst
-  }
-```
-
-`SessionState` may become an unused import in `store.ts` after this. Check the
-remaining uses before removing it from the import list — leave it if anything
-else still references the type.
-
-In `test/core/store.test.ts`, delete this test entirely:
-
-```ts
-  it('worstState ranks waiting above running above idle', () => {
-    const s = new SessionStore()
-    s.apply(ev({ sessionId: 'a' }))
-    s.apply(ev({ sessionId: 'b', kind: 'tool-start', tool: 'Edit' }))
-    expect(s.worstState()).toBe('running')
-    s.setPending('claude:a', { id: 'p1', tool: 'Bash', deadline: 0, queued: 0 })
-    expect(s.worstState()).toBe('waiting')
-  })
-```
-
-The ranking it covered is now covered by `pillState.test.ts`.
-
-- [ ] **Step 6: Run the full suite**
-
-Run: `npm test && npm run typecheck`
-
-Expected: tests pass. `typecheck` **will** report one error in
-`src/shell/island.ts` — `Property 'worstState' does not exist`. That is
-correct: Task 6 fixes the caller. Do not fix it here and do not delete the
-line yet.
-
-To confirm nothing else broke, check that this is the only error:
-
-`npx tsc --noEmit -p tsconfig.json 2>&1 | grep -c "error TS"`
-Expected output: `1`
-
-- [ ] **Step 7: Commit**
-
-The tree does not typecheck between this commit and Task 6's. That is
-deliberate — splitting the pure rule from its shell caller is what makes each
-independently reviewable — but say so in the message.
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/core/pillState.ts test/core/pillState.test.ts src/core/store.ts test/core/store.test.ts
-git commit -m "refactor(core): move the pill's state rule out of the store
+git add src/core/pillState.ts test/core/pillState.test.ts
+git commit -m "feat(core): add the pill's state rule
 
-A pending permission now outranks an errored session. island.ts still
-calls the removed worstState() and is fixed in the next commit."
+A pending permission outranks an errored session. Not yet wired into
+island.ts, which still uses store.worstState()."
 ```
 
 ---
@@ -939,10 +896,9 @@ export const RobotHead = GObject.registerClass(
 
 - [ ] **Step 3: Typecheck**
 
-Run: `npx tsc --noEmit -p tsconfig.json 2>&1 | grep -v "island.ts"; echo "done"`
+Run: `npm run typecheck`
 
-Expected: nothing but `done`. The only remaining error in the project is the
-`worstState` call in `island.ts`, which Task 6 fixes.
+Expected: no output, exit 0.
 
 The `import type cairo from 'cairo'` line is type-only and erased at build
 time; there is no runtime module by that name. `import Cairo from 'gi://cairo'`
@@ -1015,8 +971,8 @@ In `src/prefs.ts`, insert after `group.add(alwaysShow)` (line 56):
 
 - [ ] **Step 4: Typecheck and build**
 
-Run: `npx tsc --noEmit -p tsconfig.json 2>&1 | grep -v "island.ts"; echo "done"`
-Expected: nothing but `done`.
+Run: `npm run typecheck`
+Expected: no output, exit 0.
 
 Run: `npm run build`
 Expected: `built dist/`.
@@ -1033,10 +989,14 @@ git commit -m "feat(prefs): add the animate-idle setting"
 ### Task 6: Wire the head into the island
 
 Swaps the dot for the head, deletes the bespoke pulse, adopts `pillState`, and
-gates the tick so a hidden or obscured pill costs nothing.
+gates the tick so a hidden or obscured pill costs nothing. Once `island.ts` no
+longer calls `store.worstState()`, this task deletes it — in the same commit,
+so the tree is green before and after.
 
 **Files:**
 - Modify: `src/shell/island.ts`
+- Modify: `src/core/store.ts` (delete `RANK` at lines 12-18 and `worstState()` at lines 43-49)
+- Modify: `test/core/store.test.ts` (delete the `worstState` test at lines 101-108)
 
 **Interfaces:**
 - Consumes: `RobotHead` from `./robotHead.js` (Task 4), `pillState` from `../core/pillState.js` (Task 3), the `animate-idle` key (Task 5).
@@ -1233,16 +1193,55 @@ In `destroy()`, beside the existing `_settingsChangedId` block:
 The robot itself needs no explicit `destroy()` here — it is a child of the
 pill's box, and it releases its timer from its own `destroy` signal handler.
 
-- [ ] **Step 8: Verify the whole project typechecks again**
+- [ ] **Step 8: Delete the now-unused store code**
+
+`island.ts` was `worstState()`'s only production caller. With Step 6 done it
+has none, so remove it rather than leave a tested-but-dead method behind.
+
+In `src/core/store.ts`, delete the `RANK` constant (lines 12-18) and the
+`worstState()` method (lines 43-49):
+
+```ts
+  worstState(): SessionState {
+    let worst: SessionState = 'idle'
+    for (const s of this.sessions.values()) {
+      if (RANK[s.state] > RANK[worst]) worst = s.state
+    }
+    return worst
+  }
+```
+
+`SessionState` may become an unused import in `store.ts` after this. Check the
+remaining uses before removing it from the import list — leave it if anything
+else still references the type.
+
+In `test/core/store.test.ts`, delete this test entirely:
+
+```ts
+  it('worstState ranks waiting above running above idle', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'a' }))
+    s.apply(ev({ sessionId: 'b', kind: 'tool-start', tool: 'Edit' }))
+    expect(s.worstState()).toBe('running')
+    s.setPending('claude:a', { id: 'p1', tool: 'Bash', deadline: 0, queued: 0 })
+    expect(s.worstState()).toBe('waiting')
+  })
+```
+
+The ranking it covered is now covered by `pillState.test.ts`.
+
+- [ ] **Step 9: Verify nothing still references the old machinery**
 
 Run: `npm run typecheck`
-Expected: no output, exit 0. This is the commit that closes the gap Task 3
-opened.
+Expected: no output, exit 0.
 
-Run: `grep -n "_dot\|_pulsing\|worstState" src/shell/island.ts`
+Run: `grep -rn "_dot\|_pulsing\|worstState" src/shell/island.ts src/core/store.ts`
 Expected: no matches. Any hit is a leftover reference.
 
-- [ ] **Step 9: Build and run the suite**
+Run: `grep -rn "worstState" src/ test/`
+Expected: no matches anywhere in the project.
+
+- [ ] **Step 10: Build and run the suite**
 
 Run: `npm run build && npm test`
 Expected: `built dist/`, all tests pass.
@@ -1250,11 +1249,14 @@ Expected: `built dist/`, all tests pass.
 Run: `grep -c "gi://cairo" dist/extension.js`
 Expected: `1` — the widget is now reachable and no longer tree-shaken.
 
-- [ ] **Step 10: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
-git add src/shell/island.ts
-git commit -m "feat(shell): put the robot head in the pill"
+git add src/shell/island.ts src/core/store.ts test/core/store.test.ts
+git commit -m "feat(shell): put the robot head in the pill
+
+island.ts was store.worstState()'s only caller; both it and RANK go with
+the switch to pillState."
 ```
 
 ---
