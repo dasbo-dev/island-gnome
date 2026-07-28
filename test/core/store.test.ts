@@ -207,12 +207,40 @@ describe('SessionStore', () => {
     expect(s.list()).toHaveLength(1)
   })
 
-  it('reap returns the keys it dropped for ordinary abandonment and linger too', () => {
+  it('reap drops an abandoned session with an unresolved pid after the stale window, and reports its key', () => {
+    // pid: 0 so agentGone can never fire (it requires pid > 0) — only the
+    // 15-minute stale rule can drop this one. (Previously this test used
+    // pid: 4242 with a fake pidAlive that always returns false, so agentGone
+    // fired at any `now` and the 15-minute wait was decorative — it could
+    // never actually fail.)
     const s = new SessionStore()
-    s.apply(ev({ ts: 0 }))
+    s.apply(ev({ ts: 0, pid: 0 }))
     const fifteenMin = 15 * 60 * 1000
     const dropped = s.reap(fifteenMin + 1, () => false)
     expect(dropped).toEqual(['claude:s1'])
+  })
+
+  it('reap drops a done session after its linger window and reports its key', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    s.apply(ev({ kind: 'session-end', ts: 1000 }))
+    const dropped = s.reap(1000 + 10_000 + 1, () => true)
+    expect(dropped).toEqual(['claude:s1'])
+  })
+
+  it('reap lets an error session linger past pid death, then drops it after the grace window', () => {
+    // An errored session whose agent has already exited deserves the same
+    // grace as a finished one — otherwise it can vanish on the very next
+    // sweep, possibly the instant the error appears. Reuses lastEventAt
+    // rather than adding a field or a setting.
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    s.apply(ev({ kind: 'error', detail: 'boom', ts: 1000 }))
+    s.reap(1000 + 10_000 - 1, () => false)
+    expect(s.list(), 'still within the grace window').toHaveLength(1)
+    expect(s.list()[0]!.state).toBe('error')
+    s.reap(1000 + 10_000 + 1, () => false)
+    expect(s.list(), 'dropped once the grace window elapses and the pid is dead').toHaveLength(0)
   })
 
   it('applying tool-end while a permission is pending leaves state waiting, and resolving settles to running', () => {
@@ -295,6 +323,20 @@ describe('SessionStore', () => {
 
     s.clearPending('claude:s1')
     expect(s.list()[0]!.state, 'the error must survive the resolve').toBe('error')
+  })
+
+  it('clears a stale detail and tool when a new session starts', () => {
+    // Before activity.ts existed, the row rendered `tool ?? session.state`, so
+    // a stale detail was invisible. Now activity.ts has a detail-only branch
+    // that prints it, so an error's leftover detail must not survive into the
+    // next session-start.
+    const s = new SessionStore()
+    s.apply(ev({ kind: 'error', detail: 'boom: exit 1', ts: 0 }))
+    expect(s.list()[0]!.detail).toBe('boom: exit 1')
+    s.apply(ev({ kind: 'session-start', ts: 1000 }))
+    expect(s.list()[0]!.state).toBe('idle')
+    expect(s.list()[0]!.detail, 'a session-start must not leave a stale detail visible').toBeUndefined()
+    expect(s.list()[0]!.currentTool).toBeUndefined()
   })
 
   it('caps the session count so a hostile peer cannot grow the map unbounded', () => {

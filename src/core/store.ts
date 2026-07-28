@@ -81,6 +81,8 @@ export class SessionStore {
       case 'session-start':
         kindState = 'idle'
         s.doneAt = undefined
+        s.currentTool = undefined
+        s.detail = undefined
         break
       case 'prompt-submit':
         kindState = 'running'
@@ -197,6 +199,14 @@ export class SessionStore {
           this.sessions.delete(key)
           dropped.push(key)
         }
+        continue
+      }
+      // An errored session deserves the same grace as a finished one: its agent
+      // may already be gone by the time the error lands, and the liveness rule
+      // below would otherwise reap it on the very next sweep — possibly the
+      // instant the error appears. Reuses lastEventAt rather than adding a
+      // field or a setting; falls through to liveness once the window elapses.
+      if (s.state === 'error' && now - s.lastEventAt <= this.doneLingerSeconds * 1000) {
         continue
       }
       // `pid` is the agent process, not the hook — the D-Bus handlers resolve it
