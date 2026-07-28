@@ -54,15 +54,28 @@ useful fixture: it shows what a **blocked** tool call's `PreToolUse` payload
 looks like, with no `tool_response` because the tool never ran.)
 
 **Events observed:** `SessionStart`, `UserPromptSubmit`, `PreToolUse`,
-`PostToolUse`, `Stop` — all five hooks that were wired fired at least once,
-across two agent runs in the scratch dir (hence two of each of
+`PostToolUse`, `Stop` — all five hooks wired at capture time fired at least
+once, across two agent runs in the scratch dir (hence two of each of
 `SessionStart`/`UserPromptSubmit`/`Stop`).
+
+A sixth hook, `SessionEnd`, was wired into the extension's install plan later
+(see `CLAUDE_EVENTS` in `src/core/install/plan.ts`) and is **uncaptured**: no
+fixture exists for it in `test/fixtures/claude/`, and nothing below about its
+exact key names was read off a verbatim payload the way it was for the other
+five. It is reasonable to expect it shares the `hook_event_name`/`session_id`/
+`cwd` shape common to every other Claude hook, but that is an inference, not
+an observation — the captured-vs-inferred distinction this document otherwise
+draws throughout applies to `SessionEnd` too.
 
 **Tools observed:** `Read`, `Edit` (file-edit tool), `Bash` (shell tool) —
 `Edit` has both a denied-`PreToolUse`-only fixture and a successful
 Pre+Post pair.
 
 ### Exact key names
+
+Covers the five captured hooks only — `SessionStart`, `UserPromptSubmit`,
+`PreToolUse`, `PostToolUse`, `Stop`. `SessionEnd` is not represented here;
+see above.
 
 | Field | Key | Notes |
 |---|---|---|

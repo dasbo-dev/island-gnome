@@ -81,6 +81,8 @@ export class SessionStore {
       case 'session-start':
         kindState = 'idle'
         s.doneAt = undefined
+        s.currentTool = undefined
+        s.detail = undefined
         break
       case 'prompt-submit':
         kindState = 'running'
@@ -95,11 +97,24 @@ export class SessionStore {
         s.doneAt = undefined
         break
       case 'tool-end':
+        // Not idle: the agent keeps thinking and streaming between tool calls,
+        // and Claude fires PostToolUse after every one of them. Downgrading here
+        // made the pill strobe working/idle once per tool. The absence of
+        // currentTool is what the row reads as "thinking".
+        kindState = 'running'
+        s.currentTool = undefined
+        s.detail = undefined
+        break
+      case 'turn-end':
+        // The agent finished talking, not the session. Claude fires Stop at the
+        // end of every assistant turn while the terminal stays open, so this is
+        // 'waiting on a human', not 'finished' — and it must stamp no doneAt,
+        // or the linger sweep would delete a live session.
         kindState = 'idle'
         s.currentTool = undefined
         s.detail = undefined
         break
-      case 'stop':
+      case 'session-end':
         kindState = 'done'
         s.doneAt = e.ts
         s.currentTool = undefined
@@ -142,16 +157,17 @@ export class SessionStore {
     if (!s?.pendingPermission) return
     s.pendingPermission = undefined
     // Settle to whatever the last event actually meant while the permission was
-    // held — a stop settles to 'done', an error to 'error'. With no event in
-    // that window there is nothing deferred, so 'idle' is right.
-    if (s.state === 'waiting') s.state = s.deferredState ?? 'idle'
+    // held — a turn-end settles to 'idle', a session-end to 'done', an error to
+    // 'error'. With no event during the hold, the agent simply proceeds with
+    // (or without) the tool it asked about, so 'running' is the right settle.
+    if (s.state === 'waiting') s.state = s.deferredState ?? 'running'
     s.deferredState = undefined
     this.emit()
   }
 
   /**
-   * Drop finished and abandoned sessions. Returns the keys it dropped, so the
-   * caller can release anything (e.g. a held D-Bus permission reply) tied to
+   * Drop finished, dead and abandoned sessions. Returns the keys it dropped, so
+   * the caller can release anything (e.g. a held D-Bus permission reply) tied to
    * them — this store must not depend on PermissionTable to do that itself.
    * `pidAlive` is injected so this stays free of any filesystem dependency.
    */
@@ -163,19 +179,62 @@ export class SessionStore {
         // will resolve it. But with permission-timeout = 0 no timer ever starts,
         // so a killed agent mid-permission would otherwise wedge this session
         // forever. Only collect it once the process is confirmed gone AND no
-        // timer will ever fire.
-        const zombie = s.pendingPermission.deadline === 0 && !pidAlive(s.pid)
+        // timer will ever fire. Guarded on pid > 0 for the same reason as the
+        // liveness check below: resolveAgentPid returns 0 when it cannot read
+        // /proc, and pidAlive(0) is false, which would otherwise drop a live
+        // session with an unresolved pid on the first sweep.
+        const zombie = s.pid > 0 && s.pendingPermission.deadline === 0 && !pidAlive(s.pid)
         if (zombie) {
+          this.sessions.delete(key)
+          dropped.push(key)
+        } else if (
+          // Escape hatch for a permission wedged by both unresolved pid and deadline=0:
+          // the pid > 0 guard above means such a session can never be collected as a
+          // zombie, and no timer will ever fire, so it would sit forever. A session
+          // with no events for 15 minutes and a dead or unresolved pid is genuinely
+          // stuck, not merely waiting on a slow human — that signal is safer than
+          // liveness alone. Guarded on deadline=0 (no timer to eventually resolve it)
+          // and !pidAlive so a live agent with deadline=0 can wait indefinitely for
+          // the user to respond to the permission.
+          s.pendingPermission.deadline === 0 &&
+          now - s.lastEventAt > STALE_MS &&
+          !pidAlive(s.pid)
+        ) {
           this.sessions.delete(key)
           dropped.push(key)
         }
         continue
       }
-      const lingerExpired =
-        s.state === 'done' && s.doneAt !== undefined &&
-        now - s.doneAt > this.doneLingerSeconds * 1000
+      // Linger is checked before liveness, and the order is load-bearing: a
+      // session ends because its agent exited, so the session-end event and the
+      // process's death land inside the same sweep. Testing liveness first would
+      // delete the row before its linger elapsed and 'done' would never be seen.
+      if (s.state === 'done' && s.doneAt !== undefined) {
+        if (now - s.doneAt > this.doneLingerSeconds * 1000) {
+          this.sessions.delete(key)
+          dropped.push(key)
+        }
+        continue
+      }
+      // An errored session deserves the same grace as a finished one: its agent
+      // may already be gone by the time the error lands, and the liveness rule
+      // below would otherwise reap it on the very next sweep — possibly the
+      // instant the error appears. Reuses lastEventAt rather than adding a
+      // field or a setting; falls through to liveness once the window elapses.
+      if (s.state === 'error' && now - s.lastEventAt <= this.doneLingerSeconds * 1000) {
+        continue
+      }
+      // `pid` is the agent process, not the hook — the D-Bus handlers resolve it
+      // through resolveAgentPid while the hook is still blocked in its call — so
+      // this is a real liveness test. It is the only thing that clears the pill
+      // for an agent with no session-end event, or a Claude install predating the
+      // SessionEnd hook. Guarded on pid > 0 because resolveAgentPid returns 0
+      // when it cannot read /proc and pidAlive(0) is false, which would otherwise
+      // reap a perfectly live session on the very first sweep. Those fall back to
+      // the stale window below.
+      const agentGone = s.pid > 0 && !pidAlive(s.pid)
       const abandoned = now - s.lastEventAt > STALE_MS && !pidAlive(s.pid)
-      if (lingerExpired || abandoned) {
+      if (agentGone || abandoned) {
         this.sessions.delete(key)
         dropped.push(key)
       }

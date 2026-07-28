@@ -4,10 +4,10 @@ import { isRecord, str } from './shared.js'
 
 const KIND_BY_EVENT: Record<string, EventKind> = {
   PreInvocation: 'prompt-submit',
-  PostInvocation: 'tool-end',
+  PostInvocation: 'turn-end',
   PreToolUse: 'tool-start',
   PostToolUse: 'tool-end',
-  Stop: 'stop',
+  Stop: 'turn-end',
 }
 
 /**
@@ -44,12 +44,7 @@ export const antigravityAdapter: AgentAdapter = {
     // `error` is present but empty on success; only a non-empty value is a failure.
     const error = str(raw['error'])
     const toolCall = raw['toolCall']
-
-    // A Stop carrying a non-empty error must still be terminal: reclassifying it
-    // as 'error' would mean the session never reaches 'done', never gets a
-    // doneAt, and lingers for the full 15-minute stale window instead of
-    // done-linger. The error text is still surfaced via `detail` below.
-    const kind = baseKind === 'stop' ? 'stop' : error ? 'error' : baseKind
+    const kind = error ? 'error' : baseKind
 
     return {
       agent: 'antigravity',

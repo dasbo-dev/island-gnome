@@ -301,7 +301,13 @@ export const Island = GObject.registerClass(
       }
       this.visible = true
 
-      const worst = count === 0 ? 'idle' : this._store.worstState()
+      // RANK deliberately ranks 'done' lowest so a finished session can never
+      // mask a live one when both are present — but that same ranking makes
+      // worstState() report 'idle' for a set where every session is done,
+      // directly contradicting the row, which reads 'done'. Special-case the
+      // all-done set here rather than in RANK.
+      const allDone = count > 0 && sessions.every((s) => s.state === 'done')
+      const worst = count === 0 ? 'idle' : allDone ? 'done' : this._store.worstState()
       this._dot.style_class = `dasbo-dot ${STATE_CLASS[worst]}`.trim()
 
       if (count === 0) {

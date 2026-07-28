@@ -3,7 +3,8 @@ import Clutter from 'gi://Clutter'
 import Pango from 'gi://Pango'
 import GObject from 'gi://GObject'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
-import { formatElapsed, truncateDetail } from '../core/format.js'
+import { formatElapsed } from '../core/format.js'
+import { activityText } from '../core/activity.js'
 import type { Session, SessionState } from '../core/types.js'
 
 const STATE_CLASS: Record<SessionState, string> = {
@@ -136,22 +137,13 @@ export const SessionRow = GObject.registerClass(
       this._project.text = session.project
       this._dot.style_class = `dasbo-dot ${STATE_CLASS[session.state]}`.trim()
 
-      const tool = session.currentTool
-      const detail = session.detail
-      const pending = session.pendingPermission
-      if (pending) {
-        // The tool name comes from the payload too, so it needs bounding for the
-        // same reason detail does — an unbounded label pushes Allow and Deny off
-        // screen, which is exactly what this row exists to prevent.
-        const tool = truncateDetail(pending.tool, 40)
-        const what = pending.detail ? `${tool} · ${truncateDetail(pending.detail)}` : tool
-        const more = pending.queued > 0 ? ` · +${pending.queued} more` : ''
-        this._activity.text = `waiting for you · ${what}${more}`
-      } else if (tool && detail) {
-        this._activity.text = `${tool} · ${truncateDetail(detail)}`
-      } else {
-        this._activity.text = tool ?? session.state
-      }
+      const { text, hint } = activityText(session)
+      this._activity.text = text
+      // St's CSS engine does not reliably honour `opacity` — the same finding
+      // that made PopupHeader's empty label set it on the actor — so the
+      // .dasbo-row-activity rule cannot carry this. Set on every call, not just
+      // the hint branches: one label is reused across every state.
+      this._activity.opacity = hint ? 178 : 255
     }
 
     /** Called once per second by the Island while the popup is open. */
@@ -160,6 +152,7 @@ export const SessionRow = GObject.registerClass(
     }
 
     showTransient(text: string): void {
+      this._activity.opacity = 255
       this._activity.text = text
     }
   }

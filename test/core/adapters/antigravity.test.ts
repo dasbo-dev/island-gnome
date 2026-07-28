@@ -47,10 +47,10 @@ describe('antigravityAdapter.normalize', () => {
   it('maps every wired event kind', () => {
     const pairs: Array<[string, string]> = [
       ['PreInvocation', 'prompt-submit'],
-      ['PostInvocation', 'tool-end'],
+      ['PostInvocation', 'turn-end'],
       ['PreToolUse', 'tool-start'],
       ['PostToolUse', 'tool-end'],
-      ['Stop', 'stop'],
+      ['Stop', 'turn-end'],
     ]
     for (const [event, kind] of pairs) {
       const e = antigravityAdapter.normalize({ conversationId: 'c1' }, ctx(event))
@@ -73,11 +73,11 @@ describe('antigravityAdapter.normalize', () => {
     expect(e?.detail).toBe('boom')
   })
 
-  it('treats Stop as terminal even when error is non-empty, so the session reaches done', () => {
+  it('reports an errored Stop as an error, since a turn end is no longer terminal', () => {
     const e = antigravityAdapter.normalize(
       { conversationId: 'c1', error: 'boom' }, ctx('Stop')
     )
-    expect(e?.kind).toBe('stop')
+    expect(e?.kind).toBe('error')
     expect(e?.detail, 'the error text is still surfaced as detail').toBe('boom')
   })
 

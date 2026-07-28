@@ -7,7 +7,8 @@ const KIND_BY_EVENT: Record<string, EventKind> = {
   UserPromptSubmit: 'prompt-submit',
   PreToolUse: 'tool-start',
   PostToolUse: 'tool-end',
-  Stop: 'stop',
+  Stop: 'turn-end',
+  SessionEnd: 'session-end',
 }
 
 /** Pick the most useful human-readable detail out of a Claude tool_input blob. */

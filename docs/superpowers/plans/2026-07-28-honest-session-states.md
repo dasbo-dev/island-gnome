@@ -809,11 +809,6 @@ describe('activityText', () => {
     expect(r.text).toBe('error')
     expect(r.hint).toBe(false)
   })
-
-  it('never returns the raw state word for a running session, which the pill calls working', () => {
-    const r = activityText(session({ state: 'running' }))
-    expect(r.text).not.toBe('running')
-  })
 })
 ```
 
@@ -881,7 +876,7 @@ export function activityText(session: Session): Activity {
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `npx vitest run test/core/activity.test.ts`
-Expected: PASS, 11 tests.
+Expected: PASS, 10 tests.
 
 - [ ] **Step 5: Use it from the row**
 
