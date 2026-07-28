@@ -14,8 +14,9 @@ export function formatElapsed(ms: number): string {
 
 /**
  * Collapse whitespace and cap length. The popup's width is fixed in CSS and the
- * activity label wraps, so this bounds the label's *height* — roughly three
- * wrapped lines at the popup width — not its width.
+ * activity label wraps, so this bounds the label's *height*, not its width —
+ * to a few wrapped lines, though the exact count depends on the column width,
+ * which differs between a plain row and one showing the permission cluster.
  */
 export function truncateDetail(s: string, max = 120): string {
   const flat = s.replace(/\s+/g, ' ').trim()

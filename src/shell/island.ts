@@ -257,7 +257,7 @@ export const Island = GObject.registerClass(
             onAlways: () =>
               this._permHandlers?.grantAllowAlways(s.key, pending.tool, pending.id),
           })
-          controls.attachTo(row.actionBox)
+          controls.attachTo(row.permissionBox)
           this._controls.set(s.key, { id: pending.id, controls })
         } else if (!pending && existing) {
           existing.controls.destroy()

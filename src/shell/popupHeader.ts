@@ -18,7 +18,7 @@ export const PopupHeader = GObject.registerClass(
     private _cb!: PopupHeaderCallbacks
 
     constructor(cb: PopupHeaderCallbacks) {
-      super({ reactive: false, can_focus: false, style_class: 'dasbo-header' })
+      super({ reactive: false, can_focus: false, style_class: 'dasbo-header dasbo-fixed-width' })
       this._cb = cb
 
       const title = new St.Label({
@@ -58,7 +58,7 @@ export const EmptyRow = GObject.registerClass(
       // SessionRow's .dasbo-row-outer does. Without it this row is narrower
       // than the session rows and the popup visibly shrinks when the last
       // session ends.
-      const outer = new St.BoxLayout({ style_class: 'dasbo-empty-outer' })
+      const outer = new St.BoxLayout({ style_class: 'dasbo-empty-outer dasbo-fixed-width' })
       const label = new St.Label({
         text: 'No active sessions',
         style_class: 'dasbo-empty',

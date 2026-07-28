@@ -28,16 +28,29 @@ export const SessionRow = GObject.registerClass(
     private _elapsed!: St.Label
     private _jump!: St.Button
     private _actionBox!: St.BoxLayout
+    private _permissionBox!: St.BoxLayout
 
     constructor(session: Session, cb: SessionRowCallbacks) {
       super({ reactive: false, can_focus: false, style_class: 'dasbo-row' })
       this._session = session
       this._cb = cb
 
-      const outer = new St.BoxLayout({ x_expand: true, style_class: 'dasbo-row-outer' })
+      const outer = new St.BoxLayout({
+        vertical: true,
+        x_expand: true,
+        style_class: 'dasbo-row-outer dasbo-fixed-width',
+      })
+      const topRow = new St.BoxLayout({ x_expand: true, style_class: 'dasbo-row-top' })
 
       const textCol = new St.BoxLayout({ vertical: true, x_expand: true })
       this._project = new St.Label({ text: session.project, style_class: 'dasbo-row-project' })
+      // St's `width` sets an actor's minimum as well as its natural width, so
+      // the row's fixed width bounds the menu but cannot clamp a child whose
+      // own minimum exceeds it — the content spills past the popup's
+      // background instead. _activity's minimum collapses because it wraps;
+      // this label needs the ellipsis to become shrinkable at all. The project
+      // name is basename(cwd), a string the user controls.
+      this._project.clutter_text.ellipsize = Pango.EllipsizeMode.END
 
       // x_expand on both so the label is allocated the row's full remaining
       // width: wrapping needs a bounded width to wrap against, and that bound
@@ -77,16 +90,41 @@ export const SessionRow = GObject.registerClass(
       this._actionBox.add_child(this._elapsed)
       this._actionBox.add_child(this._jump)
 
-      outer.add_child(textCol)
-      outer.add_child(this._actionBox)
+      topRow.add_child(textCol)
+      topRow.add_child(this._actionBox)
+
+      // Attached here (not to _actionBox) because the cluster is
+      // unshrinkable — button labels neither wrap nor ellipsize — so beside
+      // elapsed + Jump it would leave almost no width for the activity text,
+      // which can run to 190 characters. A full-width line beneath the top
+      // row gives it room without shrinking anything else.
+      this._permissionBox = new St.BoxLayout({
+        x_expand: true,
+        x_align: Clutter.ActorAlign.END,
+        style_class: 'dasbo-row-perm',
+      })
+      // ClutterBoxLayout only spaces between *visible* children, so an
+      // always-visible empty box would cost every row the vertical gap. The
+      // signals keep this local: neither PermissionControls nor the Island has
+      // to know the row hides it.
+      this._permissionBox.visible = false
+      this._permissionBox.connect('child-added', () => {
+        this._permissionBox.visible = true
+      })
+      this._permissionBox.connect('child-removed', () => {
+        this._permissionBox.visible = this._permissionBox.get_n_children() > 0
+      })
+
+      outer.add_child(topRow)
+      outer.add_child(this._permissionBox)
       this.add_child(outer)
 
       this.update(session)
     }
 
-    /** Where Task 11 inserts the Allow / Deny controls. */
-    get actionBox(): St.BoxLayout {
-      return this._actionBox
+    /** Where the Island attaches the Allow / Deny / Always controls. */
+    get permissionBox(): St.BoxLayout {
+      return this._permissionBox
     }
 
     get session(): Session {

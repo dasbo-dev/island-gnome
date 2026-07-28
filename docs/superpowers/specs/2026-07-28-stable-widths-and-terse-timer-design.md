@@ -85,13 +85,18 @@ on its content and the top bar stops re-laying-out.
 
 ### 3. Fixed popup width — `stylesheet.css`
 
-The width is declared once per top-level row container, so the menu's widest
-child is the same width in every state:
+The width is declared once, in a shared class, and applied alongside each
+container's own class so the menu's widest child is the same width in every
+state:
 
 ```css
-.dasbo-header      { spacing: 12px; width: 26em; }
-.dasbo-row-outer   { spacing: 12px; width: 26em; }
-.dasbo-empty-outer { width: 26em; }
+.dasbo-fixed-width { width: 26em; }
+```
+
+```
+.dasbo-header dasbo-fixed-width
+.dasbo-row-outer dasbo-fixed-width
+.dasbo-empty-outer dasbo-fixed-width
 ```
 
 `.dasbo-empty-outer` is new. `EmptyRow` currently adds its label directly to
@@ -99,8 +104,10 @@ the menu item (`src/shell/popupHeader.ts:68`); the label is wrapped in an
 `St.BoxLayout` carrying that class, otherwise the popup narrows to the header's
 width whenever the session list empties.
 
-All three carry the same value because a `PopupMenu` sizes to its widest child:
-setting the width on only one of them leaves the others free to exceed it.
+All three carry `.dasbo-fixed-width` because a `PopupMenu` sizes to its widest
+child: setting the width on only one of them leaves the others free to exceed
+it. Declaring the value once, rather than repeating `width: 26em` in three
+selectors, means retuning it is a single edit instead of three.
 
 ### 4. Wrapping activity label — `src/shell/sessionRow.ts`
 
@@ -118,7 +125,7 @@ reintroducing the defect this change exists to remove.
 an ellipsize mode is active; leaving it to the default would silently produce a
 single truncated line.
 
-Two knock-on adjustments in the same row:
+Three knock-on adjustments in the same row:
 
 - The activity dot's `y_align` moves from `CENTER` to `START`
   (`sessionRow.ts:42`), so it sits beside the first line rather than floating
@@ -128,6 +135,14 @@ Two knock-on adjustments in the same row:
   otherwise slide **Jump** sideways. The existing `font-feature-settings:
   "tnum"` handles jitter within a digit count; `min-width` handles the change
   in digit count.
+- The Allow / Deny / Always cluster moves to its own full-width line beneath
+  the top row, instead of sharing the top row's right-hand action box with
+  elapsed and Jump. The cluster is unshrinkable — button labels neither wrap
+  nor ellipsize — so beside elapsed and Jump it would leave only a few `em` for
+  a wrapping activity label that can reach ~190 characters, i.e. fifteen-plus
+  lines running off the bottom of a `PopupMenu`, which (unlike a
+  `PopupSubMenu`) does not scroll. Elapsed and Jump stay put; only the
+  permission cluster moves.
 
 `truncateDetail` keeps its 120-character cap and its call sites. Its role
 changes: it no longer bounds the popup's width — the CSS does that — it now
@@ -184,7 +199,10 @@ Both are single constants in `stylesheet.css`; step 3 is where they get tuned.
 
 - Restructuring `SessionRow` to give the command its own full-width line below
   the status line. It reads better for long commands but is a larger change to
-  a row that also has to host the permission cluster.
+  a row that also has to host the permission cluster. This is distinct from
+  the permission cluster's own full-width line (section 4), which does ship:
+  that line exists because the cluster cannot shrink, not to give the command
+  more room, and the command still wraps in place rather than moving.
 - A user-configurable popup width. One constant that looks right beats a
   preference nobody opens.
 - Making the popup width adapt to the panel or monitor width. A fixed value is

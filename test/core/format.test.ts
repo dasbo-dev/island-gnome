@@ -28,6 +28,18 @@ describe('formatElapsed', () => {
   it('clamps negative input to zero', () => {
     expect(formatElapsed(-5000)).toBe('0s')
   })
+
+  it('stays within four characters across every realistic magnitude', () => {
+    // .dasbo-row-elapsed's min-width: 3em is sized on this premise — a wider
+    // string shifts the Jump button. Beyond 999h (~41 days) the hour count
+    // needs a fifth character; min-width is a floor, not a cap, so that row
+    // simply gets wider rather than breaking.
+    for (const ms of [0, 1_000, 59_000, 60_000, 3_599_000, 3_600_000,
+                      99 * 3_600_000, 999 * 3_600_000]) {
+      expect(formatElapsed(ms).length).toBeLessThanOrEqual(4)
+    }
+    expect(formatElapsed(1000 * 3_600_000)).toBe('1000h')
+  })
 })
 
 describe('truncateDetail', () => {
