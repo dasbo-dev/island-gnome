@@ -177,8 +177,11 @@ export class SessionStore {
         // will resolve it. But with permission-timeout = 0 no timer ever starts,
         // so a killed agent mid-permission would otherwise wedge this session
         // forever. Only collect it once the process is confirmed gone AND no
-        // timer will ever fire.
-        const zombie = s.pendingPermission.deadline === 0 && !pidAlive(s.pid)
+        // timer will ever fire. Guarded on pid > 0 for the same reason as the
+        // liveness check below: resolveAgentPid returns 0 when it cannot read
+        // /proc, and pidAlive(0) is false, which would otherwise drop a live
+        // session with an unresolved pid on the first sweep.
+        const zombie = s.pid > 0 && s.pendingPermission.deadline === 0 && !pidAlive(s.pid)
         if (zombie) {
           this.sessions.delete(key)
           dropped.push(key)

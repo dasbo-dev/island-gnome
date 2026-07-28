@@ -195,6 +195,18 @@ describe('SessionStore', () => {
     expect(dropped).toEqual(['claude:s1'])
   })
 
+  it('reap does not treat a pending permission with an unresolved pid as a zombie', () => {
+    // resolveAgentPid returns 0 when it cannot read /proc, and pidAlive(0) is
+    // false. Without the pid > 0 guard, a live session with an unresolved pid
+    // and permission-timeout=0 would be dropped on the first sweep, silently
+    // resolving the held D-Bus reply as fallthrough.
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0, pid: 0 }))
+    s.setPending('claude:s1', { id: 'p1', tool: 'Bash', deadline: 0, queued: 0 })
+    s.reap(99_999_999, () => false)
+    expect(s.list()).toHaveLength(1)
+  })
+
   it('reap returns the keys it dropped for ordinary abandonment and linger too', () => {
     const s = new SessionStore()
     s.apply(ev({ ts: 0 }))
