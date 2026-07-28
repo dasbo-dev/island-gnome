@@ -105,10 +105,6 @@ export const Island = GObject.registerClass(
 
       this._unsubscribe = this._store.subscribe(() => this.refresh())
 
-      // Both ids are captured and released in destroy(). Relying on the objects
-      // becoming unreachable is not enough: the settings object and this widget
-      // reference each other through the closure, and if the handler fires after
-      // destroy() then refresh() touches an already-disposed actor.
       this._settingsChangedId = this._settings.connect('changed::always-show', () =>
         this.refresh()
       )
@@ -124,15 +120,18 @@ export const Island = GObject.registerClass(
       this._fullscreenId = global.display.connect('in-fullscreen-changed', () =>
         this._applyPause()
       )
-      // global.display outlives the extension, so Clutter-driven teardowns that
-      // skip the JS destroy() override need the destroy signal to release this
-      // handler. See robotHead.ts:79-83.
-      this.connect('destroy', () => {
-        if (this._fullscreenId) {
-          global.display.disconnect(this._fullscreenId)
-          this._fullscreenId = 0
-        }
-      })
+
+      // All three of these connect to objects that outlive the Island —
+      // this._settings and global.display — so they are released from both
+      // destroy() and the widget's own 'destroy' signal, not destroy() alone.
+      // Clutter tears children down through clutter_actor_destroy(), which
+      // emits the signal and does not necessarily route through a JS method
+      // override (see robotHead.ts:79-83); a panel rebuild by an extension
+      // like Dash to Panel can destroy this button that way without disable()
+      // ever running. The extension object — and this._settings with it —
+      // stays alive in that case, so a subsequent settings change would
+      // otherwise reach a disposed widget with nothing to catch it.
+      this.connect('destroy', () => this._releaseHandlers())
 
       this._menuStateId = (this.menu as MenuWithOpenSignal).connect(
         'open-state-changed',
@@ -204,6 +203,21 @@ export const Island = GObject.registerClass(
     private _applyPause(): void {
       const fullscreen = Main.layoutManager.primaryMonitor?.inFullscreen ?? false
       this._robot.setPaused(!this.visible || fullscreen)
+    }
+
+    private _releaseHandlers(): void {
+      if (this._settingsChangedId) {
+        this._settings.disconnect(this._settingsChangedId)
+        this._settingsChangedId = 0
+      }
+      if (this._animateIdleId) {
+        this._settings.disconnect(this._animateIdleId)
+        this._animateIdleId = 0
+      }
+      if (this._fullscreenId) {
+        global.display.disconnect(this._fullscreenId)
+        this._fullscreenId = 0
+      }
     }
 
     private _tickAll(): void {
@@ -317,18 +331,7 @@ export const Island = GObject.registerClass(
       this._transientIds.clear()
       this._unsubscribe?.()
       this._unsubscribe = null
-      if (this._settingsChangedId) {
-        this._settings.disconnect(this._settingsChangedId)
-        this._settingsChangedId = 0
-      }
-      if (this._animateIdleId) {
-        this._settings.disconnect(this._animateIdleId)
-        this._animateIdleId = 0
-      }
-      if (this._fullscreenId) {
-        global.display.disconnect(this._fullscreenId)
-        this._fullscreenId = 0
-      }
+      this._releaseHandlers()
       if (this._menuStateId) {
         ;(this.menu as MenuWithOpenSignal).disconnect(this._menuStateId)
         this._menuStateId = 0

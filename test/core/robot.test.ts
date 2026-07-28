@@ -17,15 +17,15 @@ describe('tickIntervalMs', () => {
   })
 
   it('stops the one-shots once their window has elapsed', () => {
-    expect(tickIntervalMs('error', 0, false)).toBe(166)
-    expect(tickIntervalMs('error', 499, false)).toBe(166)
+    expect(tickIntervalMs('error', 0, false)).toBe(50)
+    expect(tickIntervalMs('error', 499, false)).toBe(50)
     expect(tickIntervalMs('error', 500, false)).toBe(0)
     expect(tickIntervalMs('done', 299, false)).toBe(166)
     expect(tickIntervalMs('done', 300, false)).toBe(0)
   })
 
   it('clamps a negative phase to the start of the state', () => {
-    expect(tickIntervalMs('error', -1000, false)).toBe(166)
+    expect(tickIntervalMs('error', -1000, false)).toBe(50)
     expect(tickIntervalMs('done', -1, false)).toBe(166)
   })
 })
@@ -96,5 +96,19 @@ describe('robotPose', () => {
     for (const s of STATES) {
       expect(robotPose(s, -500, true)).toEqual(robotPose(s, 0, true))
     }
+  })
+
+  it('shakes at the phases the widget actually samples, not just in theory', () => {
+    let p = 0
+    let max = 0
+    for (
+      let iv = tickIntervalMs('error', p, false);
+      iv !== 0;
+      iv = tickIntervalMs('error', p, false)
+    ) {
+      max = Math.max(max, Math.abs(robotPose('error', p, false).headShakeX))
+      p += iv
+    }
+    expect(max).toBeGreaterThan(0.5)
   })
 })

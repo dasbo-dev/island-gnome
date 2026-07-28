@@ -34,6 +34,12 @@ const TICK_RUNNING = 166
 const TICK_WAITING = 500
 const TICK_IDLE = 333
 const TICK_ONESHOT = 166
+// The error shake is three sine cycles over ERROR_SHAKE_MS (500ms), i.e. 6Hz.
+// TICK_ONESHOT (166ms, 6.024Hz) samples almost exactly at that frequency's
+// own zero crossings, so the widget would repaint five pixel-identical
+// frames instead of a shake. 83ms is a second harmonic that aliases just as
+// badly; 50ms is the first rate that neither aliases nor beats.
+const TICK_SHAKE = 50
 
 /**
  * Milliseconds until the next repaint. Zero means stop the timer entirely —
@@ -62,7 +68,7 @@ export function tickIntervalMs(
     case 'waiting':
       return TICK_WAITING
     case 'error':
-      return p < ERROR_SHAKE_MS ? TICK_ONESHOT : 0
+      return p < ERROR_SHAKE_MS ? TICK_SHAKE : 0
     case 'done':
       return p < DONE_POP_MS ? TICK_ONESHOT : 0
   }

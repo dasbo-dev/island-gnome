@@ -35,8 +35,8 @@ const EYE_CY = -0.026
 const EYE_TRAVEL = 0.034
 const MOUTH_W = 0.17
 const MOUTH_CY = 0.136
-const SHAKE = 0.045
-const ZZZ_X = 0.3
+const SHAKE = 0.1
+const ZZZ_X = 0.45
 const ZZZ_Y0 = -0.16
 const ZZZ_RISE = 0.26
 const ZZZ_SIZE = 0.095
@@ -146,20 +146,24 @@ export const RobotHead = GObject.registerClass(
 
     private _onRepaint(): void {
       if (this._broken) return
-      const cr = this.get_context()
+      let cr: cairo.Context | null = null
       try {
+        cr = this.get_context()
         this._draw(cr)
       } catch (e) {
         // Latched, not merely logged: an exception escaping a repaint handler
         // would otherwise reprint at tick rate, several lines a second, and
-        // flood the journal.
+        // flood the journal. get_context() itself is inside this try: if it
+        // throws, or returns null and _draw(null) throws instead, the latch
+        // still sets rather than escaping.
         this._broken = true
         this._stopTimer()
         console.warn(`dasbo-island: robot repaint failed, disabled: ${e}`)
       } finally {
         // Mandatory in GJS — the context leaks without it, and this runs
-        // several times a second.
-        cr.$dispose()
+        // several times a second. Guarded because get_context() can itself
+        // be the thing that failed, leaving cr null.
+        cr?.$dispose()
       }
     }
 
@@ -242,12 +246,18 @@ export const RobotHead = GObject.registerClass(
         const mw = u(MOUTH_W)
         cr.setSourceRGBA(fg[0], fg[1], fg[2], fg[3])
         if (pose.mouth === 'smile') {
-          cr.arc(0, my - mw / 4, mw / 2, 0.15 * Math.PI, 0.85 * Math.PI)
+          // Full half-circle sweep with a thinner stroke than the rest of the
+          // head: at the narrow arc this used to draw, the sagitta was smaller
+          // than the stroke width and rasterised the same as 'flat'.
+          cr.arc(0, my - mw / 4, mw / 2, 0, Math.PI)
+          cr.setLineWidth(u(STROKE) * 0.7)
+          cr.stroke()
+          cr.setLineWidth(u(STROKE))
         } else {
           cr.moveTo(-mw / 2, my)
           cr.lineTo(mw / 2, my)
+          cr.stroke()
         }
-        cr.stroke()
       }
 
       cr.restore()

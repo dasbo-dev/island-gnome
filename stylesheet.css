@@ -79,9 +79,15 @@
    colour stays one edit for the pill and the popup rows alike.
 
    em, not px, so the head tracks shell font scaling — the same reasoning as
-   .dasbo-pill-label's width. */
+   .dasbo-pill-label's width.
+
+   width is deliberately wider than height: robotHead.ts sizes the head itself
+   from S = min(width, height), which still resolves to the height, so the
+   head is unchanged. The extra horizontal room is so the sleep glyphs
+   (ZZZ_X in robotHead.ts) have somewhere to sit beside the head instead of
+   overlapping its right wall. */
 .dasbo-robot {
-  width: 1.4em;
+  width: 2em;
   height: 1.4em;
   -dasbo-accent: #9e9e9e;
 }
