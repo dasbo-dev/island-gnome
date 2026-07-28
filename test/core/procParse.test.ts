@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  agentStartMs,
   ancestorPids,
   parseBtime,
   parseComm,
@@ -170,5 +171,40 @@ describe('selectAgentPid', () => {
   it('returns 0 for a non-positive hook pid', () => {
     const readStat = reader({ 900: [1, 'claude'], 1: [0, 'systemd'] })
     expect(selectAgentPid(0, ['claude'], readStat)).toBe(0)
+  })
+})
+
+describe('agentStartMs', () => {
+  const BTIME = 1753000000 // seconds since epoch
+  const procStat = `cpu  1 2 3\nbtime ${BTIME}\nprocesses 700\n`
+  /** starttime in ticks; USER_HZ is 100, so 100 ticks = 1 second after boot. */
+  const stat = (ticks: number) =>
+    `1234 (claude) S 1 1 1 0 1 0 0 0 0 0 0 0 0 0 20 0 1 0 ${ticks} 999 ...`
+  const bootedMs = BTIME * 1000
+
+  it('adds starttime to boot time and returns milliseconds', () => {
+    expect(agentStartMs(stat(360000), procStat, bootedMs + 4_000_000)).toBe(bootedMs + 3_600_000)
+  })
+
+  it('returns null when starttime cannot be read', () => {
+    expect(agentStartMs('1234 (claude) S 1', procStat, bootedMs + 4_000_000)).toBeNull()
+  })
+
+  it('returns null when btime cannot be read', () => {
+    expect(agentStartMs(stat(100), 'cpu 1 2 3\n', bootedMs + 4_000_000)).toBeNull()
+  })
+
+  it('rejects a start time in the future beyond the slack window', () => {
+    expect(agentStartMs(stat(100_000), procStat, bootedMs)).toBeNull()
+  })
+
+  it('accepts a start time a few seconds ahead of now', () => {
+    // 100 ticks = 1s after boot, evaluated 1s before boot: inside the 5s slack.
+    expect(agentStartMs(stat(100), procStat, bootedMs - 1000)).toBe(bootedMs + 1000)
+  })
+
+  it('rejects a start time older than thirty days', () => {
+    const now = bootedMs + 31 * 24 * 60 * 60 * 1000
+    expect(agentStartMs(stat(100), procStat, now)).toBeNull()
   })
 })

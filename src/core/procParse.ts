@@ -139,3 +139,31 @@ export function selectAgentPid(
 
   return fallback
 }
+
+/** Fixed at 100 for the /proc ABI regardless of the kernel's CONFIG_HZ. */
+const USER_HZ = 100
+/** btime jitters by around a second across suspend; tolerate a little skew. */
+const FUTURE_SLACK_MS = 5000
+/** A session older than this is a garbled read, not a long-running agent. */
+const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
+
+/**
+ * When the process described by `statContent` started, in ms since the epoch,
+ * or null when the inputs cannot be trusted. Derived rather than observed, so
+ * it is recoverable at any moment — after a reap, after a shell reload, or for
+ * a session that was already running when the extension was enabled.
+ */
+export function agentStartMs(
+  statContent: string,
+  procStatContent: string,
+  now: number
+): number | null {
+  const ticks = parseStartTicks(statContent)
+  const btime = parseBtime(procStatContent)
+  if (ticks === null || btime === null) return null
+
+  const ms = Math.round((btime + ticks / USER_HZ) * 1000)
+  if (ms > now + FUTURE_SLACK_MS) return null
+  if (ms < now - MAX_AGE_MS) return null
+  return ms
+}
