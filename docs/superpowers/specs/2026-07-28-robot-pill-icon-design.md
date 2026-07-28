@@ -42,8 +42,8 @@ by the no-`gi://` rule automatically.
 ```ts
 export interface RobotPose {
   eyeOpen: number        // 0..1 lid aperture; 0 is a closed stroke
-  pupilX: number         // -1..1 gaze offset
-  pupilY: number
+  eyeX: number           // -1..1 gaze offset; at this size the eye dot *is*
+  eyeY: number           // the pupil, so the whole dot travels
   eyeShape: 'round' | 'cross' | 'arc'
   mouth: 'none' | 'flat' | 'smile'
   antennaLit: number     // 0..1 accent alpha
@@ -83,9 +83,9 @@ with the widget box and with HiDPI.
 | State | Eyes | Mouth | Antenna | Motion | Tick |
 |---|---|---|---|---|---|
 | idle | closed — a horizontal stroke each | none | dim accent | Zzz drift up and right, 3s loop | 3 Hz, or **0** when `animate-idle` is off |
-| running | open circles | flat | accent, slow brightness breathe | pupils scan left↔right, 1.4s ease-in-out cycle | 6 Hz |
-| waiting | open wide, pupils centred | flat | accent, hard blink | static head tilt ~8°, antenna blinks at 1 Hz | 2 Hz |
-| error | crossed strokes (`x x`) | flat | dim | one-shot head shake, ±1.5% of width, 3 oscillations over 500ms | 6 Hz then 0 |
+| running | open dots | flat | accent, slow brightness breathe | eyes scan left↔right, 1.4s ease-in-out cycle | 6 Hz |
+| waiting | open dots, centred | flat | accent, hard blink | static head tilt ~8°, antenna blinks at 1 Hz | 2 Hz |
+| error | crossed strokes (`x x`) | flat | dim | one-shot head shake, ±4.5% of width, 3 oscillations damped over 500ms | 6 Hz then 0 |
 | done | upward arcs (`^ ^`) | smile arc | accent lit | one-shot scale pop 1.0 → 1.18 → 1.0 over 300ms | 6 Hz then 0 |
 
 With `animate-idle` off (the default), the idle pose is still drawn as asleep —
@@ -102,12 +102,17 @@ A `GObject.registerClass`'d `St.DrawingArea` subclass.
 
 - `setState(state: SessionState)` — recompute the tick, restart or stop the
   timer, reset `phaseMs` on a real transition.
+- `setAnimateIdle(value: boolean)` — follow the GSettings key from section 6.
 - `setPaused(paused: boolean)` — stop the tick regardless of state.
 - `repaint` handler — `get_surface_size()`, read theme colours, call
   `robotPose`, draw with cairo, then `cr.$dispose()`. The dispose is mandatory:
   GJS leaks the Cairo context without it, and this handler runs several times a
   second.
-- One `GLib.timeout_add`, released in `destroy()`.
+- One `GLib.timeout_add`, released from a handler on the widget's own
+  `destroy` **signal** rather than a `destroy()` method override. Clutter tears
+  children down through `clutter_actor_destroy`, which emits that signal and
+  does not necessarily route through a JS override — so the override would let
+  the timer outlive the actor and fire against a disposed object.
 
 Colours come from CSS, never from literals in the drawing code. The head shell
 uses `get_theme_node().get_foreground_color()`, which tracks light and dark
@@ -115,8 +120,8 @@ themes for free. The accent uses the custom St property `-dasbo-accent`:
 
 ```css
 .dasbo-robot {
-  width: 1.1em;
-  height: 1.1em;
+  width: 1.4em;
+  height: 1.4em;
   -dasbo-accent: #9e9e9e;
 }
 .dasbo-robot.state-running { -dasbo-accent: #62a0ea; }
@@ -135,10 +140,12 @@ painting nothing.
 
 ### 4. Island changes — `src/shell/island.ts`
 
-- `_dot: St.Widget` becomes `_robot: RobotHead`. The `STATE_CLASS` record stays
-  — it now drives the head's style class, which is what carries `-dasbo-accent`.
-- `refresh()` (island.ts:311) calls `this._robot.setState(worst)` in place of
-  the `style_class` assignment.
+- `_dot: St.Widget` becomes `_robot: RobotHead`. `STATE_CLASS` moves out of
+  `island.ts` into `robotHead.ts`, which now owns the style class carrying
+  `-dasbo-accent`. `STATE_WORD` stays — the pill's text label still uses it.
+- `refresh()` (island.ts:311) calls `this._robot.setState(pillState(sessions))`
+  in place of the `style_class` assignment, and the same value feeds
+  `STATE_WORD` so the head and the label can never disagree.
 - `_pulsing`, `_startPulse`, `_pulseStep` and `_stopPulse` are **deleted**
   (island.ts:171-192, plus the calls at 276 and 321). The waiting pose owns the
   pulse now.
@@ -150,9 +157,9 @@ painting nothing.
   monitor is fullscreen, disconnecting the handler in `destroy()` under the
   same discipline as `_settingsChangedId` and `_menuStateId`.
 
-The pill's label is unchanged: it still reads `3 · working`, still pinned at
-8em. The head is redundant with the word, deliberately — the word stays
-readable without decoding a 16px pose.
+The pill's label keeps its format: it still reads `3 · working`, still pinned
+at 8em. The head is redundant with the word, deliberately — the word stays
+readable without decoding a 20px pose.
 
 ### 5. Waiting outranks error in the pill
 
@@ -248,7 +255,7 @@ pose model lives in `src/core` and is unit-tested.
    - One-shot decay — `tickIntervalMs('error', 100, …)` is non-zero,
      `tickIntervalMs('error', 600, …)` is `0`; likewise `done` either side of
      300ms.
-   - `pupilX` stays within `-1..1` across a full running cycle and is
+   - `eyeX` stays within `-1..1` across a full running cycle and is
      continuous across the wrap.
    - Every `SessionState` returns a pose, asserted by iterating the state list
      rather than naming five cases.
@@ -269,13 +276,20 @@ pose model lives in `src/core` and is unit-tested.
      retrigger on unrelated store updates.
    - Confirm animation stops under a fullscreen window and resumes after.
 
-**Known visual risk, to be resolved in step 4.** At `1.1em` the surface is
-roughly 16×16px, where the largest Zzz stroke is about 4px and the smile arc
-similar. Those two glyphs may read as mush. The head shell, eyes and antenna
-are safe at that size. If the glyphs do not read, the fallbacks in order are:
-rising dots instead of Z strokes, and closed eyes alone with no sleep glyph.
-The smile falls back to a flat mouth with the accent lit. These are pose
-constants in `robot.ts`, so each fallback is a small edit, not a redesign.
+**Known visual risk, to be resolved in step 4.** At `1.4em` the surface is
+roughly 20×20px, giving an 11.6×9.9px head with a 1.4px stroke and 1.3px eye
+dots — all safe. The two small glyphs are not: the largest Z stroke is about
+1.9px and the smile arc about 3.4px wide. Either may read as noise. If they do
+not read, the fallbacks in order are rising dots instead of Z strokes, then
+closed eyes alone with no sleep glyph; the smile falls back to a flat mouth
+with the accent lit. These are constants in `robot.ts` and `robotHead.ts`, so
+each fallback is a small edit, not a redesign.
+
+Two geometry invariants constrain any such tuning, and both are tight at the
+shipped values: eyes must stay inside the head outline
+(`EYE_DX + EYE_TRAVEL + EYE_R <= HEAD_W/2 - STROKE`), and the `done` pop must
+stay inside the widget
+(`(HEAD_H/2 + ANTENNA_LEN + ANTENNA_TIP_R + STROKE/2) * 1.18 - HEAD_CY <= 0.5`).
 
 ## Out of scope
 
