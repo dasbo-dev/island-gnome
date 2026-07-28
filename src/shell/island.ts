@@ -12,6 +12,8 @@ import type { Session, SessionState } from '../core/types.js'
 import { SessionRow } from './sessionRow.js'
 import { PermissionControls } from './permissionRow.js'
 import { PopupHeader, EmptyRow } from './popupHeader.js'
+import { GridIcon } from './gridIcon.js'
+import { pillState } from '../core/pillState.js'
 
 /**
  * `PanelMenu.Button#menu` is typed as `PopupMenu | PopupDummyMenu` because a
@@ -21,14 +23,6 @@ import { PopupHeader, EmptyRow } from './popupHeader.js'
  */
 type MenuWithOpenSignal = PopupMenu.PopupMenu & {
   connect(sigName: 'open-state-changed', callback: (menu: unknown, open: boolean) => void): number
-}
-
-const STATE_CLASS: Record<SessionState, string> = {
-  idle: '',
-  running: 'state-running',
-  waiting: 'state-waiting',
-  error: 'state-error',
-  done: 'state-done',
 }
 
 const STATE_WORD: Record<SessionState, string> = {
@@ -43,7 +37,7 @@ export const Island = GObject.registerClass(
   class Island extends PanelMenu.Button {
     private _store!: SessionStore
     private _settings!: Gio.Settings
-    private _dot!: St.Widget
+    private _icon!: InstanceType<typeof GridIcon>
     private _label!: St.Label
     private _unsubscribe: (() => void) | null = null
     private _rows = new Map<string, InstanceType<typeof SessionRow>>()
@@ -52,11 +46,11 @@ export const Island = GObject.registerClass(
     private _emptyRow: InstanceType<typeof EmptyRow> | null = null
     private _timerId = 0
     private _settingsChangedId = 0
+    private _fullscreenId = 0
     private _menuStateId = 0
     private _onJump: (s: Session) => void = () => {}
     private _onPrefs: () => void = () => {}
     private _controls = new Map<string, { id: string; controls: PermissionControls }>()
-    private _pulsing = false
     private _transientIds = new Set<number>()
     private _permHandlers: {
       resolve: (id: string, kind: 'allow' | 'deny') => void
@@ -69,10 +63,7 @@ export const Island = GObject.registerClass(
       this._settings = settings
 
       const box = new St.BoxLayout({ style_class: 'dasbo-pill' })
-      this._dot = new St.Widget({
-        style_class: 'dasbo-dot',
-        y_align: Clutter.ActorAlign.CENTER,
-      })
+      this._icon = new GridIcon()
       this._label = new St.Label({
         text: '',
         style_class: 'dasbo-pill-label',
@@ -83,7 +74,7 @@ export const Island = GObject.registerClass(
       // to be set on the ClutterText — the same lesson as the opacity note in
       // popupHeader.ts. Without it, overlong content is clipped mid-glyph.
       this._label.clutter_text.ellipsize = Pango.EllipsizeMode.END
-      box.add_child(this._dot)
+      box.add_child(this._icon)
       box.add_child(this._label)
       this.add_child(box)
 
@@ -113,13 +104,28 @@ export const Island = GObject.registerClass(
 
       this._unsubscribe = this._store.subscribe(() => this.refresh())
 
-      // Both ids are captured and released in destroy(). Relying on the objects
-      // becoming unreachable is not enough: the settings object and this widget
-      // reference each other through the closure, and if the handler fires after
-      // destroy() then refresh() touches an already-disposed actor.
       this._settingsChangedId = this._settings.connect('changed::always-show', () =>
         this.refresh()
       )
+
+      // Fullscreen is not a store event, so refresh() never runs for it. The
+      // pill is invisible under a fullscreen window; animating it there is
+      // pure waste.
+      this._fullscreenId = global.display.connect('in-fullscreen-changed', () =>
+        this._applyPause()
+      )
+
+      // Anything held by, or connected to, an object that outlives this
+      // widget must be released here, not only from destroy() below. Clutter
+      // tears children down through clutter_actor_destroy(), which emits the
+      // 'destroy' signal and does not necessarily route through a JS method
+      // override (see gridIcon.ts); a panel rebuild by an extension
+      // like Dash to Panel can destroy this button that way without disable()
+      // ever running. this._settings, global.display, and this._store all
+      // stay alive in that case, so a subsequent settings change, a pending
+      // GLib source, or a store event would otherwise reach a disposed
+      // widget with nothing to catch it.
+      this.connect('destroy', () => this._releaseExternalRefs())
 
       this._menuStateId = (this.menu as MenuWithOpenSignal).connect(
         'open-state-changed',
@@ -162,33 +168,9 @@ export const Island = GObject.registerClass(
 
     /** Called by the D-Bus service after a permission row has been registered. */
     notifyPermissionOpened(): void {
-      this._startPulse()
       if (!this._settings.get_boolean('auto-open-on-permission')) return
       if (Main.layoutManager.primaryMonitor?.inFullscreen) return
       this.menu.open(true)
-    }
-
-    private _startPulse(): void {
-      if (this._pulsing) return
-      this._pulsing = true
-      this._pulseStep(false)
-    }
-
-    private _pulseStep(dim: boolean): void {
-      if (!this._pulsing) return
-      this._dot.ease({
-        opacity: dim ? 255 : 90,
-        duration: 600,
-        mode: Clutter.AnimationMode.EASE_IN_OUT_QUAD,
-        onComplete: () => this._pulseStep(!dim),
-      })
-    }
-
-    private _stopPulse(): void {
-      if (!this._pulsing) return
-      this._pulsing = false
-      this._dot.remove_all_transitions()
-      this._dot.opacity = 255
     }
 
     private _startTimer(): void {
@@ -204,6 +186,33 @@ export const Island = GObject.registerClass(
       if (!this._timerId) return
       GLib.Source.remove(this._timerId)
       this._timerId = 0
+    }
+
+    /**
+     * The icon animates only when it can actually be seen. Both inputs are
+     * checked together because they change independently: `visible` follows
+     * the session count and the always-show setting, fullscreen follows the
+     * window manager.
+     */
+    private _applyPause(): void {
+      const fullscreen = Main.layoutManager.primaryMonitor?.inFullscreen ?? false
+      this._icon.setPaused(!this.visible || fullscreen)
+    }
+
+    private _releaseExternalRefs(): void {
+      if (this._settingsChangedId) {
+        this._settings.disconnect(this._settingsChangedId)
+        this._settingsChangedId = 0
+      }
+      if (this._fullscreenId) {
+        global.display.disconnect(this._fullscreenId)
+        this._fullscreenId = 0
+      }
+      this._unsubscribe?.()
+      this._unsubscribe = null
+      for (const id of this._transientIds) GLib.Source.remove(id)
+      this._transientIds.clear()
+      this._stopTimer()
     }
 
     private _tickAll(): void {
@@ -269,12 +278,6 @@ export const Island = GObject.registerClass(
         }
       }
 
-      // Base this on whether a permission control is actually on screen, not on
-      // worstState(): RANK puts 'error' above 'waiting', so another session sitting
-      // in 'error' would otherwise silence the pulse while this one still has live
-      // Allow/Deny/Always buttons.
-      if (this._controls.size === 0) this._stopPulse()
-
       // Ordering needs no care here: by the time this method returns, the empty
       // row exists only while there are zero session rows. During a 0->N
       // transition it's briefly still parented above the newly-appended rows,
@@ -297,39 +300,28 @@ export const Island = GObject.registerClass(
 
       if (count === 0 && !this._settings.get_boolean('always-show')) {
         this.visible = false
+        this._applyPause()
         return
       }
       this.visible = true
 
-      // RANK deliberately ranks 'done' lowest so a finished session can never
-      // mask a live one when both are present — but that same ranking makes
-      // worstState() report 'idle' for a set where every session is done,
-      // directly contradicting the row, which reads 'done'. Special-case the
-      // all-done set here rather than in RANK.
-      const allDone = count > 0 && sessions.every((s) => s.state === 'done')
-      const worst = count === 0 ? 'idle' : allDone ? 'done' : this._store.worstState()
-      this._dot.style_class = `dasbo-dot ${STATE_CLASS[worst]}`.trim()
+      // One call decides both the icon's state and the label's word, so they
+      // can never disagree — a pending permission reads "waiting" in both.
+      const state = pillState(sessions)
+      this._icon.setState(state)
 
       if (count === 0) {
         this._label.text = 'idle'
       } else {
-        this._label.text = `${count} · ${STATE_WORD[worst]}`
+        this._label.text = `${count} · ${STATE_WORD[state]}`
       }
+      this._applyPause()
     }
 
     destroy(): void {
-      this._stopPulse()
       for (const c of this._controls.values()) c.controls.destroy()
       this._controls.clear()
-      this._stopTimer()
-      for (const id of this._transientIds) GLib.Source.remove(id)
-      this._transientIds.clear()
-      this._unsubscribe?.()
-      this._unsubscribe = null
-      if (this._settingsChangedId) {
-        this._settings.disconnect(this._settingsChangedId)
-        this._settingsChangedId = 0
-      }
+      this._releaseExternalRefs()
       if (this._menuStateId) {
         ;(this.menu as MenuWithOpenSignal).disconnect(this._menuStateId)
         this._menuStateId = 0

@@ -71,3 +71,23 @@
    the others free to exceed it. Fixed here, the command wraps instead of
    widening the popup (see sessionRow.ts). */
 .dasbo-fixed-width { width: 26em; }
+
+/* The pill's 2×2 grid. Its silhouette never moves; only per-block alpha and
+   the fill colour change, which is what keeps it legible at panel size.
+
+   `-dasbo-accent` is a custom St theme property read by gridIcon.ts via
+   lookup_color(). It is declared only for the three states that use it: idle
+   and running are drawn in the panel's own foreground colour and separate by
+   rhythm, not hue. The hexes match .dasbo-dot, so retuning a state's colour
+   stays one edit for the pill and the popup rows alike.
+
+   em, not px, so the icon tracks shell font scaling, and square because the
+   grid uses its whole box. */
+.dasbo-grid {
+  width: 1.4em;
+  height: 1.4em;
+}
+
+.dasbo-grid.state-waiting { -dasbo-accent: #f5c211; }
+.dasbo-grid.state-error   { -dasbo-accent: #e01b24; }
+.dasbo-grid.state-done    { -dasbo-accent: #57e389; }

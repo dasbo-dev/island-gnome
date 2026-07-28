@@ -29,6 +29,11 @@ Whenever the pill is visible, the preferences window is one click away: click
 the pill, then the gear in the popup's header. (The pill stays hidden while no
 session is running unless you enable **Always show the pill**.)
 
+The pill shows a 2×2 grid that reflects the busiest session: three blocks dim
+with one slowly breathing at rest, a light travelling clockwise while an agent
+works, all four blocks blinking together when a permission needs your answer,
+a static diagonal pair on error, and a green stagger when a session finishes.
+
 Each agent row shows whether its hooks are installed. If the extension
 directory moves, or a release adds a hook event the installed set is missing,
 the row offers **Update** — every installed hook command embeds an absolute
