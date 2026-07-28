@@ -13,6 +13,46 @@ export function parsePpid(statContent: string): number | null {
 }
 
 /**
+ * Extract `comm` (field 2) from the contents of /proc/<pid>/stat. The kernel
+ * truncates it to 15 characters and it may contain spaces and parentheses, so
+ * it is bounded by the FIRST '(' and the LAST ')'.
+ */
+export function parseComm(statContent: string): string | null {
+  const open = statContent.indexOf('(')
+  const close = statContent.lastIndexOf(')')
+  if (open === -1 || close <= open) return null
+  return statContent.slice(open + 1, close)
+}
+
+/**
+ * Extract `starttime` (field 22, clock ticks since boot) from the contents of
+ * /proc/<pid>/stat. Same last-')' slice as parsePpid: after it, field 3 sits at
+ * index 0, so field 22 sits at index 19.
+ */
+export function parseStartTicks(statContent: string): number | null {
+  const close = statContent.lastIndexOf(')')
+  if (close === -1) return null
+  const rest = statContent.slice(close + 1).trim().split(/\s+/)
+  const raw = rest[19]
+  if (raw === undefined) return null
+  const ticks = Number(raw)
+  return Number.isFinite(ticks) && ticks >= 0 ? ticks : null
+}
+
+/**
+ * Boot time in seconds since the epoch, from the `btime` line of /proc/stat —
+ * the system-wide file, not a per-process one.
+ */
+export function parseBtime(procStatContent: string): number | null {
+  for (const line of procStatContent.split('\n')) {
+    if (!line.startsWith('btime ')) continue
+    const secs = Number(line.slice('btime '.length).trim())
+    return Number.isFinite(secs) && secs > 0 ? secs : null
+  }
+  return null
+}
+
+/**
  * Walk from `pid` up the process tree, returning the chain including `pid` itself.
  * `readStat` is injected so this stays free of any filesystem dependency.
  */
