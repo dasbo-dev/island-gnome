@@ -95,7 +95,11 @@ export class SessionStore {
         s.doneAt = undefined
         break
       case 'tool-end':
-        kindState = 'idle'
+        // Not idle: the agent keeps thinking and streaming between tool calls,
+        // and Claude fires PostToolUse after every one of them. Downgrading here
+        // made the pill strobe working/idle once per tool. The absence of
+        // currentTool is what the row reads as "thinking".
+        kindState = 'running'
         s.currentTool = undefined
         s.detail = undefined
         break

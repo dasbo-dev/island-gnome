@@ -41,12 +41,13 @@ describe('SessionStore', () => {
     expect(s.list()[0]!.detail).toBe('main.js')
   })
 
-  it('returns to idle on tool-end and clears the tool', () => {
+  it('stays running on tool-end and clears the tool', () => {
     const s = new SessionStore()
     s.apply(ev({ kind: 'tool-start', tool: 'Edit' }))
     s.apply(ev({ kind: 'tool-end', tool: 'Edit', ts: 3000 }))
-    expect(s.list()[0]!.state).toBe('idle')
+    expect(s.list()[0]!.state, 'the agent is thinking, not waiting').toBe('running')
     expect(s.list()[0]!.currentTool).toBeUndefined()
+    expect(s.list()[0]!.detail).toBeUndefined()
   })
 
   it('settles to idle on turn-end and stamps no doneAt', () => {
@@ -159,7 +160,7 @@ describe('SessionStore', () => {
     expect(dropped).toEqual(['claude:s1'])
   })
 
-  it('applying tool-end while a permission is pending leaves state waiting, and resolving settles to idle', () => {
+  it('applying tool-end while a permission is pending leaves state waiting, and resolving settles to running', () => {
     const s = new SessionStore()
     s.apply(ev({ ts: 0 }))
     s.setPending('claude:s1', { id: 'p1', tool: 'Bash', detail: 'rm -rf build', deadline: 30_000, queued: 0 })
@@ -172,7 +173,7 @@ describe('SessionStore', () => {
     expect(s.list()[0]!.pendingPermission?.id).toBe('p1')
 
     s.clearPending('claude:s1')
-    expect(s.list()[0]!.state).toBe('idle')
+    expect(s.list()[0]!.state, 'the batch is still running').toBe('running')
   })
 
   it('applying turn-end while a permission is pending leaves state waiting, and resolving settles to idle', () => {
