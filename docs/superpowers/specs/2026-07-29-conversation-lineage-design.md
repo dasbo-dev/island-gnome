@@ -56,14 +56,20 @@ Three facts follow, and the design rests on them:
 ## Display
 
 ```
-dasbo-island  1h 20m              #3 8m  [Jump]
+dasbo-island  1h                  #3 8m  [Jump]
 ● Running Bash: npm test
 ```
 
 - The right-hand clock carries the conversation number and the current
   conversation's age: `#3 8m`, no separator between them.
 - A dim suffix after the project name carries the agent process's total uptime:
-  `1h 20m`.
+  `1h`.
+
+Both durations render through the existing `formatElapsed`, which reports the
+largest whole unit and nothing finer — `1h`, never `1h 20m`. The mockups drawn
+during design showed `1h 20m`; that was illustrative. Matching the clock the row
+already has is worth more than the extra precision, and a second format would be
+a second thing to keep consistent.
 - Both extras are hidden until the first `/clear`. On a first conversation the
   number is always `#1` and the shell total equals the conversation age, so both
   are noise.
@@ -179,9 +185,9 @@ Two labels update on every `tick(now)`:
 - `_elapsed` → `#3 8m` when `conversationIndex > 1`, plain `8m` otherwise. One
   label and one string, so `tnum` covers both halves.
 - `_shellTotal` → `formatElapsed(now - processStartedAt)`, hidden when
-  `conversationIndex <= 1` or `processStartedAt` is undefined.
-
-Both durations go through the existing `formatElapsed`.
+  `conversationIndex <= 1` or `processStartedAt` is undefined. Hidden rather
+  than blanked: `ClutterBoxLayout` only spaces between *visible* children, so an
+  empty label would still cost the row its 6px gap.
 
 ### `stylesheet.css`
 
