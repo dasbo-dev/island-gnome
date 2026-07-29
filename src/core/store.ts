@@ -1,5 +1,7 @@
 import { basename, sessionKey } from './types.js'
 import type { AgentEvent, AgentId, PendingPermission, PendingQuestion, Session, SessionState } from './types.js'
+import { sameTasks, sortTasks } from './tasks.js'
+import type { AgentTask } from './tasks.js'
 
 const STALE_MS = 15 * 60 * 1000
 /**
@@ -325,6 +327,25 @@ export class SessionStore {
     s.pendingQuestion = pending
     s.pendingPermission = undefined
     s.state = 'waiting'
+    this.emit()
+  }
+
+  /**
+   * Publish the agent's plan for a session. Sorted here rather than by the
+   * caller, because there are two callers — the shell's directory reader and
+   * Codex's payload parser — and only one right order.
+   *
+   * Silent when nothing moved. The shell re-reads the task directory on every
+   * popup open and on every tick while a session is dirty, and most of those
+   * reads return the same bytes; emitting for them would rebuild every row in
+   * the popup once a second for no visible change.
+   */
+  setTasks(key: string, tasks: AgentTask[]): void {
+    const s = this.sessions.get(key)
+    if (!s) return
+    const sorted = sortTasks(tasks)
+    if (sameTasks(s.tasks, sorted)) return
+    s.tasks = sorted
     this.emit()
   }
 

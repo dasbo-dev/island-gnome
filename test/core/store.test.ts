@@ -869,3 +869,71 @@ describe('SessionStore question holds', () => {
     expect(s.reap(1000, () => false)).toEqual(['claude:s1'])
   })
 })
+
+describe('setTasks', () => {
+  it('stores a list on the session and notifies subscribers', () => {
+    const s = new SessionStore()
+    s.apply(ev())
+    let emits = 0
+    s.subscribe(() => { emits += 1 })
+
+    s.setTasks('claude:s1', [{ id: '1', subject: 'Explore', status: 'completed' }])
+
+    expect(s.get('claude:s1')?.tasks).toEqual([
+      { id: '1', subject: 'Explore', status: 'completed' },
+    ])
+    expect(emits).toBe(1)
+  })
+
+  it('does not emit when the list has not moved', () => {
+    const s = new SessionStore()
+    s.apply(ev())
+    const list = [{ id: '1', subject: 'Explore', status: 'completed' as const }]
+    s.setTasks('claude:s1', list)
+
+    let emits = 0
+    s.subscribe(() => { emits += 1 })
+    s.setTasks('claude:s1', [{ id: '1', subject: 'Explore', status: 'completed' }])
+
+    expect(emits).toBe(0)
+  })
+
+  it('emits when a status moves', () => {
+    const s = new SessionStore()
+    s.apply(ev())
+    s.setTasks('claude:s1', [{ id: '1', subject: 'Explore', status: 'pending' }])
+
+    let emits = 0
+    s.subscribe(() => { emits += 1 })
+    s.setTasks('claude:s1', [{ id: '1', subject: 'Explore', status: 'completed' }])
+
+    expect(emits).toBe(1)
+    expect(s.get('claude:s1')?.tasks?.[0]?.status).toBe('completed')
+  })
+
+  it('ignores a key it has never seen', () => {
+    const s = new SessionStore()
+    let emits = 0
+    s.subscribe(() => { emits += 1 })
+    s.setTasks('claude:nope', [{ id: '1', subject: 'Explore', status: 'pending' }])
+    expect(emits).toBe(0)
+  })
+
+  it('sorts what it is given, so the reader need not', () => {
+    const s = new SessionStore()
+    s.apply(ev())
+    s.setTasks('claude:s1', [
+      { id: '10', subject: 'Ten', status: 'pending' },
+      { id: '9', subject: 'Nine', status: 'pending' },
+    ])
+    expect(s.get('claude:s1')?.tasks?.map((t) => t.id)).toEqual(['9', '10'])
+  })
+
+  it('lets the tasks go when the session is reaped', () => {
+    const s = new SessionStore()
+    s.apply(ev())
+    s.setTasks('claude:s1', [{ id: '1', subject: 'Explore', status: 'pending' }])
+    s.reap(1000 + 16 * 60 * 1000, () => false)
+    expect(s.get('claude:s1')).toBeUndefined()
+  })
+})

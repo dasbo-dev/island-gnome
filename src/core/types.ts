@@ -1,3 +1,4 @@
+import type { AgentTask } from './tasks.js'
 import type { Question } from './questions.js'
 
 export type AgentId = 'claude' | 'codex' | 'antigravity'
@@ -149,6 +150,16 @@ export interface Session {
   pendingPermission?: PendingPermission
   /** Mutually exclusive with pendingPermission: the store clears each when setting the other. */
   pendingQuestion?: PendingQuestion
+  /**
+   * The agent's plan, as of the last time it was read. Undefined means "never
+   * seen one", an empty array means "looked and found none"; the row draws both
+   * the same way, so nothing downstream has to tell them apart.
+   *
+   * Nothing clears this but the death of the record. A `/clear` mints a new
+   * session id and therefore a new record, so a finished plan keeps reading
+   * 10/10 for the rest of its conversation — which is true, not stale.
+   */
+  tasks?: AgentTask[]
   /**
    * What the most recent event would have set the state to, recorded while a
    * permission is pending so clearPending can settle to it. Undefined when no
