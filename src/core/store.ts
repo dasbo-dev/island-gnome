@@ -152,12 +152,29 @@ export class SessionStore {
     // session id is already numbered. /clear delivers its SessionEnd first, so
     // the outgoing record is untouched and keeps showing its own duration for
     // the length of its linger.
+    //
+    // The previous values are kept because ensure is allowed to refuse: at the
+    // session cap it returns null, and it does so *after* this bump has landed.
+    // The lineage would then be counting a conversation that has no record, and
+    // the next record created in it would open on an inflated number. The bump
+    // cannot simply be moved after ensure — ensure builds the new record from
+    // the bumped values — so it is rolled back instead. Rolling back rather
+    // than re-testing the cap here keeps that condition in ensure alone; a
+    // second copy of it would be a worse bug than the one being fixed.
+    let rollback: { count: number; conversationStartedAt: number } | null = null
     if (lineage && e.startsNewConversation) {
+      rollback = { count: lineage.count, conversationStartedAt: lineage.conversationStartedAt }
       lineage.count += 1
       lineage.conversationStartedAt = e.ts
     }
     const s = this.ensure(e, lineage)
-    if (!s) return
+    if (!s) {
+      if (lineage && rollback) {
+        lineage.count = rollback.count
+        lineage.conversationStartedAt = rollback.conversationStartedAt
+      }
+      return
+    }
     // Renumbers a record ensure did not just create too: an agent that
     // restarts a conversation under the *same* id would otherwise keep the
     // previous conversation's clock and number forever.

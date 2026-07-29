@@ -645,6 +645,38 @@ describe('SessionStore', () => {
     ).toBe(2)
   })
 
+  it('does not inflate the count when the session cap refuses the record the bump was for', () => {
+    const s = new SessionStore()
+    // One process, one lineage, and enough distinct session ids to fill the
+    // session map exactly to its cap.
+    for (let i = 0; i < 300; i++) {
+      s.apply(ev({ sessionId: `s${i}`, pid: 7, ts: 1000, agentStartedAt: 1000 }))
+    }
+    expect(s.list()).toHaveLength(300)
+
+    // A clear at the cap: the lineage is bumped, then ensure refuses to create
+    // the record the bump was for.
+    s.apply(ev({ sessionId: 'refused', pid: 7, ts: 5000, agentStartedAt: 1000,
+      startsNewConversation: true }))
+    expect(s.list().find((x) => x.sessionId === 'refused'), 'the cap held').toBeUndefined()
+
+    // Free one slot so the next event can create a record in that same lineage.
+    s.apply(ev({ sessionId: 's0', kind: 'session-end', ts: 6000, agentStartedAt: 1000, pid: 7 }))
+    s.reap(6000 + 11_000, () => true)
+    expect(s.list()).toHaveLength(299)
+
+    s.apply(ev({ sessionId: 'later', pid: 7, ts: 20000, agentStartedAt: 1000 }))
+    const later = s.list().find((x) => x.sessionId === 'later')!
+    expect(
+      later.conversationIndex,
+      'a bump whose record was refused must not be counted'
+    ).toBe(1)
+    expect(
+      later.startedAt,
+      'and the refused clear must not have moved the conversation clock either'
+    ).toBe(1000)
+  })
+
   it('orders rows by conversation age, so a cleared record sorts past a younger process', () => {
     // startedAt marks the conversation, not the process, so list() orders by
     // conversation age. Pinned because store.ts calls it intended: a record
