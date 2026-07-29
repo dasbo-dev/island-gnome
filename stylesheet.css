@@ -69,6 +69,22 @@
 .dasbo-deny   { padding: 2px 10px; }
 .dasbo-always { padding: 2px 10px; font-size: 0.85em; }
 
+.dasbo-question { spacing: 4px; padding: 4px 0 0 0; }
+.dasbo-question-head { spacing: 8px; }
+.dasbo-question-prompt { font-weight: bold; }
+.dasbo-question-counter { font-feature-settings: "tnum"; font-size: 0.85em; }
+.dasbo-question-option { padding: 3px 8px; border-radius: 6px; }
+.dasbo-question-option:hover { background-color: rgba(255, 255, 255, 0.08); }
+.dasbo-question-option:checked { background-color: rgba(255, 255, 255, 0.16); }
+.dasbo-question-label { font-weight: bold; padding-right: 8px; }
+.dasbo-question-desc { font-size: 0.9em; }
+.dasbo-question-entry { margin: 2px 0; }
+.dasbo-question-nav { spacing: 6px; padding-top: 2px; }
+.dasbo-question-next { padding: 2px 10px; }
+.dasbo-question-handoff { padding: 2px 10px; font-size: 0.85em; }
+.dasbo-row-question { spacing: 6px; }
+.dasbo-expander { width: 16px; }
+
 /* Every row here is a PopupBaseMenuItem built `reactive: false` (see the class
    comments in popupHeader.ts and sessionRow.ts — an activatable item would turn
    the whole row into a close button). That costs us the text colour twice over:
