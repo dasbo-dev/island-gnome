@@ -3,9 +3,19 @@ import type { AgentEvent, AgentId, PendingPermission, Session, SessionState } fr
 
 const STALE_MS = 15 * 60 * 1000
 /**
- * A misbehaving or hostile peer on the session bus could otherwise grow this
- * map unbounded for up to 15 minutes (the reaper's abandon window). Bounded to
- * a few hundred, well above any real concurrent-session count.
+ * Bounds *both* maps this store holds: sessions and lineages. A misbehaving or
+ * hostile peer on the session bus could otherwise grow either unbounded for up
+ * to 15 minutes (the reaper's abandon window). A few hundred sits well above
+ * any real concurrent-session count, and above any real count of live agent
+ * processes, so one number serves both.
+ *
+ * The lineage map needs a bound of its own rather than inheriting the session
+ * cap: a lineage is minted before `ensure` runs, and lineages are keyed on the
+ * process while sessions are keyed on the session id, so a peer replaying one
+ * session id from an ever-changing pid mints a lineage per event while creating
+ * exactly one session. One shared constant rather than two, because it is one
+ * policy — "a few hundred of anything a peer can mint" — and two numbers would
+ * only invite them to drift apart for no reason anyone could later reconstruct.
  */
 const MAX_SESSIONS = 300
 
@@ -29,11 +39,27 @@ interface Lineage {
  *
  * A transient /proc read failure can therefore split one process into two
  * lineages: an event whose pid resolved but whose start time did not keys to
- * `<agent>:<pid>:0` while its neighbours key to the real start time. The
- * consequence is a restarted count and conversation clock for that lineage,
- * not a wrong one, so it is left as is.
+ * `<agent>:<pid>:0` while its neighbours key to the real start time.
+ *
+ * On an ordinary event that costs nothing lasting — the split lineage carries
+ * its own count and clock for as long as the failures continue, and the next
+ * event that reads /proc successfully lands back on the real one. But when the
+ * split falls on the single event carrying `startsNewConversation`, the loss is
+ * permanent. That flag is the only thing that ever moves a count, and `apply`
+ * only acts on it while it is being applied: the bump goes to the throwaway
+ * lineage, the real lineage is never told, and no later event replays it. The
+ * conversation count stays one short for the life of that process — it does not
+ * restart, and it does not catch up.
+ *
+ * There are two ways to land in it, not one. The start time can fail to resolve
+ * while the pid does, which is the split above; or `resolveAgent` can return
+ * pid 0 for that one event, in which case `lineageFor` returns null and no bump
+ * happens anywhere at all.
+ *
+ * Left as is regardless: both need /proc to fail on exactly the event that
+ * begins a conversation, and the cost is a number in a row being one low.
  */
-function lineageKey(agent: AgentId, pid: number, processStartedAt: number): string {
+function makeLineageKey(agent: AgentId, pid: number, processStartedAt: number): string {
   return `${agent}:${pid}:${processStartedAt}`
 }
 
@@ -78,7 +104,7 @@ export class SessionStore {
   private lineageFor(e: AgentEvent): Lineage | null {
     if (!e.pid) return null
     const processStartedAt = e.agentStartedAt ?? 0
-    const key = lineageKey(e.agent, e.pid, processStartedAt)
+    const key = makeLineageKey(e.agent, e.pid, processStartedAt)
     let l = this.lineages.get(key)
     if (!l) {
       if (this.lineages.size >= MAX_SESSIONS) return null
@@ -147,7 +173,7 @@ export class SessionStore {
     // Leaving an old stamp in place would pin the record to the dead
     // process's lineage forever. Taken from the Lineage this event resolved
     // to, never rebuilt from the record's own fields, so it stays exact.
-    if (lineage) s.lineageKey = lineageKey(e.agent, lineage.pid, lineage.processStartedAt)
+    if (lineage) s.lineageKey = makeLineageKey(e.agent, lineage.pid, lineage.processStartedAt)
     if (e.transcriptPath) s.transcriptPath = e.transcriptPath
 
     let kindState: SessionState

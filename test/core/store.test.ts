@@ -599,6 +599,40 @@ describe('SessionStore', () => {
     ).toBe(2)
   })
 
+  it('LIMITATION: loses the bump for good when the clear is the event /proc failed on', () => {
+    // Documents the limitation described on makeLineageKey, not a behaviour
+    // anyone wants. The lineage is keyed on the pid *and* the process start
+    // time, so an event whose start time did not resolve keys to `<agent>:7:0`
+    // while its neighbours key to `<agent>:7:1000`. When that single event is
+    // the one carrying startsNewConversation, the bump lands on the throwaway
+    // lineage and the real one never receives it. Nothing later restores it:
+    // only an event carrying the flag ever moves a count.
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'a', pid: 7, ts: 1000, agentStartedAt: 1000 }))
+    // The clear whose /proc read failed. It keys to a lineage of its own.
+    s.apply(ev({ sessionId: 'b', pid: 7, ts: 2000, startsNewConversation: true }))
+    // A second clear, this time with the start time readable again.
+    s.apply(ev({ sessionId: 'c', pid: 7, ts: 3000, agentStartedAt: 1000, startsNewConversation: true }))
+    expect(
+      s.list().find((x) => x.sessionId === 'c')!.conversationIndex,
+      'three conversations have happened, but the real lineage only ever saw one bump — permanently, since nothing replays it'
+    ).toBe(2)
+  })
+
+  it('orders rows by conversation age, so a cleared record sorts past a younger process', () => {
+    // startedAt marks the conversation, not the process, so list() orders by
+    // conversation age. Pinned because store.ts calls it intended: a record
+    // recreated by /clear sorts to the end, behind a process that started
+    // later than the one it belongs to.
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'old', pid: 7, ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'younger', pid: 8, ts: 2000, agentStartedAt: 2000 }))
+    s.apply(ev({ sessionId: 'old', kind: 'session-end', ts: 4900, agentStartedAt: 1000, pid: 7 }))
+    s.apply(ev({ sessionId: 'cleared', pid: 7, ts: 5000, agentStartedAt: 1000,
+      startsNewConversation: true }))
+    expect(s.list().map((x) => x.sessionId)).toEqual(['old', 'younger', 'cleared'])
+  })
+
   it('caps the lineage map so a hostile peer cannot grow it unbounded', () => {
     const s = new SessionStore()
     // One session id throughout, so the session cap is never the thing that
