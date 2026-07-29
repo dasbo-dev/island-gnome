@@ -12,6 +12,7 @@ import type { Session, SessionState } from '../core/types.js'
 import { SessionRow } from './sessionRow.js'
 import { PermissionControls } from './permissionRow.js'
 import { QuestionPanel } from './questionPanel.js'
+import { TaskList } from './taskList.js'
 import { PopupHeader, EmptyRow } from './popupHeader.js'
 import { GridIcon } from './gridIcon.js'
 import { pillState } from '../core/pillState.js'
@@ -53,6 +54,7 @@ export const Island = GObject.registerClass(
     private _onPrefs: () => void = () => {}
     private _controls = new Map<string, { id: string; controls: PermissionControls }>()
     private _questions = new Map<string, { id: string; panel: QuestionPanel }>()
+    private _taskLists = new Map<string, { list: TaskList }>()
     private _transientIds = new Set<number>()
     private _permHandlers: {
       resolve: (id: string, kind: 'allow' | 'deny') => void
@@ -265,7 +267,10 @@ export const Island = GObject.registerClass(
         } else {
           const row = new SessionRow(s, {
             onJump: (sess) => this._onJump(sess),
-            onToggleQuestion: (expanded) => this._questions.get(s.key)?.panel.setExpanded(expanded),
+            onToggleExpanded: (expanded) => {
+              this._questions.get(s.key)?.panel.setExpanded(expanded)
+              this._taskLists.get(s.key)?.list.setExpanded(expanded)
+            },
           })
           this._rows.set(s.key, row)
           ;(this.menu as PopupMenu.PopupMenu).addMenuItem(row)

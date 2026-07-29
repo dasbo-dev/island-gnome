@@ -56,6 +56,12 @@
   min-width: 6em;
 }
 
+.dasbo-row-taskcount {
+  font-feature-settings: "tnum";
+  font-size: 0.85em;
+  padding-right: 6px;
+}
+
 /* .dasbo-row-outer is now the vertical box holding the top row and the
    permission line; the 12px horizontal gap that used to live here moved to
    .dasbo-row-top. */
