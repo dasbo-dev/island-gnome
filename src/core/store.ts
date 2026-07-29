@@ -116,7 +116,8 @@ export class SessionStore {
         lastEventAt: e.ts,
         // Stamped from the lineage's own fields, not the event's, so the stamp
         // and the map entry can never disagree — see pruneLineages, which reads
-        // this back rather than rebuilding the key from the record later.
+        // this back rather than rebuilding the key from the record later. Calls
+        // the module-private lineageKey function below, not this field itself.
         lineageKey: lineage
           ? lineageKey(e.agent, lineage.pid, lineage.processStartedAt)
           : undefined,
@@ -148,6 +149,13 @@ export class SessionStore {
     }
     s.lastEventAt = e.ts
     if (e.pid) s.pid = e.pid
+    // Re-stamped rather than written once, alongside pid: a session id can
+    // outlive its process (`claude --resume` reuses the id under a new pid),
+    // and apply refreshes pid on every event while ensure only stamps once —
+    // leaving the old stamp would pin the record to the dead process's lineage
+    // forever. Still taken from the Lineage this event resolved to, never
+    // rebuilt from the record's own fields, so it stays exact.
+    if (lineage) s.lineageKey = lineageKey(e.agent, lineage.pid, lineage.processStartedAt)
     if (e.transcriptPath) s.transcriptPath = e.transcriptPath
 
     let kindState: SessionState
@@ -334,8 +342,9 @@ export class SessionStore {
    * the record is created — so the two can come from different events and no
    * longer form the pair a lineage was keyed on. Rebuilding the key from those
    * two fields would then match no lineage, leaking the real one until the map
-   * hits its cap. The stamp is written once, from the lineage itself, so it can
-   * never drift out of step with the map entry it names.
+   * hits its cap. The stamp is always written from the lineage itself — at
+   * creation in ensure, and refreshed alongside pid in apply — so it can never
+   * drift out of step with the map entry it names.
    */
   private pruneLineages(pidAlive: (pid: number) => boolean): void {
     const referenced = new Set<string>()

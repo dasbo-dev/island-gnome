@@ -498,6 +498,17 @@ describe('SessionStore', () => {
     expect(s.list()[0]!.conversationIndex).toBe(1)
   })
 
+  it('carries a surviving lineage into a record recreated after the reap', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'b', pid: 7, ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    s.apply(ev({ sessionId: 'b', kind: 'session-end', ts: 2000, agentStartedAt: 1000, pid: 7 }))
+    s.reap(2000 + 11_000, () => true)
+    expect(s.list()).toHaveLength(0)
+    s.apply(ev({ sessionId: 'b', kind: 'tool-start', tool: 'Edit', ts: 30000, agentStartedAt: 1000, pid: 7 }))
+    expect(s.list()[0]!.startedAt, 'the process lived, so the clock does too').toBe(2000)
+    expect(s.list()[0]!.conversationIndex).toBe(2)
+  })
+
   it('renumbers and restarts a session that keeps its id across a new conversation', () => {
     const s = new SessionStore()
     s.apply(ev({ sessionId: 'same', ts: 1000, agentStartedAt: 1000 }))
@@ -562,6 +573,17 @@ describe('SessionStore', () => {
     s.reap(2000 + 11_000, () => true)
     expect(s.list().map((x) => x.sessionId), 'only the ended one goes').toEqual(['b'])
     expect(s.list()[0]!.conversationIndex).toBe(2)
+  })
+
+  it('keeps a lineage a lingering done record still references, though the pid is gone', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'a', pid: 7, ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'b', pid: 7, ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    s.apply(ev({ sessionId: 'b', kind: 'session-end', ts: 3000, agentStartedAt: 1000, pid: 7 }))
+    s.reap(3500, () => false)
+    expect(s.list().map((x) => x.sessionId), 'the done one lingers').toEqual(['b'])
+    s.apply(ev({ sessionId: 'c', pid: 7, ts: 4000, agentStartedAt: 1000, startsNewConversation: true }))
+    expect(s.list().find((x) => x.sessionId === 'c')!.conversationIndex).toBe(3)
   })
 
   it('caps the lineage map so a hostile peer cannot grow it unbounded', () => {
