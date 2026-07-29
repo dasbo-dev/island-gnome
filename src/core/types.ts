@@ -122,11 +122,18 @@ export interface Session {
    */
   deferredState?: SessionState
   /**
-   * The key of the lineage this record was numbered from, stamped once when the
-   * record is created. Undefined when the agent could not be identified and no
-   * lineage was minted. Read back rather than rebuilt, because a record's pid is
-   * refreshed by later events while its processStartedAt is not, so the two can
-   * stop being the pair the lineage was keyed on.
+   * The key of the lineage the most recent event resolved to, written
+   * whenever pid is refreshed rather than once at creation — a session id can
+   * outlive its process (`claude --resume` reuses the id under a new pid), so
+   * every event has to re-pin the record to whatever process it now belongs
+   * to. Undefined when the agent could not be identified and no lineage was
+   * minted. Read back rather than rebuilt, because rebuilding the key from
+   * this record's own pid and processStartedAt would use two fields that can
+   * come from different events and no longer form the pair a lineage was
+   * keyed on. Can name a different lineage than the one conversationIndex was
+   * numbered from — a resume under a new pid moves this forward without
+   * renumbering the record — which is intended: pruneLineages wants to know
+   * what is referenced *now*, not what a past conversation was counted by.
    */
   lineageKey?: string
 }

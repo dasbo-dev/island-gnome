@@ -586,6 +586,19 @@ describe('SessionStore', () => {
     expect(s.list().find((x) => x.sessionId === 'c')!.conversationIndex).toBe(3)
   })
 
+  it('follows a resumed session to its new process, releasing the dead one\'s lineage', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'a', pid: 7, ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'a', pid: 7, ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    s.apply(ev({ sessionId: 'a', kind: 'tool-start', tool: 'Edit', ts: 3000, pid: 9, agentStartedAt: 3000 }))
+    s.reap(3500, (pid) => pid === 9)
+    s.apply(ev({ sessionId: 'b', pid: 7, ts: 4000, agentStartedAt: 1000, startsNewConversation: true }))
+    expect(
+      s.list().find((x) => x.sessionId === 'b')!.conversationIndex,
+      'pid 7 died and the resumed record no longer holds it, so its lineage went too'
+    ).toBe(2)
+  })
+
   it('caps the lineage map so a hostile peer cannot grow it unbounded', () => {
     const s = new SessionStore()
     // One session id throughout, so the session cap is never the thing that

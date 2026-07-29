@@ -114,13 +114,6 @@ export class SessionStore {
         conversationIndex: lineage?.count ?? 1,
         processStartedAt: e.agentStartedAt,
         lastEventAt: e.ts,
-        // Stamped from the lineage's own fields, not the event's, so the stamp
-        // and the map entry can never disagree — see pruneLineages, which reads
-        // this back rather than rebuilding the key from the record later. Calls
-        // the module-private lineageKey function below, not this field itself.
-        lineageKey: lineage
-          ? lineageKey(e.agent, lineage.pid, lineage.processStartedAt)
-          : undefined,
       }
       this.sessions.set(key, s)
     }
@@ -139,22 +132,21 @@ export class SessionStore {
     }
     const s = this.ensure(e, lineage)
     if (!s) return
-    // ensure stamps the lineage only onto a record it creates, which covers
-    // /clear: it mints a new session id. An agent that restarts a conversation
-    // under the *same* id would otherwise keep the previous conversation's
-    // clock and number forever, so bring the record forward here too.
+    // Renumbers a record ensure did not just create too: an agent that
+    // restarts a conversation under the *same* id would otherwise keep the
+    // previous conversation's clock and number forever.
     if (lineage && e.startsNewConversation) {
       s.startedAt = lineage.conversationStartedAt
       s.conversationIndex = lineage.count
     }
     s.lastEventAt = e.ts
     if (e.pid) s.pid = e.pid
-    // Re-stamped rather than written once, alongside pid: a session id can
-    // outlive its process (`claude --resume` reuses the id under a new pid),
-    // and apply refreshes pid on every event while ensure only stamps once —
-    // leaving the old stamp would pin the record to the dead process's lineage
-    // forever. Still taken from the Lineage this event resolved to, never
-    // rebuilt from the record's own fields, so it stays exact.
+    // Written here, alongside the pid it must agree with, rather than once at
+    // creation: a session id can outlive its process (`claude --resume` reuses
+    // the id under a new pid), and this is the only place pid is refreshed.
+    // Leaving an old stamp in place would pin the record to the dead
+    // process's lineage forever. Taken from the Lineage this event resolved
+    // to, never rebuilt from the record's own fields, so it stays exact.
     if (lineage) s.lineageKey = lineageKey(e.agent, lineage.pid, lineage.processStartedAt)
     if (e.transcriptPath) s.transcriptPath = e.transcriptPath
 
@@ -342,9 +334,9 @@ export class SessionStore {
    * the record is created — so the two can come from different events and no
    * longer form the pair a lineage was keyed on. Rebuilding the key from those
    * two fields would then match no lineage, leaking the real one until the map
-   * hits its cap. The stamp is always written from the lineage itself — at
-   * creation in ensure, and refreshed alongside pid in apply — so it can never
-   * drift out of step with the map entry it names.
+   * hits its cap. The stamp is always written from the lineage itself, in
+   * apply, alongside the pid it must agree with — so it can never drift out
+   * of step with the map entry it names.
    */
   private pruneLineages(pidAlive: (pid: number) => boolean): void {
     const referenced = new Set<string>()
