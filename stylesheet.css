@@ -82,6 +82,15 @@
 .dasbo-question-nav { spacing: 6px; padding-top: 2px; }
 .dasbo-question-next { padding: 2px 10px; }
 .dasbo-question-handoff { padding: 2px 10px; font-size: 0.85em; }
+/* The list has to be bounded: a plain PopupMenu does not scroll in GNOME Shell
+   46, so without a max-height a long plan grows the popup past the monitor and
+   is clipped. ~9 lines at this font size. */
+.dasbo-tasks-scroll { max-height: 200px; }
+.dasbo-tasks { spacing: 2px; }
+.dasbo-task { spacing: 6px; }
+.dasbo-task-glyph { width: 14px; font-size: 0.85em; }
+.dasbo-task-subject { font-size: 0.85em; }
+.dasbo-row-tasks { spacing: 4px; }
 .dasbo-row-question { spacing: 6px; }
 .dasbo-expander { width: 16px; }
 
