@@ -73,7 +73,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
 
     const questionTimeout = new Adw.SpinRow({
       title: 'Question timeout',
-      subtitle: 'Seconds before an agent\'s question falls through to its own picker. Zero waits indefinitely.',
+      subtitle: 'Seconds before an agent’s question falls through to its own picker. Zero waits indefinitely.',
       adjustment: new Gtk.Adjustment({ lower: 0, upper: 3600, step_increment: 15 }),
     })
     settings.bind('question-timeout', questionTimeout, 'value', 0)
