@@ -491,4 +491,29 @@ describe('SessionStore', () => {
     expect(s.list()[0]!.startedAt, 'the lineage outlives the record it numbered').toBe(2000)
     expect(s.list()[0]!.conversationIndex).toBe(2)
   })
+
+  it('renumbers and restarts a session that keeps its id across a new conversation', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'same', ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'same', ts: 20000, agentStartedAt: 1000, startsNewConversation: true }))
+    expect(s.list()).toHaveLength(1)
+    expect(s.list()[0]!.conversationIndex).toBe(2)
+    expect(s.list()[0]!.startedAt, 'reusing the id must not preserve the old clock').toBe(20000)
+  })
+
+  it('does not renumber an existing session on an ordinary event', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'same', ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'same', kind: 'tool-start', tool: 'Edit', ts: 5000, agentStartedAt: 1000 }))
+    expect(s.list()[0]!.conversationIndex).toBe(1)
+    expect(s.list()[0]!.startedAt).toBe(1000)
+  })
+
+  it('leaves an unidentified agent unrenumbered, having no lineage to renumber from', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'same', pid: 0, ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'same', pid: 0, ts: 20000, agentStartedAt: 1000, startsNewConversation: true }))
+    expect(s.list()[0]!.conversationIndex).toBe(1)
+    expect(s.list()[0]!.startedAt).toBe(1000)
+  })
 })

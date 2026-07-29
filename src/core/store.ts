@@ -132,6 +132,14 @@ export class SessionStore {
     }
     const s = this.ensure(e, lineage)
     if (!s) return
+    // ensure stamps the lineage only onto a record it creates, which covers
+    // /clear: it mints a new session id. An agent that restarts a conversation
+    // under the *same* id would otherwise keep the previous conversation's
+    // clock and number forever, so bring the record forward here too.
+    if (lineage && e.startsNewConversation) {
+      s.startedAt = lineage.conversationStartedAt
+      s.conversationIndex = lineage.count
+    }
     s.lastEventAt = e.ts
     if (e.pid) s.pid = e.pid
     if (e.transcriptPath) s.transcriptPath = e.transcriptPath
