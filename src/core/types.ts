@@ -66,6 +66,14 @@ export interface AgentEvent {
    * whenever the agent would ask, so absence always means "gate normally".
    */
   permissionsBypassed?: boolean
+  /**
+   * Set when this event begins a conversation distinct from the one before it,
+   * inside an agent process that keeps running — Claude's `/clear` and
+   * `/compact`. Only adapters whose dialect can tell set it, so absence means
+   * "same conversation, or no way to know". Never `false`: a single truthiness
+   * test is all any consumer should need.
+   */
+  startsNewConversation?: boolean
 }
 
 export interface PendingPermission {

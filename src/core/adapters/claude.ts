@@ -23,6 +23,15 @@ export function detailFromToolInput(input: unknown): string | undefined {
   )
 }
 
+/**
+ * SessionStart `source` values that mean the agent process kept running while
+ * the conversation inside it restarted. An allowlist rather than "anything but
+ * startup and resume": a source we have never seen should leave the clock
+ * alone, because failing to reset it is today's behaviour while resetting it
+ * wrongly would zero a live session's timer.
+ */
+const NEW_CONVERSATION_SOURCES = new Set(['clear', 'compact'])
+
 export const claudeAdapter: AgentAdapter = {
   id: 'claude',
   displayName: 'Claude Code',
@@ -58,6 +67,10 @@ export const claudeAdapter: AgentAdapter = {
       // still prompts, so both stay gated.
       permissionsBypassed:
         str(raw['permission_mode']) === 'bypassPermissions' ? true : undefined,
+      startsNewConversation:
+        eventName === 'SessionStart' && NEW_CONVERSATION_SOURCES.has(str(raw['source']) ?? '')
+          ? true
+          : undefined,
     }
   },
 

@@ -97,6 +97,43 @@ describe('claudeAdapter.normalize', () => {
     }
   })
 
+  it('flags a cleared session as the start of a new conversation', () => {
+    const e = claudeAdapter.normalize(
+      { hook_event_name: 'SessionStart', session_id: 's2', cwd: '/p', source: 'clear' }, ctx
+    )
+    expect(e?.startsNewConversation).toBe(true)
+  })
+
+  it('flags a compacted session as the start of a new conversation', () => {
+    const e = claudeAdapter.normalize(
+      { hook_event_name: 'SessionStart', session_id: 's2', cwd: '/p', source: 'compact' }, ctx
+    )
+    expect(e?.startsNewConversation).toBe(true)
+  })
+
+  it('leaves startup and resume unflagged: the process clock is still right there', () => {
+    for (const source of ['startup', 'resume']) {
+      const e = claudeAdapter.normalize(
+        { hook_event_name: 'SessionStart', session_id: 's1', cwd: '/p', source }, ctx
+      )
+      expect(e?.startsNewConversation, source).toBeUndefined()
+    }
+  })
+
+  it('leaves an unknown source unflagged rather than guessing', () => {
+    const e = claudeAdapter.normalize(
+      { hook_event_name: 'SessionStart', session_id: 's1', cwd: '/p', source: 'teleport' }, ctx
+    )
+    expect(e?.startsNewConversation).toBeUndefined()
+  })
+
+  it('ignores a source that arrives on any event other than SessionStart', () => {
+    const e = claudeAdapter.normalize(
+      { hook_event_name: 'Stop', session_id: 's1', cwd: '/p', source: 'clear' }, ctx
+    )
+    expect(e?.startsNewConversation).toBeUndefined()
+  })
+
   it('returns null for an unknown event', () => {
     expect(claudeAdapter.normalize({ hook_event_name: 'Nope', session_id: 's', cwd: '/p' }, ctx)).toBeNull()
   })
