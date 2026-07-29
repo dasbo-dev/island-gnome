@@ -163,8 +163,16 @@ its linger. The incoming row is built fresh from the bumped lineage.
 reason the session map is: a misbehaving or hostile peer on the session bus must
 not be able to grow it unbounded. At the cap, no new lineage is created and the
 record falls through to the same path as `pid === 0` — index 1 and the `/proc`
-start time. The cap cannot be reached before the session map's own cap has been,
-so this is a backstop rather than a path anything real takes.
+start time.
+
+The lineage cap is genuinely independent of the session cap, not a consequence
+of it. Lineages are keyed on the process and sessions on the session id, so the
+two counts move for different reasons: a peer replaying one session id from
+three hundred different pids mints three hundred lineages and exactly one
+session. The lineage map therefore needs its own bound rather than inheriting
+the session map's, and `store.ts` says so on `lineageFor`. (An earlier draft of
+this section claimed the lineage cap could not be reached before the session
+cap. That was wrong; a test now demonstrates the case.)
 
 ## Rendering
 
@@ -285,6 +293,30 @@ way to act on, and the count would silently fail to advance.
 4. An extension enabled mid-shell undercounts until the next clear. If the first
    event it ever sees is a clear, the count lands on 2 — an honest lower bound.
 5. A `done` row's clock keeps ticking during its linger. Pre-existing.
+6. A suspend/resume can split a live agent's lineage. The key is
+   `${agent}:${pid}:${agentStartedAt}`, and `windowFinder.ts` already documents
+   `agentStartedAt` as jittering by about a second across a suspend — the boot
+   time the `/proc` figure is derived from is re-derived after the clock jumps.
+   A lid close mid-conversation therefore re-keys the same live process: the
+   count restarts at 1, the conversation clock restarts, and the old entry
+   survives until the map fills, because its pid is still alive and so
+   `pruneLineages` will not collect it. Chosen deliberately over re-keying on a
+   boot-relative tick count, which would be stable across suspend but would put
+   a second time base into the store for a cosmetic gain. It self-corrects at
+   the next `/clear`, which mints a fresh lineage from the post-resume key and
+   counts forward from there.
+7. Automatic compaction resets the clock without the user typing anything.
+   Compaction is treated as a new conversation, and Claude Code compacts on its
+   own when the context window fills, so a row sitting at `2h` can drop to
+   `#2 0s` with no user action. Be clear about what is measured here: manual
+   `/compact` was measured to emit `SessionStart` with `source: "compact"` (see
+   Risks). That *automatic* compaction emits the same event was **not**
+   measured — it is inferred, and if it turns out to emit something else, this
+   limitation simply does not arise. Accepted either way, because the dim
+   shell-uptime suffix appears at the very same moment the number does: it is
+   hidden while `conversationIndex <= 1`, so the instant the clock resets the
+   row also starts showing the terminal's true age beside the project name. The
+   row never claims the terminal is new; it claims this conversation is.
 
 ## Migration
 
