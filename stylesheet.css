@@ -43,9 +43,13 @@
 /* min-width because the row's total width is now fixed and the action box is
    right-hand: "5s" growing to "12m" would otherwise slide Jump sideways.
    tnum handles jitter within a digit count, min-width handles the change in
-   digit count. 6em covers the widest output, "#99 100h" — it was 3em before
-   the conversation number joined the clock. Those 3em come out of the activity
-   text's share of the fixed row width, so it wraps a little earlier. */
+   digit count. 6em is sized for "#99 100h", the widest output realistic in
+   practice — nothing actually caps the conversation number, so a lineage that
+   runs long can still produce a wider string, but min-width is a floor, not a
+   clamp, and such a string simply grows the label rather than being cut off.
+   6em was 3em before the conversation number joined the clock. Those 3em come
+   out of the activity text's share of the fixed row width, so it wraps a
+   little earlier. */
 .dasbo-row-elapsed {
   font-feature-settings: "tnum";
   opacity: 0.7;

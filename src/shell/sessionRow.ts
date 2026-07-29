@@ -63,6 +63,13 @@ export const SessionRow = GObject.registerClass(
         x_expand: true,
         x_align: Clutter.ActorAlign.START,
         y_align: Clutter.ActorAlign.CENTER,
+        // Starts hidden, matching its empty text. Actors default to visible,
+        // and update() (called at the end of this constructor) is no longer
+        // the thing that turns this on — only tick() is, once it has written
+        // a real number here — so without this the very first render of a
+        // qualifying row would show the gap with nothing in it, before the
+        // popup's first tick ever runs.
+        visible: false,
       })
       // St's CSS engine does not honour `opacity` — the same finding that made
       // the empty row set it on the actor. 140 (~0.55) rather than the 178 used
@@ -164,11 +171,18 @@ export const SessionRow = GObject.registerClass(
       this._dot.style_class = `dasbo-dot ${STATE_CLASS[session.state]}`.trim()
 
       // On a first conversation the number is always #1 and the shell's uptime
-      // is the conversation's own age, so both are noise. Hidden rather than
-      // blanked: ClutterBoxLayout only spaces between visible children, so an
-      // empty label would still cost the row its gap.
-      this._shellTotal.visible =
-        session.conversationIndex > 1 && session.processStartedAt !== undefined
+      // is the conversation's own age, so both are noise, and a session that
+      // stops qualifying (conversationIndex back to 1, or no processStartedAt)
+      // must lose the label at once rather than lingering with a stale
+      // number. But update() never knows the current time, so it cannot write
+      // a fresh number itself — only hide. Showing the label is tick()'s job
+      // alone: text and visibility are set together there, so the label can
+      // never be visible while empty. Hidden rather than blanked: ClutterBox-
+      // Layout only spaces between visible children, so an empty label would
+      // still cost the row its gap.
+      if (session.conversationIndex <= 1 || session.processStartedAt === undefined) {
+        this._shellTotal.visible = false
+      }
 
       const { text, hint } = activityText(session)
       this._activity.text = text
@@ -189,9 +203,18 @@ export const SessionRow = GObject.registerClass(
         ? `#${this._session.conversationIndex} ${elapsed}`
         : elapsed
       const processStartedAt = this._session.processStartedAt
+      const showsTotal = this._session.conversationIndex > 1 && processStartedAt !== undefined
       if (processStartedAt !== undefined) {
         this._shellTotal.text = formatElapsed(now - processStartedAt)
       }
+      // Set unconditionally, not nested in the guard above: this is the only
+      // place that knows both the current time and what the label's text
+      // will say, so it is the only place that can turn the label on without
+      // it ever being visible with stale or empty text. Running it outside
+      // the guard also means a row whose processStartedAt is undefined gets
+      // hidden right here on every tick, rather than waiting on update()'s
+      // next call to notice.
+      this._shellTotal.visible = showsTotal
     }
 
     showTransient(text: string): void {
