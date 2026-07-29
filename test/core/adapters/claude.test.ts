@@ -299,3 +299,18 @@ describe('claudeAdapter.encodeDecision for an answer', () => {
     expect(out.hookSpecificOutput.permissionDecisionReason.length).toBeGreaterThan(0)
   })
 })
+
+describe('claude taskTools', () => {
+  it('names every tool whose completion can move the task directory', () => {
+    expect([...(claudeAdapter.taskTools ?? [])].sort()).toEqual([
+      'TaskCreate',
+      'TaskList',
+      'TaskUpdate',
+      'TodoWrite',
+    ])
+  })
+
+  it('does not name an ordinary tool', () => {
+    expect(claudeAdapter.taskTools?.has('Edit')).toBe(false)
+  })
+})

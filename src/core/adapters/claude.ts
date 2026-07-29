@@ -42,10 +42,27 @@ export function detailFromToolInput(input: unknown): string | undefined {
  */
 const NEW_CONVERSATION_SOURCES = new Set(['clear'])
 
+/**
+ * The tools that move the task directory. `TodoWrite` is the old spelling —
+ * Claude replaced it with the incremental `TaskCreate` / `TaskUpdate` pair —
+ * and is kept because an install still emitting it writes the same directory,
+ * so recognising it costs one string and buys those installs the feature.
+ *
+ * `TaskList` is here despite being a read: it is cheap to include, and an
+ * agent that lists its tasks is an agent whose row is worth refreshing.
+ */
+const TASK_TOOLS: ReadonlySet<string> = new Set([
+  'TaskCreate',
+  'TaskUpdate',
+  'TaskList',
+  'TodoWrite',
+])
+
 export const claudeAdapter: AgentAdapter = {
   id: 'claude',
   displayName: 'Claude Code',
   procNames: ['claude'],
+  taskTools: TASK_TOOLS,
 
   normalize(raw, ctx) {
     if (!isRecord(raw)) return null

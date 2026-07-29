@@ -1,5 +1,7 @@
 import type { Decision, EventKind, HookContext } from '../types.js'
 import type { AgentAdapter } from './index.js'
+import { toTaskStatus } from '../tasks.js'
+import type { AgentTask } from '../tasks.js'
 import { detailFromToolInput } from './claude.js'
 import { isRecord, str } from './shared.js'
 
@@ -65,6 +67,39 @@ export const codexAdapter: AgentAdapter = {
       agentStartedAt: ctx.agentStartedAt,
       ts: ctx.ts,
     }
+  },
+
+  /**
+   * UNVERIFIED, like everything else in this file. Codex's `update_plan` is
+   * documented to carry `{ plan: [{ step, status }] }`, and no fixture has ever
+   * been captured — `docs/agent-dialects.md` records that Codex hooks parse but
+   * have never fired. A shape that turns out to differ returns null here, which
+   * leaves Codex rows exactly as they are today.
+   *
+   * The whole snapshot is rejected when one step is unusable, rather than that
+   * step being skipped: the plan is a numbered sequence, and dropping an entry
+   * from the middle would renumber everything after it.
+   */
+  parseTasks(raw: unknown): AgentTask[] | null {
+    if (!isRecord(raw)) return null
+    if (str(raw['tool_name']) !== 'update_plan') return null
+    const input = raw['tool_input']
+    if (!isRecord(input)) return null
+    const plan = input['plan']
+    if (!Array.isArray(plan)) return null
+
+    const out: AgentTask[] = []
+    for (let i = 0; i < plan.length; i++) {
+      const item = plan[i]
+      if (!isRecord(item)) return null
+      const subject = str(item['step'])
+      const status = toTaskStatus(item['status'])
+      if (!subject || status === null) return null
+      // Positional, because `update_plan` carries no ids of its own. The whole
+      // plan arrives at once, so position is the only identity a step has.
+      out.push({ id: String(i + 1), subject, status })
+    }
+    return out
   },
 
   encodeDecision(d: Decision) {
