@@ -136,6 +136,10 @@ export const Island = GObject.registerClass(
       // returns the section itself and itemActivated() cannot close the popup;
       // harmless for today's non-activatable rows, but an ordinary activatable
       // PopupMenuItem added here later would silently fail to close the menu.
+      // The wrapping has one more consequence worth knowing: popupMenu.js hides
+      // a separator beside an *empty* PopupMenuSection, but it recognises one
+      // only by a child's _delegate, and the scroll view has none — so the
+      // separator above never hides itself and menu.isEmpty() is always false.
       // The header and separator stay direct menu items above it, so the
       // preferences gear is still reachable with a long list of sessions.
       this._body = new PopupMenu.PopupMenuSection()

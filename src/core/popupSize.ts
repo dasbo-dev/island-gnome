@@ -17,7 +17,7 @@ export const MIN_BODY = 120
 const DEFAULT_FRACTION = 0.9
 
 export interface BodyMaxHeightInput {
-  /** Monitor work area height in logical pixels, excluding the top bar. */
+  /** Monitor work area height in physical pixels, excluding the top bar. */
   workAreaHeight: number
   /** Height of everything pinned outside the scroll view: header + separator. */
   chromeHeight: number
@@ -41,8 +41,8 @@ export interface BodyMaxHeightInput {
 export function bodyMaxHeight(o: BodyMaxHeightInput): number {
   const fraction = o.fraction ?? DEFAULT_FRACTION
   const scale = Number.isFinite(o.scaleFactor) && o.scaleFactor > 0 ? o.scaleFactor : 1
-  const logical = o.workAreaHeight * fraction - o.chromeHeight
-  return Math.max(MIN_BODY, Math.floor(logical / scale))
+  const physical = o.workAreaHeight * fraction - o.chromeHeight
+  return Math.max(MIN_BODY, Math.floor(physical / scale))
 }
 
 export interface ScrollIntoViewInput {
