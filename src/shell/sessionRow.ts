@@ -136,6 +136,7 @@ export const SessionRow = GObject.registerClass(
       this._expander.connect('clicked', () => {
         this._expanded = !this._expanded
         this._expander.label = this._expanded ? '▾' : '▸'
+        this._syncTaskBoxVisible()
         this._cb.onToggleExpanded(this._expanded)
       })
       titleRow.add_child(this._expander)
@@ -218,6 +219,15 @@ export const SessionRow = GObject.registerClass(
       // Same visibility handling as the two boxes above, for the same reason:
       // ClutterBoxLayout spaces only between visible children, so an
       // always-present empty box would cost every row a gap it never uses.
+      //
+      // But the child-count rule alone is not enough for this box specifically:
+      // unlike the permission and question boxes, this one holds a TaskList
+      // whose own fold (setExpanded) hides its ScrollView while leaving it
+      // parented here — so a *collapsed* list, which is the default, still
+      // counts as a child and would keep this box visible, costing the row a
+      // 6px .dasbo-row-outer gap above nothing. _syncTaskBoxVisible folds the
+      // expanded state into the same visible flag so a non-empty box is only
+      // ever shown while the row is open.
       this._taskBox = new St.BoxLayout({
         vertical: true,
         x_expand: true,
@@ -225,10 +235,10 @@ export const SessionRow = GObject.registerClass(
       })
       this._taskBox.visible = false
       this._taskBox.connect('child-added', () => {
-        this._taskBox.visible = true
+        this._syncTaskBoxVisible()
       })
       this._taskBox.connect('child-removed', () => {
-        this._taskBox.visible = this._taskBox.get_n_children() > 0
+        this._syncTaskBoxVisible()
       })
 
       outer.add_child(topRow)
@@ -271,7 +281,18 @@ export const SessionRow = GObject.registerClass(
       if (has) {
         this._expanded = true
         this._expander.label = '▾'
+      } else if (!this._hasTasks) {
+        // Restore the collapsed default only when there is no task list left
+        // to fold: if there is, the row's fold is the user's own choice (they
+        // opened it to read the plan, or closed it on purpose) and a question
+        // resolving must not overwrite that. Without this guard, a question
+        // that resolves on a row with no tasks leaves _expanded stuck at true
+        // with no arrow to undo it — until a later plan reveals an arrow that
+        // already reads open and shoves the rest of the popup down on its own.
+        this._expanded = false
+        this._expander.label = '▸'
       }
+      this._syncTaskBoxVisible()
       this._syncExpander()
     }
 
@@ -282,11 +303,26 @@ export const SessionRow = GObject.registerClass(
      */
     setHasTasks(has: boolean): void {
       this._hasTasks = has
+      this._syncTaskBoxVisible()
       this._syncExpander()
     }
 
     private _syncExpander(): void {
       this._expander.visible = this._hasQuestion || this._hasTasks
+    }
+
+    /**
+     * _taskBox's own child-added/child-removed handlers only know whether it
+     * has a child, not whether the row is folded — and a TaskList that is
+     * attached but collapsed (the default) is a non-empty box with nothing
+     * visible inside it. Left keyed on child count alone, that box would stay
+     * visible and cost the row .dasbo-row-outer's 6px inter-child spacing for
+     * a gap above zero height, on every row with a plan, in the common
+     * (collapsed) case. Folding _expanded into the same flag makes a
+     * non-empty box visible only while the row is open.
+     */
+    private _syncTaskBoxVisible(): void {
+      this._taskBox.visible = this._taskBox.get_n_children() > 0 && this._expanded
     }
 
     get session(): Session {
