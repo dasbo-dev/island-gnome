@@ -86,3 +86,31 @@ describe('activityText', () => {
     expect(r.hint).toBe(false)
   })
 })
+
+describe('activityText for a pending question', () => {
+  const pendingQuestion = {
+    id: 'perm-1',
+    deadline: 0,
+    questions: [
+      {
+        question: 'Which library?',
+        header: 'Library',
+        options: [
+          { label: 'date-fns', description: '' },
+          { label: 'Luxon', description: '' },
+        ],
+        multiSelect: false,
+      },
+    ],
+  }
+
+  it('names the question by its header', () => {
+    const s = session({ state: 'waiting', pendingQuestion })
+    expect(activityText(s)).toEqual({ text: 'question · Library', hint: false })
+  })
+
+  it('takes precedence over the tool that is still recorded on the row', () => {
+    const s = session({ state: 'waiting', currentTool: 'AskUserQuestion', pendingQuestion })
+    expect(activityText(s).text).toBe('question · Library')
+  })
+})
