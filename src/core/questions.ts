@@ -56,3 +56,30 @@ export function parseQuestions(toolInput: unknown): Question[] | null {
   }
   return out
 }
+
+/**
+ * The complete `permissionDecisionReason` for an answered question set.
+ *
+ * The prefix is not decoration. A `PreToolUse` hook has no result channel, so
+ * the answer can only reach the model as a *denial's* reason (see the spec);
+ * without a sentence saying what actually happened the model reads a refusal
+ * and asks again. Built here rather than in the adapter so the wording is
+ * testable without a running Shell.
+ *
+ * `answers[i]` holds the labels selected for `questions[i]`, or a single entry
+ * of typed free text. Newlines are collapsed because the reason travels as one
+ * JSON string into a transcript that renders it as a line.
+ */
+export function formatAnswer(questions: Question[], answers: string[][]): string {
+  const prefix = 'The user answered in Dasbo Island rather than the terminal — do not re-ask.'
+  const parts: string[] = []
+  for (let i = 0; i < questions.length; i++) {
+    const picked = (answers[i] ?? []).map((a) => a.replace(/\s+/g, ' ').trim()).filter((a) => a.length > 0)
+    if (picked.length === 0) continue
+    parts.push(`${questions[i]?.header}: ${picked.join(', ')}`)
+  }
+  // Reachable only if every question was skipped. Saying so beats sending a
+  // bare prefix, which reads as a truncated message.
+  if (parts.length === 0) return `${prefix} The user selected nothing.`
+  return `${prefix} ${parts.join('; ')}`
+}

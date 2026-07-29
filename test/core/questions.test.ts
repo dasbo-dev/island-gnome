@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseQuestions, type Question } from '../../src/core/questions.js'
+import { parseQuestions, formatAnswer, type Question } from '../../src/core/questions.js'
 
 const oneQuestion = {
   questions: [
@@ -103,5 +103,61 @@ describe('parseQuestions', () => {
     }
     const result = parseQuestions(raw) as Question[]
     expect(result[0]!.options[0]!).toEqual({ label: 'a', description: '' })
+  })
+})
+
+const PREFIX = 'The user answered in Dasbo Island rather than the terminal — do not re-ask.'
+
+function q(header: string, multiSelect = false): Question {
+  return {
+    question: `${header}?`,
+    header,
+    options: [
+      { label: 'one', description: '' },
+      { label: 'two', description: '' },
+    ],
+    multiSelect,
+  }
+}
+
+describe('formatAnswer', () => {
+  it('prefixes the answer so a denial reads as a reply', () => {
+    expect(formatAnswer([q('Library')], [['date-fns']])).toBe(`${PREFIX} Library: date-fns`)
+  })
+
+  it('joins several selections for one question with commas', () => {
+    expect(formatAnswer([q('Features', true)], [['Postgres', 'Redis']])).toBe(
+      `${PREFIX} Features: Postgres, Redis`
+    )
+  })
+
+  it('joins several questions with semicolons, in order', () => {
+    expect(
+      formatAnswer([q('Library'), q('Store', true)], [['Luxon'], ['Postgres', 'Redis']])
+    ).toBe(`${PREFIX} Library: Luxon; Store: Postgres, Redis`)
+  })
+
+  it('carries free text through verbatim', () => {
+    expect(formatAnswer([q('Library')], [['whatever you think is best']])).toBe(
+      `${PREFIX} Library: whatever you think is best`
+    )
+  })
+
+  it('skips a question with no selections', () => {
+    expect(formatAnswer([q('Library'), q('Store')], [[], ['Postgres']])).toBe(
+      `${PREFIX} Store: Postgres`
+    )
+  })
+
+  it('says so when nothing at all was answered', () => {
+    expect(formatAnswer([q('Library')], [[]])).toBe(`${PREFIX} The user selected nothing.`)
+  })
+
+  it('ignores answers beyond the questions asked', () => {
+    expect(formatAnswer([q('Library')], [['Luxon'], ['ignored']])).toBe(`${PREFIX} Library: Luxon`)
+  })
+
+  it('collapses newlines in free text so the reason stays one line', () => {
+    expect(formatAnswer([q('Notes')], [['first\nsecond']])).toBe(`${PREFIX} Notes: first second`)
   })
 })
