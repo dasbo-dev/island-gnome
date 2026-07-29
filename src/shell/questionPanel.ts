@@ -88,6 +88,7 @@ export class QuestionPanel {
     handOff.connect('clicked', () => {
       if (this.done) return
       this.done = true
+      this.closeEntry()
       this.cb.onHandOff()
     })
     this.nav.add_child(this.next)
@@ -125,6 +126,9 @@ export class QuestionPanel {
 
   /** Rebuild the option list for the question at `index`. */
   private render(): void {
+    // Once the panel is resolved, the hold is gone and the server no longer
+    // expects any more answers. The entry must not rebuild a picker.
+    if (this.done) return
     const q = this.questions[this.index]
     if (!q) return
     this.closeEntry()
@@ -249,6 +253,7 @@ export class QuestionPanel {
       return
     }
     this.done = true
+    this.closeEntry()
     this.cb.onAnswer(formatAnswer(this.questions, this.answers))
   }
 }
