@@ -1,4 +1,5 @@
 import type { AgentEvent, AgentId, Decision, HookContext } from '../types.js'
+import type { Question } from '../questions.js'
 import { claudeAdapter } from './claude.js'
 import { codexAdapter } from './codex.js'
 import { antigravityAdapter } from './antigravity.js'
@@ -13,6 +14,14 @@ export interface AgentAdapter {
    */
   procNames: string[]
   normalize(raw: unknown, ctx: HookContext): AgentEvent | null
+  /**
+   * The questions this payload asks the user, or null if it asks none.
+   *
+   * Optional because only Claude Code has the concept: Codex and Antigravity
+   * have no equivalent tool, so they leave this undefined and the service's
+   * `?.()` call falls straight through to ordinary permission gating.
+   */
+  parseQuestions?(raw: unknown): Question[] | null
   encodeDecision(d: Decision): unknown
 }
 

@@ -68,7 +68,11 @@ export const codexAdapter: AgentAdapter = {
   },
 
   encodeDecision(d: Decision) {
-    if (d.kind === 'fallthrough') return {}
+    // 'answer' joins 'fallthrough' here: Codex has no question concept, so it
+    // can never receive one — and if it somehow did, emitting `d.kind` below
+    // would put the string "answer" in a field that accepts only
+    // allow/deny/ask.
+    if (d.kind === 'fallthrough' || d.kind === 'answer') return {}
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',

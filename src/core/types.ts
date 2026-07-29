@@ -149,11 +149,19 @@ export interface Session {
   lineageKey?: string
 }
 
-export type DecisionKind = 'allow' | 'deny' | 'fallthrough'
+/**
+ * `answer` is not a permission verdict. It carries the user's reply to an
+ * agent's question, and every adapter that has no question concept must map it
+ * to the same silence it uses for `fallthrough` — never onto a permission
+ * field, where the string `"answer"` would be an invalid decision value.
+ */
+export type DecisionKind = 'allow' | 'deny' | 'fallthrough' | 'answer'
 
 export interface Decision {
   kind: DecisionKind
   reason?: string
+  /** Set only for `kind: 'answer'`. The complete text built by `formatAnswer`. */
+  answer?: string
 }
 
 export interface FileEdit {

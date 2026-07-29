@@ -91,3 +91,9 @@ describe('codex fixture status', () => {
     ).toBe(false)
   })
 })
+
+describe('codexAdapter.encodeDecision for an answer', () => {
+  it('says nothing at all, since Codex has no question concept', () => {
+    expect(codexAdapter.encodeDecision({ kind: 'answer', answer: 'x' })).toEqual({})
+  })
+})

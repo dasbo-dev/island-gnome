@@ -151,3 +151,9 @@ describe('antigravityAdapter against captured fixtures', () => {
     }
   })
 })
+
+describe('antigravityAdapter.encodeDecision for an answer', () => {
+  it('says nothing at all, since Antigravity has no question concept', () => {
+    expect(antigravityAdapter.encodeDecision({ kind: 'answer', answer: 'x' })).toEqual({})
+  })
+})

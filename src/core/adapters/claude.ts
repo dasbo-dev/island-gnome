@@ -1,6 +1,7 @@
 import type { Decision, EventKind, HookContext } from '../types.js'
 import type { AgentAdapter } from './index.js'
 import { isRecord, str } from './shared.js'
+import { parseQuestions } from '../questions.js'
 
 const KIND_BY_EVENT: Record<string, EventKind> = {
   SessionStart: 'session-start',
@@ -83,7 +84,26 @@ export const claudeAdapter: AgentAdapter = {
     }
   },
 
+  parseQuestions(raw) {
+    if (!isRecord(raw)) return null
+    if (str(raw['tool_name']) !== 'AskUserQuestion') return null
+    return parseQuestions(raw['tool_input'])
+  },
+
   encodeDecision(d: Decision) {
+    // An answer is not a verdict, but `deny` is the only decision whose reason
+    // the model is shown — there is no result channel on PreToolUse. The
+    // wording that keeps this from reading as a refusal lives in
+    // `formatAnswer`, which built `d.answer`.
+    if (d.kind === 'answer') {
+      return {
+        hookSpecificOutput: {
+          hookEventName: 'PreToolUse',
+          permissionDecision: 'deny',
+          permissionDecisionReason: d.answer ?? 'The user gave no answer in Dasbo Island.',
+        },
+      }
+    }
     const permissionDecision =
       d.kind === 'allow' ? 'allow' : d.kind === 'deny' ? 'deny' : 'ask'
     const defaultReason =

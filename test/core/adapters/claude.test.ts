@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { claudeAdapter } from '../../../src/core/adapters/claude.js'
 import type { HookContext } from '../../../src/core/types.js'
+import { parseQuestions } from '../../../src/core/questions.js'
 
 const ctx: HookContext = { pid: 1234, ts: 5000, cwd: '/hook/cwd' }
 
@@ -233,5 +234,68 @@ describe('claudeAdapter against captured fixtures', () => {
     expect(kinds).toContain('tool-start')
     expect(kinds).toContain('tool-end')
     expect(kinds).toContain('turn-end')
+  })
+})
+
+const askPayload = {
+  hook_event_name: 'PreToolUse',
+  session_id: 's1',
+  cwd: '/p/app',
+  tool_name: 'AskUserQuestion',
+  tool_input: {
+    questions: [
+      {
+        question: 'Which library?',
+        header: 'Library',
+        options: [
+          { label: 'date-fns', description: 'tree-shakeable' },
+          { label: 'Luxon', description: 'timezone-aware' },
+        ],
+        multiSelect: false,
+      },
+    ],
+  },
+}
+
+describe('claudeAdapter.parseQuestions', () => {
+  it('parses an AskUserQuestion payload', () => {
+    expect(claudeAdapter.parseQuestions!(askPayload)).toEqual(
+      parseQuestions(askPayload.tool_input)
+    )
+  })
+
+  it('ignores any other tool', () => {
+    expect(
+      claudeAdapter.parseQuestions!({ ...askPayload, tool_name: 'Bash' })
+    ).toBeNull()
+  })
+
+  it('ignores an AskUserQuestion whose input does not parse', () => {
+    expect(
+      claudeAdapter.parseQuestions!({ ...askPayload, tool_input: { questions: [] } })
+    ).toBeNull()
+  })
+
+  it('ignores a non-record payload', () => {
+    expect(claudeAdapter.parseQuestions!('nope')).toBeNull()
+  })
+})
+
+describe('claudeAdapter.encodeDecision for an answer', () => {
+  it('carries the answer as a denial reason, the only channel PreToolUse has', () => {
+    expect(claudeAdapter.encodeDecision({ kind: 'answer', answer: 'Library: Luxon' })).toEqual({
+      hookSpecificOutput: {
+        hookEventName: 'PreToolUse',
+        permissionDecision: 'deny',
+        permissionDecisionReason: 'Library: Luxon',
+      },
+    })
+  })
+
+  it('never emits an empty reason', () => {
+    const out = claudeAdapter.encodeDecision({ kind: 'answer' }) as {
+      hookSpecificOutput: { permissionDecisionReason: string }
+    }
+    expect(out.hookSpecificOutput.permissionDecisionReason.length).toBeGreaterThan(0)
   })
 })
