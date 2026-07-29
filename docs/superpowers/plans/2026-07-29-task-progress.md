@@ -1448,9 +1448,21 @@ Then add this loop directly after the `pendingQuestion` loop (the one ending wit
         }
         const list = new TaskList(tasks)
         list.attachTo(row.taskBox)
-        // A row built collapsed must not show a list that was never folded.
-        list.setExpanded(row.expanded)
         this._taskLists.set(s.key, { list })
+      }
+
+      // One arrow, two regions, so both must agree with it — and neither can
+      // work that out for itself. A list attached to a collapsed row has never
+      // been folded and would otherwise show through; and a question arriving
+      // on a collapsed row forces the arrow open (see setHasQuestion) without
+      // the task list beside it ever hearing, leaving an open arrow above a
+      // hidden list. Syncing every attached region here, on every rebuild,
+      // rather than only at attach time, covers both directions at once.
+      for (const s of sessions) {
+        const row = this._rows.get(s.key)
+        if (!row) continue
+        this._questions.get(s.key)?.panel.setExpanded(row.expanded)
+        this._taskLists.get(s.key)?.list.setExpanded(row.expanded)
       }
 ```
 
