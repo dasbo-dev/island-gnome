@@ -1,5 +1,6 @@
 import type { SessionStore } from './store.js'
 import type { Decision } from './types.js'
+import type { Question } from './questions.js'
 
 /** Injected so tests advance time rather than sleeping, and so the shell layer can use GLib. */
 export interface Timers {
@@ -13,6 +14,8 @@ interface PendingEntry {
   sessionKey: string
   tool: string
   detail?: string
+  /** Set only on a question entry. Its presence is what makes this a question. */
+  questions?: Question[]
   timeoutSeconds: number
   resolve: (d: Decision) => void
   /** Set only while this entry is the active one for its session. */
@@ -23,6 +26,14 @@ export interface PermissionRequest {
   sessionKey: string
   tool: string
   detail?: string
+  /**
+   * When set, this is an agent's question rather than a tool permission. It
+   * rides the same table because that table owns the timeout clock, the
+   * per-session queue, `releaseSession` and `resolveAllFallthrough` — and that
+   * drain is the fail-open guarantee. A second table would be a second place to
+   * get it wrong.
+   */
+  questions?: Question[]
   timeoutSeconds: number
 }
 
@@ -69,7 +80,10 @@ export class PermissionTable {
       return id
     }
 
-    if (this.isAlwaysAllowed(req.sessionKey, req.tool)) {
+    // Never for a question: "always allow this tool" is a statement about a
+    // tool call, and answering a question on the user's behalf from it would
+    // put words in their mouth.
+    if (!req.questions && this.isAlwaysAllowed(req.sessionKey, req.tool)) {
       resolve({ kind: 'allow', reason: 'Always allowed for this session' })
       return id
     }
@@ -79,6 +93,7 @@ export class PermissionTable {
       sessionKey: req.sessionKey,
       tool: req.tool,
       detail: req.detail,
+      questions: req.questions,
       timeoutSeconds: req.timeoutSeconds,
       resolve,
     })
@@ -142,13 +157,21 @@ export class PermissionTable {
     const deadline =
       entry.timeoutSeconds > 0 ? this.timers.now() + entry.timeoutSeconds * 1000 : 0
 
-    this.store.setPending(sessionKey, {
-      id: entry.id,
-      tool: entry.tool,
-      detail: entry.detail,
-      deadline,
-      queued: this.queuedCount(sessionKey),
-    })
+    if (entry.questions) {
+      this.store.setPendingQuestion(sessionKey, {
+        id: entry.id,
+        questions: entry.questions,
+        deadline,
+      })
+    } else {
+      this.store.setPending(sessionKey, {
+        id: entry.id,
+        tool: entry.tool,
+        detail: entry.detail,
+        deadline,
+        queued: this.queuedCount(sessionKey),
+      })
+    }
 
     // The clock starts here, not at request() time, so a queued request cannot
     // time out before the user has had any chance to see it.
@@ -167,6 +190,12 @@ export class PermissionTable {
     if (!headId) return
     const entry = this.pending.get(headId)
     if (!entry) return
+
+    // A question shows no queued depth — PendingQuestion has no such field —
+    // and rewriting it here would only replace the object the panel is keyed
+    // on, forcing a rebuild under the user's cursor for no visible change.
+    if (entry.questions) return
+
     const existing = this.store.get(sessionKey)?.pendingPermission
     this.store.setPending(sessionKey, {
       id: entry.id,
