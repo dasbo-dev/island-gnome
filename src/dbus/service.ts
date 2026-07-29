@@ -13,6 +13,8 @@ export interface ServiceOptions {
   /** Read live from GSettings on every request, so changes need no restart. */
   timeoutSeconds: () => number
   /** Read live from GSettings on every request, so changes need no restart. */
+  questionTimeoutSeconds: () => number
+  /** Read live from GSettings on every request, so changes need no restart. */
   enabledAgents: () => string[]
   /** Called after a permission row appears, so the UI can pulse and auto-open. */
   onPermissionOpened: () => void
@@ -140,6 +142,28 @@ export class IslandService {
       // Register the session first so the permission has a row to attach to.
       this.store.apply(e)
       const key = sessionKey(e.agent, e.sessionId)
+
+      // Before the bypass check, deliberately. `bypassPermissions` suppresses
+      // permission *prompts*; it does not suppress AskUserQuestion, which still
+      // asks the user in that mode. Checking bypass first would swallow every
+      // question asked in the mode where this feature is most useful.
+      const questions = adapter.parseQuestions?.(raw) ?? null
+      if (questions) {
+        const qid = this.permissions.request(
+          {
+            sessionKey: key,
+            tool: e.tool ?? 'AskUserQuestion',
+            questions,
+            timeoutSeconds: this.opts.questionTimeoutSeconds(),
+          },
+          (decision) => reply(JSON.stringify(adapter.encodeDecision(decision)))
+        )
+        // Same test as the permission path below: a request that merely queued
+        // behind an active one leaves the published hold unchanged, and only the
+        // one that actually became active should pull the popup open.
+        if (this.store.get(key)?.pendingQuestion?.id === qid) this.opts.onPermissionOpened()
+        return
+      }
 
       // The agent is in a mode that asks about nothing, yet still runs its
       // pre-tool hook. Gating here would put the island in front of a decision
