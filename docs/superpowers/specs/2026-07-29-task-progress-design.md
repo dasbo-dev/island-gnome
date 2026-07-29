@@ -221,9 +221,10 @@ the clock, so `9/10` and `10/10` do not shift the row's width. Hidden when there
 are no tasks, leaving a plan-less row exactly as it is today. The fold does not
 affect it: the counter is the whole point of a collapsed row.
 
-**Expander.** `setHasQuestion(has)` becomes
-`setExpandable(has: { question: boolean; tasks: boolean })`. The arrow shows when
-either is true, and folds both regions together. Fold state:
+**Expander.** `setHasQuestion(has)` stays; a sibling `setHasTasks(has)` joins it,
+and the row remembers both. The arrow shows when either is true, and folds both
+regions together. Two setters rather than one replacement, so the existing
+question call site is untouched. Fold state:
 
 - tasks only → **collapsed** by default; a plan is reference material, not a demand
 - a question arrives → **force-expanded**, keeping today's rule that an answer
