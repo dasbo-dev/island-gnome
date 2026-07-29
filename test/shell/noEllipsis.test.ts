@@ -16,6 +16,19 @@ describe('the popup never truncates an option or a task', () => {
       expect(src).not.toContain('EllipsizeMode.START')
       expect(src).not.toContain('EllipsizeMode.MIDDLE')
     })
+
+    // The negative assertions above pass just as well on a label that never
+    // wraps at all — deleting line_wrap or line_wrap_mode leaves every
+    // EllipsizeMode check green while producing a single unwrapped line that
+    // overhangs the popup's fixed 26em width. That is a different failure from
+    // an ellipsis, and just as bad, so the positive half of the invariant needs
+    // its own guard.
+    it(`${file} still wraps rather than growing one long line`, () => {
+      const src = readFileSync(file, 'utf8')
+      expect(src).toContain('line_wrap = true')
+      expect(src).toContain('Pango.WrapMode.WORD_CHAR')
+      expect(src).toContain('Pango.EllipsizeMode.NONE')
+    })
   }
 
   it('taskList.ts owns no scroll view', () => {
@@ -23,6 +36,15 @@ describe('the popup never truncates an option or a task', () => {
   })
 
   it('the stylesheet caps no list inside a row', () => {
-    expect(readFileSync('stylesheet.css', 'utf8')).not.toContain('dasbo-tasks-scroll')
+    const css = readFileSync('stylesheet.css', 'utf8')
+    // The class name itself: catches the exact rule this feature deleted
+    // coming back verbatim.
+    expect(css).not.toContain('dasbo-tasks-scroll')
+    // The class name alone would miss a cap reintroduced under any other
+    // name — a `.dasbo-task-subject { max-height: ... }` added later would
+    // pass the check above while clipping subjects again. Matching any
+    // dasbo-task* selector that carries a max-height declaration catches
+    // that regardless of what the rule is called.
+    expect(css).not.toMatch(/\.dasbo-task[^{]*\{[^}]*max-height/)
   })
 })

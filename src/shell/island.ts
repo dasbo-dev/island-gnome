@@ -333,6 +333,13 @@ export const Island = GObject.registerClass(
     private _revealFocus(): void {
       const focus = global.get_stage().get_key_focus()
       if (!focus) return
+      // An actor not yet allocated reports {0,0,0,0} for both position and
+      // height, which would compute a meaningless offset. questionPanel.ts's
+      // openEntry hits this: it swaps the Other… button for an St.Entry and
+      // calls set_key_focus on it in the same frame it is created, before
+      // layout has run. A wrong scroll is worse than no scroll, and that entry
+      // is created where the user just clicked, which is already in view.
+      if (!focus.has_allocation()) return
       const body = this._body.actor
       if (!body.contains(focus)) return
       const [, bodyY] = body.get_transformed_position()

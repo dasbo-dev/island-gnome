@@ -199,10 +199,12 @@ export const SessionRow = GObject.registerClass(
         this._permissionBox.visible = this._permissionBox.get_n_children() > 0
       })
 
-      // Its own line for the same reason the permission cluster has one: option
-      // labels neither wrap nor shrink. Same visibility handling too —
-      // ClutterBoxLayout spaces only between visible children, so an
-      // always-present empty box would cost every row a gap.
+      // Its own line, but not for the same reason the permission cluster has
+      // one: an option is a wrapped paragraph, and beside the activity label
+      // the two would starve each other for width (see questionPanel.ts's
+      // class comment). Same visibility handling too — ClutterBoxLayout
+      // spaces only between visible children, so an always-present empty box
+      // would cost every row a gap.
       this._questionBox = new St.BoxLayout({
         vertical: true,
         x_expand: true,
@@ -222,8 +224,8 @@ export const SessionRow = GObject.registerClass(
       //
       // But the child-count rule alone is not enough for this box specifically:
       // unlike the permission and question boxes, this one holds a TaskList
-      // whose own fold (setExpanded) hides its ScrollView while leaving it
-      // parented here — so a *collapsed* list, which is the default, still
+      // whose own fold (setExpanded) hides its own St.BoxLayout while leaving
+      // it parented here — so a *collapsed* list, which is the default, still
       // counts as a child and would keep this box visible, costing the row a
       // 6px .dasbo-row-outer gap above nothing. _syncTaskBoxVisible folds the
       // expanded state into the same visible flag so a non-empty box is only
