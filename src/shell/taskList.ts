@@ -30,60 +30,52 @@ const OPACITY: Record<TaskStatus, number> = {
 }
 
 /**
- * The agent's plan, one line per task, inside its own scroll view.
+ * The agent's plan, one line per task.
  *
  * Not a GObject class, for the same reason PermissionControls and QuestionPanel
  * are not: it is a plain owner of St actors, attached to and detached from a
  * SessionRow's task box.
  *
- * The scroll view is not optional. A plain `PopupMenu` is not scrollable in
- * GNOME Shell 46 — only `PopupSubMenu.actor` is an `St.ScrollView` — so a
- * forty-task list rendered into the menu directly grows the popup past the
- * monitor and is clipped rather than scrolled.
+ * No scroll view of its own. The popup as a whole scrolls (see island.ts), and a
+ * second scroll view nested inside it would fight for the mouse wheel — the
+ * pointer's position would decide which one moved, and a list at the bottom of
+ * its travel would silently hand the wheel to its parent. A long plan competing
+ * for popup height with the other sessions is the honest trade.
  */
 export class TaskList {
-  private scroll: St.ScrollView
   private box: St.BoxLayout
   private parent: St.BoxLayout | null = null
   private tasks: AgentTask[] = []
 
   constructor(tasks: AgentTask[]) {
     this.box = new St.BoxLayout({ vertical: true, x_expand: true, style_class: 'dasbo-tasks' })
-    this.scroll = new St.ScrollView({
-      style_class: 'dasbo-tasks-scroll',
-      x_expand: true,
-      // NEVER horizontally: every line ellipsizes, so there is nothing to
-      // scroll to sideways, and a horizontal bar would only steal height.
-      hscrollbar_policy: St.PolicyType.NEVER,
-      vscrollbar_policy: St.PolicyType.AUTOMATIC,
-    })
-    this.scroll.set_child(this.box)
     this.render(tasks)
   }
 
   attachTo(parent: St.BoxLayout): void {
     if (this.parent) return
     this.parent = parent
-    parent.add_child(this.scroll)
+    parent.add_child(this.box)
   }
 
   detach(): void {
     if (!this.parent) return
-    this.parent.remove_child(this.scroll)
+    this.parent.remove_child(this.box)
     this.parent = null
   }
 
   /** Collapsed hides the whole list; the row keeps its counter. */
   setExpanded(expanded: boolean): void {
-    this.scroll.visible = expanded
+    this.box.visible = expanded
   }
 
   /**
    * Redraw only when the drawing would differ. Every store emit reaches here,
    * and most of them are about something else entirely — a tool starting, a
    * permission resolving — so an unconditional rebuild would destroy and
-   * recreate every line, throwing the reader's scroll position back to the top
-   * while they were part-way down it.
+   * recreate every line. That churns actors under the popup's own scroll
+   * position, and can change the body's height, throwing a reader part-way down
+   * a long plan somewhere else entirely.
    */
   update(tasks: AgentTask[]): void {
     if (sameTasks(this.tasks, tasks)) return
@@ -92,7 +84,7 @@ export class TaskList {
 
   destroy(): void {
     this.detach()
-    this.scroll.destroy()
+    this.box.destroy()
   }
 
   private render(tasks: AgentTask[]): void {
@@ -106,7 +98,10 @@ export class TaskList {
     const glyph = new St.Label({
       text: GLYPH[task.status],
       style_class: 'dasbo-task-glyph',
-      y_align: Clutter.ActorAlign.CENTER,
+      // START, not CENTER: beside a subject wrapped over three lines a centred
+      // glyph floats next to the middle one instead of the task it marks — the
+      // same reasoning already recorded for _dot beside the activity text.
+      y_align: Clutter.ActorAlign.START,
     })
     const subject = new St.Label({
       text: task.subject,
@@ -114,10 +109,14 @@ export class TaskList {
       x_expand: true,
       y_align: Clutter.ActorAlign.CENTER,
     })
-    // One line per task, ellipsized rather than wrapped, so the height of the
-    // list is a function of the task count alone — which is what makes the
-    // scroll view's max-height a predictable number of visible entries.
-    subject.clutter_text.ellipsize = Pango.EllipsizeMode.END
+    // A task subject is what the agent is doing, so it is never cut. Wrapping
+    // needs a bounded width to wrap against, which comes from the row's
+    // .dasbo-fixed-width ancestor. ellipsize must be NONE explicitly: Pango
+    // ignores line_wrap while an ellipsize mode is set. WORD_CHAR, not WORD:
+    // subjects routinely carry file paths with no break opportunity in them.
+    subject.clutter_text.line_wrap = true
+    subject.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR
+    subject.clutter_text.ellipsize = Pango.EllipsizeMode.NONE
     row.opacity = OPACITY[task.status]
     row.add_child(glyph)
     row.add_child(subject)
