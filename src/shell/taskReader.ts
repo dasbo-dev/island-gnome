@@ -63,12 +63,12 @@ export function readTasks(dir: string, done: (tasks: AgentTask[] | null) => void
         return
       }
       enumerator.next_files_async(MAX_FILES, GLib.PRIORITY_LOW, null, (esrc, eres) => {
+        let entryCount: number
         let names: string[]
         try {
-          names = (esrc as Gio.FileEnumerator)
-            .next_files_finish(eres)
-            .map((info) => info.get_name())
-            .filter((name) => name.endsWith('.json'))
+          const entries = (esrc as Gio.FileEnumerator).next_files_finish(eres)
+          entryCount = entries.length
+          names = entries.map((info) => info.get_name()).filter((name) => name.endsWith('.json'))
         } catch {
           done(null)
           return
@@ -77,7 +77,17 @@ export function readTasks(dir: string, done: (tasks: AgentTask[] | null) => void
         }
 
         if (names.length === 0) {
-          done([])
+          // A full batch (MAX_FILES raw entries) with none of them .json is not
+          // proof of an empty plan — the bound was applied to directory entries
+          // before the filter ran, so a directory that happens to hold 200+
+          // non-.json entries ahead of the task files in enumeration order
+          // would hit this with real tasks still unseen. null tells the caller
+          // "could not read it properly", the same as any other failed read, so
+          // a good list is not blanked by an artifact of the enumeration order.
+          // A short batch (fewer than MAX_FILES entries) with none of them
+          // .json has genuinely seen the whole directory and found no plan —
+          // that is a real empty plan, and stays [].
+          done(entryCount === MAX_FILES ? null : [])
           return
         }
 
