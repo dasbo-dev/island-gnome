@@ -24,13 +24,22 @@ export function detailFromToolInput(input: unknown): string | undefined {
 }
 
 /**
- * SessionStart `source` values that mean the agent process kept running while
- * the conversation inside it restarted. An allowlist rather than "anything but
- * startup and resume": a source we have never seen should leave the clock
- * alone, because failing to reset it is today's behaviour while resetting it
- * wrongly would zero a live session's timer.
+ * SessionStart `source` values that mean the user deliberately began a new
+ * conversation in a process that kept running. An allowlist rather than
+ * "anything but startup and resume": a source we have never seen should leave
+ * the clock alone, because failing to reset it is today's behaviour while
+ * resetting it wrongly would zero a live session's timer.
+ *
+ * `compact` is deliberately not here, though it does arrive as a SessionStart.
+ * Compaction is the same conversation with its history summarised, and Claude
+ * Code compacts on its own when the context window fills — counting it moved a
+ * row's number and reset its clock with no user action at all. `/clear` is the
+ * only source that means the person at the keyboard asked for a fresh start.
+ *
+ * The flag only *arms* the count; `SessionStore.apply` waits for the prompt
+ * that follows before moving anything. See the comment on `Lineage`.
  */
-const NEW_CONVERSATION_SOURCES = new Set(['clear', 'compact'])
+const NEW_CONVERSATION_SOURCES = new Set(['clear'])
 
 export const claudeAdapter: AgentAdapter = {
   id: 'claude',

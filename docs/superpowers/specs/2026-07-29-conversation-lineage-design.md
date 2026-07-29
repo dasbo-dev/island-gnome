@@ -35,7 +35,8 @@ Three facts follow, and the design rests on them:
   discards.
 
 `/compact` also reports a `source` of `"compact"`, but its event shape does
-**not** mirror `/clear`'s — see Risks.
+**not** mirror `/clear`'s — see Risks. It is detectable and deliberately not
+counted; see the adapter section.
 
 ## Goals
 
@@ -82,9 +83,11 @@ a second thing to keep consistent.
 
 ```ts
 /**
- * Set when this event begins a conversation distinct from the one before it,
- * in an agent process that keeps running. Only adapters whose dialect can tell
- * set it; absence means "same conversation, or no way to know".
+ * Set when this event announces that the user has asked for a conversation
+ * distinct from the one before it, in an agent process that keeps running.
+ * Only adapters whose dialect can tell set it; absence means "same
+ * conversation, or no way to know". It announces rather than begins: the
+ * store arms the lineage here and waits for the next prompt.
  */
 startsNewConversation?: boolean
 ```
@@ -105,13 +108,20 @@ startedAt: number
 
 ### `src/core/adapters/claude.ts`
 
-On `SessionStart`, read `source` and set `startsNewConversation` for `clear` and
-`compact`.
+On `SessionStart`, read `source` and set `startsNewConversation` for `clear`.
 
 This is an allowlist, not "anything that isn't `startup` or `resume`". If Claude
 Code adds a source we do not know, missing a reset leaves today's behaviour,
 whereas a spurious reset would zero a live timer. Codex and Antigravity never
 set the field.
+
+`compact` is **not** in the allowlist, though it was in the first version of
+this design and does arrive as a `SessionStart` (see Risks for the
+measurement). Compaction is the same conversation with its history summarised,
+and Claude Code compacts on its own when the context window fills, so counting
+it moved a row's number and reset its clock with nobody having asked for
+anything — the failure recorded as accepted limitation 7 below. `/clear` is
+the only source that means the person at the keyboard wanted a fresh start.
 
 ### `src/core/store.ts`
 
@@ -121,6 +131,8 @@ interface Lineage {
   processStartedAt: number
   count: number
   conversationStartedAt: number
+  /** A `/clear` has been seen and no prompt has followed it yet. */
+  pendingNewConversation: boolean
 }
 private lineages = new Map<string, Lineage>()   // `${agent}:${pid}:${processStartedAt}`
 ```
@@ -139,27 +151,44 @@ total.
    identity to key on. The record falls through to exactly today's behaviour:
    index 1, `startedAt = agentStartedAt ?? ts`.
 2. Otherwise look up the lineage, creating it lazily as
-   `{ count: 1, conversationStartedAt: e.agentStartedAt ?? e.ts }`.
-3. If `e.startsNewConversation`, then `count++` and
-   `conversationStartedAt = e.ts`.
+   `{ count: 1, conversationStartedAt: e.agentStartedAt ?? e.ts,
+   pendingNewConversation: false }`.
+3. If `e.startsNewConversation`, set `pendingNewConversation` and move nothing
+   else. Then, if `pendingNewConversation` is set **and** `e.kind` is
+   `prompt-submit`, `count++`, `conversationStartedAt = e.ts`, and clear the
+   flag. A conversation begins when the user says something into the emptied
+   box, not when the box empties: a clear the user walks away from counts for
+   nothing, and clearing twice with nothing said between counts once. Setting a
+   flag rather than incrementing is what makes both of those fall out for free.
+   `prompt-submit` alone, never any other event — hooks fire throughout a
+   conversation on their own and none of the rest mean a human spoke.
 4. `ensure()` builds a **new** record from the lineage:
    `startedAt = conversationStartedAt`, `conversationIndex = count`, seeding
    `processStartedAt = e.agentStartedAt` at creation. `apply` then refreshes
    that field from every event carrying one — not only the record's first —
    so a session that outlives its process still reports the live process's
    uptime.
-5. If `e.startsNewConversation` arrives for a session that **already exists**,
-   rewrite that record's `startedAt` and `conversationIndex` from the lineage.
+5. If the bump in step 3 fires for a session that **already exists**, rewrite
+   that record's `startedAt` and `conversationIndex` from the lineage.
 
-Step 5 exists so the design is correct whether or not `/compact` mints a new
-`session_id`. Step 4 alone is sufficient for `clear`, which mints one. It is
-not sufficient for `compact`, which does not — see Risks. Step 5 is what
-makes compaction move the count at all.
+Step 5 is now the ordinary path, not a fallback. The clear presents a new
+`session_id`, so step 4 builds that record — unnumbered, since the clear moves
+nothing — and the prompt that begins the conversation arrives afterwards, by
+which time the record exists. Step 4 still matters for the case where the
+prompt is the first event the store sees for a session id, which happens if the
+clear's `SessionStart` was missed or its record was reaped in between.
 
 Existing records are never otherwise rewritten, and that is what makes the
 `/clear` sequence work. `SessionEnd` lands first, so the outgoing row keeps its
 own start and its own index and displays its final duration for the length of
-its linger. The incoming row is built fresh from the bumped lineage.
+its linger. The incoming row opens on the outgoing conversation's number and
+clock, and holds them until the user speaks.
+
+**The cap can refuse the bump.** `ensure()` returns null at `MAX_SESSIONS`,
+after step 3 has already landed, so the count, the conversation clock and the
+pending flag are all rolled back together. The clear is then owed rather than
+lost: the flag goes back to set, and the next prompt that does get a record
+collects it.
 
 **Pruning.** `reap()` drops a lineage once no session references it and
 `pidAlive(pid)` is false. Insertion is capped at `MAX_SESSIONS`, for the same
@@ -230,8 +259,12 @@ All the logic worth testing is pure and lives in `src/core`.
 `test/core/store.test.ts`
 
 - `startup` → index 1, `startedAt` = `agentStartedAt`
-- `clear` with a new session id → index 2, `startedAt` = event ts
-- `compact` → index 3, same session id rewritten in place (measured in Risks)
+- `clear` with a new session id, and no prompt yet → index and clock unmoved
+- the prompt after it → index 2, `startedAt` = the prompt's ts, rewritten in
+  place on the record the clear created
+- two clears with nothing said between them → one conversation
+- a second prompt in the same conversation → nothing moves
+- a prompt with no clear before it → nothing moves
 - the outgoing record keeps its own `startedAt` and index after a clear
 - `pid: 0` → no lineage, index 1, `startedAt` = `agentStartedAt`
 - a fresh store whose first event is a plain `tool-start` → index 1, pinning the
@@ -242,9 +275,9 @@ All the logic worth testing is pure and lives in `src/core`.
   while the pid lives
 - the lineage map is bounded at `MAX_SESSIONS`
 
-`test/core/adapters/` — Claude sets `startsNewConversation` for `clear` and
-`compact`, and leaves it undefined for `startup`, `resume`, an unknown source,
-and any non-`SessionStart` event.
+`test/core/adapters/` — Claude sets `startsNewConversation` for `clear`, and
+leaves it undefined for `compact`, `startup`, `resume`, an unknown source, and
+any non-`SessionStart` event.
 
 The row itself gets no unit test; it needs a live shell. Verify it the way the
 popup colour fix was verified — a throwaway probe extension in a nested
@@ -271,16 +304,20 @@ compaction.
 
 This is the second of the brief's three possible outcomes: `/compact` mints a
 `SessionStart` (so it can be detected via `source`), but does not mint a new
-`session_id`. That makes step 5 of `apply` — "if `startsNewConversation`
-arrives for a session that already exists, rewrite that record's `startedAt`
-and `conversationIndex` from the lineage" — **load-bearing for compaction, not
-belt-and-braces**. Step 4 alone (build a new record for a new `session_id`) is
-sufficient for `/clear`; it never fires for `/compact`, because `/compact`
-never presents a new `session_id`. Task 4's in-place rewrite is the only
-mechanism that makes the conversation count move when compaction occurs, and a
-reviewer should weigh it accordingly: without it, `'compact'` in Task 2's
-allowlist would set `startsNewConversation` on an event `store.apply` has no
-way to act on, and the count would silently fail to advance.
+`session_id`.
+
+The measurement stands; the conclusion drawn from it does not. This paragraph
+originally argued that step 5's in-place rewrite was load-bearing *for
+compaction*, since step 4 never fires for an event that presents no new session
+id. Compaction is no longer counted at all (see the adapter section), so that
+argument is void — and step 5 turned out to be load-bearing anyway, for the
+much more ordinary reason that deferring the bump to the prompt means it always
+arrives after the record exists.
+
+What the measurement is still good for: it is the evidence that a compaction is
+distinguishable at all. Should the count ever want to reflect compactions
+again, `source: "compact"` is how, and the in-place rewrite is the mechanism
+that would carry it.
 
 ## Accepted limitations
 
@@ -315,18 +352,27 @@ way to act on, and the count would silently fail to advance.
    deliberately over re-keying on a boot-relative tick count, which would be
    stable across suspend but would put a second time base into the store for a
    cosmetic gain.
-7. Automatic compaction resets the clock without the user typing anything.
-   Compaction is treated as a new conversation, and Claude Code compacts on its
-   own when the context window fills, so a row sitting at `2h` can drop to
-   `#2 0s` with no user action. Be clear about what is measured here: manual
-   `/compact` was measured to emit `SessionStart` with `source: "compact"` (see
-   Risks). That *automatic* compaction emits the same event was **not**
-   measured — it is inferred, and if it turns out to emit something else, this
-   limitation simply does not arise. Accepted either way, because the dim
-   shell-uptime suffix appears at the very same moment the number does: it is
-   hidden while `conversationIndex <= 1`, so the instant the clock resets the
-   row also starts showing the terminal's true age beside the project name. The
-   row never claims the terminal is new; it claims this conversation is.
+7. ~~Automatic compaction resets the clock without the user typing anything.~~
+   **Fixed, not accepted.** Compaction was treated as a new conversation, and
+   Claude Code compacts on its own when the context window fills, so a row
+   sitting at `2h` could drop to `#2 0s` with nobody having asked for anything.
+   The original entry accepted it on the grounds that the dim shell-uptime
+   suffix appears at the same moment the number does, so the row never claims
+   the terminal is new — true, and beside the point: the row still claimed a
+   conversation had begun when none had. `compact` left the allowlist and the
+   bump now waits for a prompt, which closes it from both directions.
+8. A conversation begun in a process the extension has never seen an event from
+   is numbered 1 even if it is the tenth. Unchanged in kind from limitation 1
+   and 4 — the lineage is in memory and nothing replays — but the deferred bump
+   widens the window very slightly: a shell reload landing between a `/clear`
+   and its first prompt now loses the arming as well as the count. It
+   self-corrects at the next clear.
+9. A `/clear` whose `SessionStart` the store never receives is never counted,
+   even once the conversation is well underway. Prompts alone cannot detect
+   one: a prompt is ordinary inside a conversation, and the arming is the only
+   thing that distinguishes the first one after a clear from the tenth in the
+   middle. Accepted for the same reason as the rest of this list — a number in
+   a row is one low, and nothing else depends on it.
 
 ## Migration
 

@@ -14,6 +14,21 @@ function ev(over: Partial<AgentEvent> = {}): AgentEvent {
   }
 }
 
+/**
+ * The two events a new conversation now takes: the `/clear` that arms the
+ * lineage and the prompt that consumes it. Nothing moves until both have
+ * landed. The prompt is stamped one millisecond after the clear, so a test
+ * that asserts on the conversation clock reads `ts + 1` — the clock moves with
+ * the count, and the count moves on the prompt.
+ *
+ * Tests about the clear/prompt gap itself apply the two events by hand; this
+ * is for the many tests that only need a conversation to have begun.
+ */
+function newConversation(s: SessionStore, over: Partial<AgentEvent> = {}): void {
+  s.apply(ev({ ...over, startsNewConversation: true }))
+  s.apply(ev({ ...over, kind: 'prompt-submit', ts: (over.ts ?? 1000) + 1 }))
+}
+
 describe('SessionStore', () => {
   it('creates a session on session-start with project from cwd basename', () => {
     const s = new SessionStore()
@@ -398,38 +413,85 @@ describe('SessionStore', () => {
     expect(s.list()[0]!.processStartedAt).toBe(1500)
   })
 
-  it('restarts the clock and bumps the number when a clear begins a new conversation', () => {
+  it('holds the number and the clock at the clear, until a prompt arrives', () => {
+    // A cleared prompt box is not a conversation. Nothing the user did says
+    // one has begun until they say something, and a clear they immediately
+    // regret — or walk away from — must leave the count exactly where it was.
     const s = new SessionStore()
     s.apply(ev({ sessionId: 'old', ts: 9000, agentStartedAt: 1500 }))
     s.apply(ev({ sessionId: 'new', ts: 20000, agentStartedAt: 1500, startsNewConversation: true }))
     const fresh = s.list().find((x) => x.sessionId === 'new')!
+    expect(fresh.conversationIndex).toBe(1)
+    expect(fresh.startedAt, 'the clock moves with the number, so it waits too').toBe(1500)
+  })
+
+  it('restarts the clock and bumps the number when a prompt follows a clear', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'old', ts: 9000, agentStartedAt: 1500 }))
+    s.apply(ev({ sessionId: 'new', ts: 20000, agentStartedAt: 1500, startsNewConversation: true }))
+    s.apply(ev({ sessionId: 'new', kind: 'prompt-submit', ts: 25000, agentStartedAt: 1500 }))
+    const fresh = s.list().find((x) => x.sessionId === 'new')!
     expect(fresh.conversationIndex).toBe(2)
-    expect(fresh.startedAt, 'the clock measures the conversation, not the shell').toBe(20000)
+    expect(
+      fresh.startedAt,
+      'the conversation began when the user spoke, not when the box emptied'
+    ).toBe(25000)
     expect(fresh.processStartedAt, 'the shell total still comes from /proc').toBe(1500)
+  })
+
+  it('counts two clears with no prompt between them as one conversation', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'a', ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'b', ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    s.apply(ev({ sessionId: 'c', ts: 3000, agentStartedAt: 1000, startsNewConversation: true }))
+    s.apply(ev({ sessionId: 'c', kind: 'prompt-submit', ts: 4000, agentStartedAt: 1000 }))
+    expect(
+      s.list().find((x) => x.sessionId === 'c')!.conversationIndex,
+      'one conversation was actually begun, however many times the box was emptied'
+    ).toBe(2)
+  })
+
+  it('consumes a pending clear once, so the next prompt does not bump again', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'a', ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'b', ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    s.apply(ev({ sessionId: 'b', kind: 'prompt-submit', ts: 3000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'b', kind: 'prompt-submit', ts: 9000, agentStartedAt: 1000 }))
+    const b = s.list().find((x) => x.sessionId === 'b')!
+    expect(b.conversationIndex).toBe(2)
+    expect(b.startedAt, 'a second prompt is the same conversation').toBe(3000)
+  })
+
+  it('ignores a prompt that no clear preceded', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'a', ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'a', kind: 'prompt-submit', ts: 5000, agentStartedAt: 1000 }))
+    expect(s.list()[0]!.conversationIndex).toBe(1)
+    expect(s.list()[0]!.startedAt, 'prompts inside a conversation must not move it').toBe(1000)
+  })
+
+  it('counts a third conversation across two clears', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'a', ts: 1000, agentStartedAt: 1000 }))
+    newConversation(s, { sessionId: 'b', ts: 2000, agentStartedAt: 1000 })
+    newConversation(s, { sessionId: 'c', ts: 3000, agentStartedAt: 1000 })
+    expect(s.list().find((x) => x.sessionId === 'c')!.conversationIndex).toBe(3)
   })
 
   it('leaves the outgoing record alone so it shows its own final duration', () => {
     const s = new SessionStore()
     s.apply(ev({ sessionId: 'old', ts: 9000, agentStartedAt: 1500 }))
     s.apply(ev({ sessionId: 'old', kind: 'session-end', ts: 19000, agentStartedAt: 1500 }))
-    s.apply(ev({ sessionId: 'new', ts: 20000, agentStartedAt: 1500, startsNewConversation: true }))
+    newConversation(s, { sessionId: 'new', ts: 20000, agentStartedAt: 1500 })
     const old = s.list().find((x) => x.sessionId === 'old')!
     expect(old.startedAt).toBe(1500)
     expect(old.conversationIndex).toBe(1)
   })
 
-  it('counts a third conversation, so compaction after a clear keeps climbing', () => {
-    const s = new SessionStore()
-    s.apply(ev({ sessionId: 'a', ts: 1000, agentStartedAt: 1000 }))
-    s.apply(ev({ sessionId: 'b', ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
-    s.apply(ev({ sessionId: 'c', ts: 3000, agentStartedAt: 1000, startsNewConversation: true }))
-    expect(s.list().find((x) => x.sessionId === 'c')!.conversationIndex).toBe(3)
-  })
-
   it('keeps conversations in separate agent processes separate', () => {
     const s = new SessionStore()
     s.apply(ev({ sessionId: 'a', pid: 10, ts: 1000, agentStartedAt: 1000 }))
-    s.apply(ev({ sessionId: 'b', pid: 10, ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    newConversation(s, { sessionId: 'b', pid: 10, ts: 2000, agentStartedAt: 1000 })
     s.apply(ev({ sessionId: 'c', pid: 20, ts: 3000, agentStartedAt: 3000 }))
     expect(s.list().find((x) => x.sessionId === 'c')!.conversationIndex).toBe(1)
   })
@@ -437,8 +499,8 @@ describe('SessionStore', () => {
   it('treats a reused pid with a different start time as a different process', () => {
     const s = new SessionStore()
     s.apply(ev({ sessionId: 'a', pid: 10, ts: 1000, agentStartedAt: 1000 }))
-    s.apply(ev({ sessionId: 'b', pid: 10, ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
-    s.apply(ev({ sessionId: 'c', pid: 10, ts: 9000, agentStartedAt: 8000, startsNewConversation: true }))
+    newConversation(s, { sessionId: 'b', pid: 10, ts: 2000, agentStartedAt: 1000 })
+    newConversation(s, { sessionId: 'c', pid: 10, ts: 9000, agentStartedAt: 8000 })
     expect(
       s.list().find((x) => x.sessionId === 'c')!.conversationIndex,
       'a recycled pid must not inherit the dead process`s count'
@@ -447,15 +509,15 @@ describe('SessionStore', () => {
 
   it('keeps a live conversation numbered across the events inside it', () => {
     const s = new SessionStore()
-    s.apply(ev({ sessionId: 'b', ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    newConversation(s, { sessionId: 'b', ts: 2000, agentStartedAt: 1000 })
     s.apply(ev({ sessionId: 'b', kind: 'tool-start', tool: 'Edit', ts: 3000, agentStartedAt: 1000 }))
     expect(s.list()[0]!.conversationIndex).toBe(2)
-    expect(s.list()[0]!.startedAt, 'an ordinary event must not move the clock').toBe(2000)
+    expect(s.list()[0]!.startedAt, 'an ordinary event must not move the clock').toBe(2001)
   })
 
   it('numbers a conversation 1 when the agent process could not be identified', () => {
     const s = new SessionStore()
-    s.apply(ev({ pid: 0, ts: 9000, agentStartedAt: 1500, startsNewConversation: true }))
+    newConversation(s, { pid: 0, ts: 9000, agentStartedAt: 1500 })
     expect(
       s.list()[0]!.conversationIndex,
       'pid 0 is every unidentified agent at once; it can carry no lineage'
@@ -475,7 +537,7 @@ describe('SessionStore', () => {
 
   it('lands on 2 when the first event it ever sees is a clear', () => {
     const s = new SessionStore()
-    s.apply(ev({ ts: 9000, agentStartedAt: 1500, startsNewConversation: true }))
+    newConversation(s, { ts: 9000, agentStartedAt: 1500 })
     expect(
       s.list()[0]!.conversationIndex,
       'at least two conversations have happened; 2 is the honest lower bound'
@@ -490,7 +552,7 @@ describe('SessionStore', () => {
     // replacement lineage the next event mints starts its own count and
     // clock, seeded from agentStartedAt, rather than continuing the old one.
     const s = new SessionStore()
-    s.apply(ev({ sessionId: 'b', ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    newConversation(s, { sessionId: 'b', ts: 2000, agentStartedAt: 1000 })
     s.reap(3000, () => false)
     expect(s.list()).toHaveLength(0)
     s.apply(ev({ sessionId: 'b', kind: 'tool-start', tool: 'Edit', ts: 30000, agentStartedAt: 1000 }))
@@ -500,22 +562,27 @@ describe('SessionStore', () => {
 
   it('carries a surviving lineage into a record recreated after the reap', () => {
     const s = new SessionStore()
-    s.apply(ev({ sessionId: 'b', pid: 7, ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    newConversation(s, { sessionId: 'b', pid: 7, ts: 2000, agentStartedAt: 1000 })
     s.apply(ev({ sessionId: 'b', kind: 'session-end', ts: 2000, agentStartedAt: 1000, pid: 7 }))
     s.reap(2000 + 11_000, () => true)
     expect(s.list()).toHaveLength(0)
     s.apply(ev({ sessionId: 'b', kind: 'tool-start', tool: 'Edit', ts: 30000, agentStartedAt: 1000, pid: 7 }))
-    expect(s.list()[0]!.startedAt, 'the process lived, so the clock does too').toBe(2000)
+    expect(s.list()[0]!.startedAt, 'the process lived, so the clock does too').toBe(2001)
     expect(s.list()[0]!.conversationIndex).toBe(2)
   })
 
-  it('renumbers and restarts a session that keeps its id across a new conversation', () => {
+  it('renumbers a record in place when the prompt lands on one that already exists', () => {
+    // The ordinary shape of a `/clear` now, not a fallback: SessionStart
+    // creates the record for the incoming session id, and the prompt that
+    // begins the conversation arrives after it. The bump therefore always
+    // lands on a record ensure did not just create.
     const s = new SessionStore()
     s.apply(ev({ sessionId: 'same', ts: 1000, agentStartedAt: 1000 }))
     s.apply(ev({ sessionId: 'same', ts: 20000, agentStartedAt: 1000, startsNewConversation: true }))
+    s.apply(ev({ sessionId: 'same', kind: 'prompt-submit', ts: 21000, agentStartedAt: 1000 }))
     expect(s.list()).toHaveLength(1)
     expect(s.list()[0]!.conversationIndex).toBe(2)
-    expect(s.list()[0]!.startedAt, 'reusing the id must not preserve the old clock').toBe(20000)
+    expect(s.list()[0]!.startedAt, 'reusing the id must not preserve the old clock').toBe(21000)
   })
 
   it('does not renumber an existing session on an ordinary event', () => {
@@ -529,7 +596,7 @@ describe('SessionStore', () => {
   it('leaves an unidentified agent unrenumbered, having no lineage to renumber from', () => {
     const s = new SessionStore()
     s.apply(ev({ sessionId: 'same', pid: 0, ts: 1000, agentStartedAt: 1000 }))
-    s.apply(ev({ sessionId: 'same', pid: 0, ts: 20000, agentStartedAt: 1000, startsNewConversation: true }))
+    newConversation(s, { sessionId: 'same', pid: 0, ts: 20000, agentStartedAt: 1000 })
     expect(s.list()[0]!.conversationIndex).toBe(1)
     expect(s.list()[0]!.startedAt).toBe(1000)
   })
@@ -537,12 +604,12 @@ describe('SessionStore', () => {
   it('collects a lineage once nothing references it and its process is gone', () => {
     const s = new SessionStore()
     s.apply(ev({ sessionId: 'a', pid: 7, ts: 1000, agentStartedAt: 1000 }))
-    s.apply(ev({ sessionId: 'b', pid: 7, ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
-    s.apply(ev({ sessionId: 'c', pid: 7, ts: 3000, agentStartedAt: 1000, startsNewConversation: true }))
+    newConversation(s, { sessionId: 'b', pid: 7, ts: 2000, agentStartedAt: 1000 })
+    newConversation(s, { sessionId: 'c', pid: 7, ts: 3000, agentStartedAt: 1000 })
     s.reap(4000, () => false)
     expect(s.list()).toHaveLength(0)
 
-    s.apply(ev({ sessionId: 'd', pid: 7, ts: 5000, agentStartedAt: 1000, startsNewConversation: true }))
+    newConversation(s, { sessionId: 'd', pid: 7, ts: 5000, agentStartedAt: 1000 })
     expect(
       s.list()[0]!.conversationIndex,
       'a collected lineage starts over at 1, then this clear takes it to 2'
@@ -552,13 +619,13 @@ describe('SessionStore', () => {
   it('keeps a lineage whose process is still alive after its sessions are gone', () => {
     const s = new SessionStore()
     s.apply(ev({ sessionId: 'a', pid: 7, ts: 1000, agentStartedAt: 1000 }))
-    s.apply(ev({ sessionId: 'b', pid: 7, ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    newConversation(s, { sessionId: 'b', pid: 7, ts: 2000, agentStartedAt: 1000 })
     s.apply(ev({ sessionId: 'b', kind: 'session-end', ts: 3000, agentStartedAt: 1000 }))
     s.apply(ev({ sessionId: 'a', kind: 'session-end', ts: 3000, agentStartedAt: 1000 }))
     s.reap(3000 + 11_000, () => true)
     expect(s.list()).toHaveLength(0)
 
-    s.apply(ev({ sessionId: 'c', pid: 7, ts: 40000, agentStartedAt: 1000, startsNewConversation: true }))
+    newConversation(s, { sessionId: 'c', pid: 7, ts: 40000, agentStartedAt: 1000 })
     expect(
       s.list()[0]!.conversationIndex,
       'the process never died, so its count must survive its records'
@@ -568,7 +635,7 @@ describe('SessionStore', () => {
   it('keeps a lineage its live session still references', () => {
     const s = new SessionStore()
     s.apply(ev({ sessionId: 'a', pid: 7, ts: 1000, agentStartedAt: 1000 }))
-    s.apply(ev({ sessionId: 'b', pid: 7, ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    newConversation(s, { sessionId: 'b', pid: 7, ts: 2000, agentStartedAt: 1000 })
     s.apply(ev({ sessionId: 'a', kind: 'session-end', ts: 2000, agentStartedAt: 1000 }))
     s.reap(2000 + 11_000, () => true)
     expect(s.list().map((x) => x.sessionId), 'only the ended one goes').toEqual(['b'])
@@ -578,21 +645,21 @@ describe('SessionStore', () => {
   it('keeps a lineage a lingering done record still references, though the pid is gone', () => {
     const s = new SessionStore()
     s.apply(ev({ sessionId: 'a', pid: 7, ts: 1000, agentStartedAt: 1000 }))
-    s.apply(ev({ sessionId: 'b', pid: 7, ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    newConversation(s, { sessionId: 'b', pid: 7, ts: 2000, agentStartedAt: 1000 })
     s.apply(ev({ sessionId: 'b', kind: 'session-end', ts: 3000, agentStartedAt: 1000, pid: 7 }))
     s.reap(3500, () => false)
     expect(s.list().map((x) => x.sessionId), 'the done one lingers').toEqual(['b'])
-    s.apply(ev({ sessionId: 'c', pid: 7, ts: 4000, agentStartedAt: 1000, startsNewConversation: true }))
+    newConversation(s, { sessionId: 'c', pid: 7, ts: 4000, agentStartedAt: 1000 })
     expect(s.list().find((x) => x.sessionId === 'c')!.conversationIndex).toBe(3)
   })
 
   it('follows a resumed session to its new process, releasing the dead one\'s lineage', () => {
     const s = new SessionStore()
     s.apply(ev({ sessionId: 'a', pid: 7, ts: 1000, agentStartedAt: 1000 }))
-    s.apply(ev({ sessionId: 'a', pid: 7, ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    newConversation(s, { sessionId: 'a', pid: 7, ts: 2000, agentStartedAt: 1000 })
     s.apply(ev({ sessionId: 'a', kind: 'tool-start', tool: 'Edit', ts: 3000, pid: 9, agentStartedAt: 3000 }))
     s.reap(3500, (pid) => pid === 9)
-    s.apply(ev({ sessionId: 'b', pid: 7, ts: 4000, agentStartedAt: 1000, startsNewConversation: true }))
+    newConversation(s, { sessionId: 'b', pid: 7, ts: 4000, agentStartedAt: 1000 })
     expect(
       s.list().find((x) => x.sessionId === 'b')!.conversationIndex,
       'pid 7 died and the resumed record no longer holds it, so its lineage went too'
@@ -630,19 +697,40 @@ describe('SessionStore', () => {
     // anyone wants. The lineage is keyed on the pid *and* the process start
     // time, so an event whose start time did not resolve keys to `<agent>:7:0`
     // while its neighbours key to `<agent>:7:1000`. When that single event is
-    // the one carrying startsNewConversation, the bump lands on the throwaway
-    // lineage and the real one never receives it. Nothing later restores it:
-    // only an event carrying the flag ever moves a count.
+    // the one carrying startsNewConversation, the throwaway lineage is the one
+    // left armed, and the prompt that would have collected it keys back to the
+    // real lineage, which was never told. Nothing later restores it.
     const s = new SessionStore()
     s.apply(ev({ sessionId: 'a', pid: 7, ts: 1000, agentStartedAt: 1000 }))
-    // The clear whose /proc read failed. It keys to a lineage of its own.
+    // The clear whose /proc read failed. It arms a lineage of its own.
     s.apply(ev({ sessionId: 'b', pid: 7, ts: 2000, startsNewConversation: true }))
-    // A second clear, this time with the start time readable again.
-    s.apply(ev({ sessionId: 'c', pid: 7, ts: 3000, agentStartedAt: 1000, startsNewConversation: true }))
+    // Its prompt reads /proc successfully, so it finds an unarmed lineage.
+    s.apply(ev({ sessionId: 'b', kind: 'prompt-submit', pid: 7, ts: 2500, agentStartedAt: 1000 }))
+    expect(s.list().find((x) => x.sessionId === 'b')!.conversationIndex).toBe(1)
+    // A second conversation, this time with the start time readable throughout.
+    newConversation(s, { sessionId: 'c', pid: 7, ts: 3000, agentStartedAt: 1000 })
     expect(
       s.list().find((x) => x.sessionId === 'c')!.conversationIndex,
       'three conversations have happened, but the real lineage only ever saw one bump — permanently, since nothing replays it'
     ).toBe(2)
+  })
+
+  it('collects the bump late when the prompt is the event /proc failed on', () => {
+    // The mirror of the limitation above, and the one case deferring the bump
+    // makes recoverable rather than worse: the arming sits on the lineage
+    // until a prompt claims it, so a prompt that keys elsewhere costs a delay
+    // rather than the count.
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'a', pid: 7, ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'b', pid: 7, ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    // The prompt whose /proc read failed: it keys to a lineage of its own and
+    // consumes nothing, leaving the real one armed.
+    s.apply(ev({ sessionId: 'b', kind: 'prompt-submit', pid: 7, ts: 3000 }))
+    expect(s.list().find((x) => x.sessionId === 'b')!.conversationIndex).toBe(1)
+    s.apply(ev({ sessionId: 'b', kind: 'prompt-submit', pid: 7, ts: 4000, agentStartedAt: 1000 }))
+    const b = s.list().find((x) => x.sessionId === 'b')!
+    expect(b.conversationIndex, 'the next prompt to key correctly still collects it').toBe(2)
+    expect(b.startedAt, 'and the clock starts where that prompt did').toBe(4000)
   })
 
   it('does not inflate the count when the session cap refuses the record the bump was for', () => {
@@ -654,10 +742,9 @@ describe('SessionStore', () => {
     }
     expect(s.list()).toHaveLength(300)
 
-    // A clear at the cap: the lineage is bumped, then ensure refuses to create
-    // the record the bump was for.
-    s.apply(ev({ sessionId: 'refused', pid: 7, ts: 5000, agentStartedAt: 1000,
-      startsNewConversation: true }))
+    // A conversation begun at the cap: the prompt bumps the lineage, then
+    // ensure refuses to create the record the bump was for.
+    newConversation(s, { sessionId: 'refused', pid: 7, ts: 5000, agentStartedAt: 1000 })
     expect(s.list().find((x) => x.sessionId === 'refused'), 'the cap held').toBeUndefined()
 
     // Free one slot so the next event can create a record in that same lineage.
@@ -675,6 +762,14 @@ describe('SessionStore', () => {
       later.startedAt,
       'and the refused clear must not have moved the conversation clock either'
     ).toBe(1000)
+
+    // Rolled back, not discarded: the clear was never counted, so it is still
+    // owed. The next prompt that does get a record collects it.
+    s.apply(ev({ sessionId: 'later', kind: 'prompt-submit', pid: 7, ts: 21000, agentStartedAt: 1000 }))
+    expect(
+      s.list().find((x) => x.sessionId === 'later')!.conversationIndex,
+      'a bump the cap refused is owed, not lost'
+    ).toBe(2)
   })
 
   it('orders rows by conversation age, so a cleared record sorts past a younger process', () => {
@@ -686,8 +781,7 @@ describe('SessionStore', () => {
     s.apply(ev({ sessionId: 'old', pid: 7, ts: 1000, agentStartedAt: 1000 }))
     s.apply(ev({ sessionId: 'younger', pid: 8, ts: 2000, agentStartedAt: 2000 }))
     s.apply(ev({ sessionId: 'old', kind: 'session-end', ts: 4900, agentStartedAt: 1000, pid: 7 }))
-    s.apply(ev({ sessionId: 'cleared', pid: 7, ts: 5000, agentStartedAt: 1000,
-      startsNewConversation: true }))
+    newConversation(s, { sessionId: 'cleared', pid: 7, ts: 5000, agentStartedAt: 1000 })
     expect(s.list().map((x) => x.sessionId)).toEqual(['old', 'younger', 'cleared'])
   })
 
@@ -698,8 +792,7 @@ describe('SessionStore', () => {
     for (let i = 1; i <= 300; i++) {
       s.apply(ev({ sessionId: 'only', pid: i, ts: i, agentStartedAt: i }))
     }
-    s.apply(ev({ sessionId: 'only', pid: 9999, ts: 400000, agentStartedAt: 400000,
-      startsNewConversation: true }))
+    newConversation(s, { sessionId: 'only', pid: 9999, ts: 400000, agentStartedAt: 400000 })
     expect(
       s.list()[0]!.conversationIndex,
       'at the cap there is no lineage to bump, so the record is left as it was'

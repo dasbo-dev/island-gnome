@@ -67,11 +67,16 @@ export interface AgentEvent {
    */
   permissionsBypassed?: boolean
   /**
-   * Set when this event begins a conversation distinct from the one before it,
-   * inside an agent process that keeps running — Claude's `/clear` and
-   * `/compact`. Only adapters whose dialect can tell set it, so absence means
-   * "same conversation, or no way to know". Never `false`: a single truthiness
-   * test is all any consumer should need.
+   * Set when this event announces that the user has asked for a conversation
+   * distinct from the one before it, inside an agent process that keeps
+   * running — Claude's `/clear`. Only adapters whose dialect can tell set it,
+   * so absence means "same conversation, or no way to know". Never `false`: a
+   * single truthiness test is all any consumer should need.
+   *
+   * It announces, it does not begin: an emptied prompt box is not a
+   * conversation until something is said into it, so `SessionStore.apply`
+   * arms the lineage here and waits for the next `prompt-submit` to move the
+   * count and the clock.
    */
   startsNewConversation?: boolean
 }
@@ -97,9 +102,11 @@ export interface Session {
   detail?: string
   pid: number
   /**
-   * When the current conversation began. Equal to the agent process's start
-   * time until the user clears or compacts, which begins a new conversation
-   * inside a process that keeps running — see SessionStore's lineage map.
+   * When the current conversation began — the first prompt of it, not the
+   * `/clear` that made room for it. Equal to the agent process's start time
+   * until the user clears and then says something, which begins a new
+   * conversation inside a process that keeps running — see SessionStore's
+   * lineage map.
    */
   startedAt: number
   /** 1-based. Which conversation this is within its agent process. */

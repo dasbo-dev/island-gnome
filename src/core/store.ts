@@ -21,15 +21,27 @@ const MAX_SESSIONS = 300
 
 /**
  * What the store remembers about one agent process across the conversations it
- * hosts. `/clear` and `/compact` end a session and start a new one without
- * restarting the process, so a new Session record is built for each — which is
- * why neither the counter nor the conversation's start time can live on one.
+ * hosts. `/clear` ends a session and starts a new one without restarting the
+ * process, so a new Session record is built for each — which is why neither the
+ * counter nor the conversation's start time can live on one.
+ *
+ * It is also why the pending flag lives here. A conversation begins when the
+ * user says something, not when `/clear` empties the box, so the clear only
+ * arms the lineage and the next prompt collects it. Those two events land on
+ * two different Session records (the clear presents a new session id), and the
+ * lineage is the only thing that spans them.
  */
 interface Lineage {
   pid: number
   processStartedAt: number
   count: number
   conversationStartedAt: number
+  /**
+   * A `/clear` has been seen and no prompt has followed it yet. Set rather
+   * than counted: clearing twice with nothing said in between is one fresh
+   * start, not two, and a clear the user walks away from is none at all.
+   */
+  pendingNewConversation: boolean
 }
 
 /**
@@ -44,20 +56,25 @@ interface Lineage {
  * On an ordinary event that costs nothing lasting — the split lineage carries
  * its own count and clock for as long as the failures continue, and the next
  * event that reads /proc successfully lands back on the real one. But when the
- * split falls on the single event carrying `startsNewConversation`, the loss is
- * permanent. That flag is the only thing that ever moves a count, and `apply`
- * only acts on it while it is being applied: the bump goes to the throwaway
- * lineage, the real lineage is never told, and no later event replays it. The
- * conversation count stays one short for the life of that process — it does not
- * restart, and it does not catch up.
+ * split falls on the event carrying `startsNewConversation`, the loss is
+ * permanent. That flag is the only thing that ever arms a lineage, and `apply`
+ * only acts on it while it is being applied: the throwaway lineage is armed,
+ * the real one is never told, and no later event replays it. The conversation
+ * count stays one short for the life of that process — it does not restart, and
+ * it does not catch up.
  *
  * There are two ways to land in it, not one. The start time can fail to resolve
  * while the pid does, which is the split above; or `resolveAgent` can return
- * pid 0 for that one event, in which case `lineageFor` returns null and no bump
- * happens anywhere at all.
+ * pid 0 for that one event, in which case `lineageFor` returns null and nothing
+ * is armed anywhere at all.
  *
- * Left as is regardless: both need /proc to fail on exactly the event that
- * begins a conversation, and the cost is a number in a row being one low.
+ * A split falling on the *prompt* instead is survivable, and that is the one
+ * thing deferring the bump improved here: the arming outlives the event that
+ * failed to collect it, so the next prompt to key correctly still does. The
+ * count is late, not lost.
+ *
+ * Left as is regardless: the permanent case needs /proc to fail on exactly the
+ * clear, and the cost is a number in a row being one low.
  */
 function makeLineageKey(agent: AgentId, pid: number, processStartedAt: number): string {
   return `${agent}:${pid}:${processStartedAt}`
@@ -113,6 +130,7 @@ export class SessionStore {
         processStartedAt,
         count: 1,
         conversationStartedAt: e.agentStartedAt ?? e.ts,
+        pendingNewConversation: false,
       }
       this.lineages.set(key, l)
     }
@@ -148,10 +166,22 @@ export class SessionStore {
 
   apply(e: AgentEvent): void {
     const lineage = this.lineageFor(e)
-    // Bumped before ensure, so the record ensure creates for the incoming
-    // session id is already numbered. /clear delivers its SessionEnd first, so
-    // the outgoing record is untouched and keeps showing its own duration for
-    // the length of its linger.
+    // A clear arms the lineage and moves nothing. The record ensure builds for
+    // the incoming session id therefore opens on the *outgoing* conversation's
+    // number and clock, which is correct: until the user says something there
+    // is no new conversation to number, and an emptied prompt box the user
+    // walks away from must leave the row exactly as it was. /clear delivers its
+    // SessionEnd first, so the outgoing record is untouched too and keeps
+    // showing its own duration for the length of its linger.
+    if (lineage && e.startsNewConversation) lineage.pendingNewConversation = true
+    // ...and the first prompt after that collects it. Only 'prompt-submit',
+    // never any other event: hooks fire on their own throughout a conversation
+    // and none of the rest mean a human said anything.
+    const collecting = lineage !== null && lineage.pendingNewConversation && e.kind === 'prompt-submit'
+    // Bumped before ensure, so a record ensure has to create for this event —
+    // the prompt may be the first event of a session id the store never saw,
+    // if the clear's SessionStart was missed or its record was reaped — is
+    // already numbered.
     //
     // The previous values are kept because ensure is allowed to refuse: at the
     // session cap it returns null, and it does so *after* this bump has landed.
@@ -160,25 +190,30 @@ export class SessionStore {
     // cannot simply be moved after ensure — ensure builds the new record from
     // the bumped values — so it is rolled back instead. Rolling back rather
     // than re-testing the cap here keeps that condition in ensure alone; a
-    // second copy of it would be a worse bug than the one being fixed.
+    // second copy of it would be a worse bug than the one being fixed. The
+    // pending flag is rolled back with them, so a conversation the cap refused
+    // to record stays owed rather than being silently dropped.
     let rollback: { count: number; conversationStartedAt: number } | null = null
-    if (lineage && e.startsNewConversation) {
+    if (lineage && collecting) {
       rollback = { count: lineage.count, conversationStartedAt: lineage.conversationStartedAt }
       lineage.count += 1
       lineage.conversationStartedAt = e.ts
+      lineage.pendingNewConversation = false
     }
     const s = this.ensure(e, lineage)
     if (!s) {
       if (lineage && rollback) {
         lineage.count = rollback.count
         lineage.conversationStartedAt = rollback.conversationStartedAt
+        lineage.pendingNewConversation = true
       }
       return
     }
-    // Renumbers a record ensure did not just create too: an agent that
-    // restarts a conversation under the *same* id would otherwise keep the
-    // previous conversation's clock and number forever.
-    if (lineage && e.startsNewConversation) {
+    // Renumbers a record ensure did not just create, which is now the ordinary
+    // case rather than a fallback: the clear built the record and the prompt
+    // that begins the conversation arrives afterwards, so the bump nearly
+    // always lands on a record that already exists.
+    if (lineage && collecting) {
       s.startedAt = lineage.conversationStartedAt
       s.conversationIndex = lineage.count
     }

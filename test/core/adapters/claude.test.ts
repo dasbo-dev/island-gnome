@@ -104,11 +104,15 @@ describe('claudeAdapter.normalize', () => {
     expect(e?.startsNewConversation).toBe(true)
   })
 
-  it('flags a compacted session as the start of a new conversation', () => {
+  it('leaves a compaction unflagged: the user did not begin a conversation', () => {
+    // Compaction is not a new conversation, it is the same one with its
+    // history summarised — and Claude Code compacts on its own when the
+    // context window fills, so counting it moved a row's number and reset its
+    // clock with no user action at all. Only `/clear` is deliberate.
     const e = claudeAdapter.normalize(
       { hook_event_name: 'SessionStart', session_id: 's2', cwd: '/p', source: 'compact' }, ctx
     )
-    expect(e?.startsNewConversation).toBe(true)
+    expect(e?.startsNewConversation).toBeUndefined()
   })
 
   it('leaves startup and resume unflagged: the process clock is still right there', () => {
