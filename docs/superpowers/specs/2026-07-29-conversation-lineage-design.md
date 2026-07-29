@@ -34,8 +34,8 @@ Three facts follow, and the design rests on them:
 - The payloads carry `source` and `reason`, which the Claude adapter currently
   discards.
 
-`/compact` also reports a `source` of `"compact"`. Its full event shape has
-**not** been measured — see Risks.
+`/compact` also reports a `source` of `"compact"`, but its event shape does
+**not** mirror `/clear`'s — see Risks.
 
 ## Goals
 
@@ -143,14 +143,18 @@ total.
 3. If `e.startsNewConversation`, then `count++` and
    `conversationStartedAt = e.ts`.
 4. `ensure()` builds a **new** record from the lineage:
-   `startedAt = conversationStartedAt`, `conversationIndex = count`,
-   `processStartedAt = e.agentStartedAt`.
+   `startedAt = conversationStartedAt`, `conversationIndex = count`, seeding
+   `processStartedAt = e.agentStartedAt` at creation. `apply` then refreshes
+   that field from every event carrying one — not only the record's first —
+   so a session that outlives its process still reports the live process's
+   uptime.
 5. If `e.startsNewConversation` arrives for a session that **already exists**,
    rewrite that record's `startedAt` and `conversationIndex` from the lineage.
 
 Step 5 exists so the design is correct whether or not `/compact` mints a new
-`session_id`. Step 4 alone assumes it does, which is measured for `clear` and
-unmeasured for `compact`.
+`session_id`. Step 4 alone is sufficient for `clear`, which mints one. It is
+not sufficient for `compact`, which does not — see Risks. Step 5 is what
+makes compaction move the count at all.
 
 Existing records are never otherwise rewritten, and that is what makes the
 `/clear` sequence work. `SessionEnd` lands first, so the outgoing row keeps its
@@ -162,8 +166,16 @@ its linger. The incoming row is built fresh from the bumped lineage.
 reason the session map is: a misbehaving or hostile peer on the session bus must
 not be able to grow it unbounded. At the cap, no new lineage is created and the
 record falls through to the same path as `pid === 0` — index 1 and the `/proc`
-start time. The cap cannot be reached before the session map's own cap has been,
-so this is a backstop rather than a path anything real takes.
+start time.
+
+The lineage cap is genuinely independent of the session cap, not a consequence
+of it. Lineages are keyed on the process and sessions on the session id, so the
+two counts move for different reasons: a peer replaying one session id from
+three hundred different pids mints three hundred lineages and exactly one
+session. The lineage map therefore needs its own bound rather than inheriting
+the session map's, and `store.ts` says so on `lineageFor`. (An earlier draft of
+this section claimed the lineage cap could not be reached before the session
+cap. That was wrong; a test now demonstrates the case.)
 
 ## Rendering
 
@@ -219,8 +231,7 @@ All the logic worth testing is pure and lives in `src/core`.
 
 - `startup` → index 1, `startedAt` = `agentStartedAt`
 - `clear` with a new session id → index 2, `startedAt` = event ts
-- `compact` → index 3, in both shapes: a new session id, and the same session id
-  rewritten in place
+- `compact` → index 3, same session id rewritten in place (measured in Risks)
 - the outgoing record keeps its own `startedAt` and index after a clear
 - `pid: 0` → no lineage, index 1, `startedAt` = `agentStartedAt`
 - a fresh store whose first event is a plain `tool-start` → index 1, pinning the
@@ -241,12 +252,35 @@ popup colour fix was verified — a throwaway probe extension in a nested
 
 ## Risks
 
-**`/compact`'s event shape is unmeasured.** The design assumes it resembles
-`clear`. Step 5 of `apply` covers the case where it reuses the `session_id`
-instead of minting a new one. If it turns out `/compact` emits no `SessionStart`
-at all, the count will simply not move for it, and that is a behaviour change to
-revisit rather than a broken implementation. The plan should measure it first,
-with the same pty probe used for `clear`.
+**`/compact` does not mirror `/clear`.** Measured with the same pty probe,
+against a real conversation with two prior prompts (compaction reported
+"Not enough messages to compact." on a single-turn conversation, so this took
+a second, longer-conversation run to observe honestly):
+
+```
+SessionStart  session_id=926d57bf…   source: "startup"
+SessionStart  session_id=926d57bf…   source: "compact"
+SessionEnd    session_id=926d57bf…   reason: "prompt_input_exit"
+```
+
+Both `SessionStart` lines carry the **same** `session_id`. `/compact` does not
+end the old session and start a new one the way `/clear` does — it reuses the
+session in place. No `SessionEnd` with `reason: "compact"` was observed at any
+point; the single `SessionEnd` above comes from the later `/exit`, not from
+compaction.
+
+This is the second of the brief's three possible outcomes: `/compact` mints a
+`SessionStart` (so it can be detected via `source`), but does not mint a new
+`session_id`. That makes step 5 of `apply` — "if `startsNewConversation`
+arrives for a session that already exists, rewrite that record's `startedAt`
+and `conversationIndex` from the lineage" — **load-bearing for compaction, not
+belt-and-braces**. Step 4 alone (build a new record for a new `session_id`) is
+sufficient for `/clear`; it never fires for `/compact`, because `/compact`
+never presents a new `session_id`. Task 4's in-place rewrite is the only
+mechanism that makes the conversation count move when compaction occurs, and a
+reviewer should weigh it accordingly: without it, `'compact'` in Task 2's
+allowlist would set `startsNewConversation` on an event `store.apply` has no
+way to act on, and the count would silently fail to advance.
 
 ## Accepted limitations
 
@@ -262,6 +296,37 @@ with the same pty probe used for `clear`.
 4. An extension enabled mid-shell undercounts until the next clear. If the first
    event it ever sees is a clear, the count lands on 2 — an honest lower bound.
 5. A `done` row's clock keeps ticking during its linger. Pre-existing.
+6. A suspend/resume can split a live agent's lineage. The key is
+   `${agent}:${pid}:${agentStartedAt}`, and `windowFinder.ts` already documents
+   `agentStartedAt` as jittering by about a second across a suspend — the boot
+   time the `/proc` figure is derived from is re-derived after the clock jumps.
+   A lid close mid-conversation therefore re-keys the same live process, but
+   the live record itself is untouched: `ensure` returns the existing session,
+   so `startedAt` and `conversationIndex` do not move, and the only visible
+   change at resume is the dim shell-total suffix jumping by the jitter, since
+   that reads `processStartedAt`, which is refreshed on every event. The
+   damage lands on the *next* conversation instead. The resume silently mints
+   a fresh lineage under the post-jitter key, orphaning the one the live
+   record was numbered from — count and all. The next `/clear` bumps that
+   fresh lineage up from 1, so the record it creates opens on a count that is
+   low by however many conversations preceded the suspend, and nothing ever
+   restores the difference: every conversation after the suspend is
+   undercounted by that same fixed amount for the life of the process. Chosen
+   deliberately over re-keying on a boot-relative tick count, which would be
+   stable across suspend but would put a second time base into the store for a
+   cosmetic gain.
+7. Automatic compaction resets the clock without the user typing anything.
+   Compaction is treated as a new conversation, and Claude Code compacts on its
+   own when the context window fills, so a row sitting at `2h` can drop to
+   `#2 0s` with no user action. Be clear about what is measured here: manual
+   `/compact` was measured to emit `SessionStart` with `source: "compact"` (see
+   Risks). That *automatic* compaction emits the same event was **not**
+   measured — it is inferred, and if it turns out to emit something else, this
+   limitation simply does not arise. Accepted either way, because the dim
+   shell-uptime suffix appears at the very same moment the number does: it is
+   hidden while `conversationIndex <= 1`, so the instant the clock resets the
+   row also starts showing the terminal's true age beside the project name. The
+   row never claims the terminal is new; it claims this conversation is.
 
 ## Migration
 

@@ -1,16 +1,71 @@
 import { basename, sessionKey } from './types.js'
-import type { AgentEvent, PendingPermission, Session, SessionState } from './types.js'
+import type { AgentEvent, AgentId, PendingPermission, Session, SessionState } from './types.js'
 
 const STALE_MS = 15 * 60 * 1000
 /**
- * A misbehaving or hostile peer on the session bus could otherwise grow this
- * map unbounded for up to 15 minutes (the reaper's abandon window). Bounded to
- * a few hundred, well above any real concurrent-session count.
+ * Bounds *both* maps this store holds: sessions and lineages. A misbehaving or
+ * hostile peer on the session bus could otherwise grow either unbounded for up
+ * to 15 minutes (the reaper's abandon window). A few hundred sits well above
+ * any real concurrent-session count, and above any real count of live agent
+ * processes, so one number serves both.
+ *
+ * The lineage map needs a bound of its own rather than inheriting the session
+ * cap: a lineage is minted before `ensure` runs, and lineages are keyed on the
+ * process while sessions are keyed on the session id, so a peer replaying one
+ * session id from an ever-changing pid mints a lineage per event while creating
+ * exactly one session. One shared constant rather than two, because it is one
+ * policy — "a few hundred of anything a peer can mint" — and two numbers would
+ * only invite them to drift apart for no reason anyone could later reconstruct.
  */
 const MAX_SESSIONS = 300
 
+/**
+ * What the store remembers about one agent process across the conversations it
+ * hosts. `/clear` and `/compact` end a session and start a new one without
+ * restarting the process, so a new Session record is built for each — which is
+ * why neither the counter nor the conversation's start time can live on one.
+ */
+interface Lineage {
+  pid: number
+  processStartedAt: number
+  count: number
+  conversationStartedAt: number
+}
+
+/**
+ * Keyed on the pid *and* the process start time, never the pid alone: the
+ * kernel recycles pids, and the start time is what makes one of them mean one
+ * process. Callers pass 0 for an unknown start time so the key stays total.
+ *
+ * A transient /proc read failure can therefore split one process into two
+ * lineages: an event whose pid resolved but whose start time did not keys to
+ * `<agent>:<pid>:0` while its neighbours key to the real start time.
+ *
+ * On an ordinary event that costs nothing lasting — the split lineage carries
+ * its own count and clock for as long as the failures continue, and the next
+ * event that reads /proc successfully lands back on the real one. But when the
+ * split falls on the single event carrying `startsNewConversation`, the loss is
+ * permanent. That flag is the only thing that ever moves a count, and `apply`
+ * only acts on it while it is being applied: the bump goes to the throwaway
+ * lineage, the real lineage is never told, and no later event replays it. The
+ * conversation count stays one short for the life of that process — it does not
+ * restart, and it does not catch up.
+ *
+ * There are two ways to land in it, not one. The start time can fail to resolve
+ * while the pid does, which is the split above; or `resolveAgent` can return
+ * pid 0 for that one event, in which case `lineageFor` returns null and no bump
+ * happens anywhere at all.
+ *
+ * Left as is regardless: both need /proc to fail on exactly the event that
+ * begins a conversation, and the cost is a number in a row being one low.
+ */
+function makeLineageKey(agent: AgentId, pid: number, processStartedAt: number): string {
+  return `${agent}:${pid}:${processStartedAt}`
+}
+
 export class SessionStore {
   private sessions = new Map<string, Session>()
+  private lineages = new Map<string, Lineage>()
   private subscribers = new Set<() => void>()
   /** Seconds a done session lingers before reaping. Set from GSettings by the shell layer. */
   doneLingerSeconds = 10
@@ -25,6 +80,10 @@ export class SessionStore {
   }
 
   list(): Session[] {
+    // startedAt now marks when the current conversation began, not when the
+    // agent process did, so rows order by conversation age rather than
+    // process age — a record recreated by /clear sorts to the end while the
+    // outgoing record it replaced keeps its old position. Intended.
     return [...this.sessions.values()].sort((a, b) => a.startedAt - b.startedAt)
   }
 
@@ -32,7 +91,35 @@ export class SessionStore {
     return this.sessions.get(key)
   }
 
-  private ensure(e: AgentEvent): Session | null {
+  /**
+   * The lineage for the process this event came from, created on first sight.
+   * Null when there is nothing to key on: resolveAgent returns pid 0 whenever
+   * it cannot read /proc or cannot identify the agent, and a lineage keyed on 0
+   * would merge every unidentified agent on the machine into one count.
+   *
+   * Also null at the cap. Unlike the session map this one can be grown by a
+   * peer that never gets a session created — a lineage is minted before ensure
+   * runs — so it needs its own bound rather than inheriting that one.
+   */
+  private lineageFor(e: AgentEvent): Lineage | null {
+    if (!e.pid) return null
+    const processStartedAt = e.agentStartedAt ?? 0
+    const key = makeLineageKey(e.agent, e.pid, processStartedAt)
+    let l = this.lineages.get(key)
+    if (!l) {
+      if (this.lineages.size >= MAX_SESSIONS) return null
+      l = {
+        pid: e.pid,
+        processStartedAt,
+        count: 1,
+        conversationStartedAt: e.agentStartedAt ?? e.ts,
+      }
+      this.lineages.set(key, l)
+    }
+    return l
+  }
+
+  private ensure(e: AgentEvent, lineage: Lineage | null): Session | null {
     const key = sessionKey(e.agent, e.sessionId)
     let s = this.sessions.get(key)
     if (!s) {
@@ -45,10 +132,13 @@ export class SessionStore {
         cwd: e.cwd,
         state: 'idle',
         pid: e.pid,
-        // The agent process's own start time when the shell layer could read it,
-        // so a record recreated after a reap or a shell reload reports the same
+        // The conversation's start, which the lineage carries across the record
+        // boundary that /clear creates. Falling back to the process start keeps
+        // a record recreated after a reap or a shell reload reporting the same
         // number rather than restarting the clock at the current task.
-        startedAt: e.agentStartedAt ?? e.ts,
+        startedAt: lineage?.conversationStartedAt ?? e.agentStartedAt ?? e.ts,
+        conversationIndex: lineage?.count ?? 1,
+        processStartedAt: e.agentStartedAt,
         lastEventAt: e.ts,
       }
       this.sessions.set(key, s)
@@ -57,10 +147,60 @@ export class SessionStore {
   }
 
   apply(e: AgentEvent): void {
-    const s = this.ensure(e)
-    if (!s) return
+    const lineage = this.lineageFor(e)
+    // Bumped before ensure, so the record ensure creates for the incoming
+    // session id is already numbered. /clear delivers its SessionEnd first, so
+    // the outgoing record is untouched and keeps showing its own duration for
+    // the length of its linger.
+    //
+    // The previous values are kept because ensure is allowed to refuse: at the
+    // session cap it returns null, and it does so *after* this bump has landed.
+    // The lineage would then be counting a conversation that has no record, and
+    // the next record created in it would open on an inflated number. The bump
+    // cannot simply be moved after ensure — ensure builds the new record from
+    // the bumped values — so it is rolled back instead. Rolling back rather
+    // than re-testing the cap here keeps that condition in ensure alone; a
+    // second copy of it would be a worse bug than the one being fixed.
+    let rollback: { count: number; conversationStartedAt: number } | null = null
+    if (lineage && e.startsNewConversation) {
+      rollback = { count: lineage.count, conversationStartedAt: lineage.conversationStartedAt }
+      lineage.count += 1
+      lineage.conversationStartedAt = e.ts
+    }
+    const s = this.ensure(e, lineage)
+    if (!s) {
+      if (lineage && rollback) {
+        lineage.count = rollback.count
+        lineage.conversationStartedAt = rollback.conversationStartedAt
+      }
+      return
+    }
+    // Renumbers a record ensure did not just create too: an agent that
+    // restarts a conversation under the *same* id would otherwise keep the
+    // previous conversation's clock and number forever.
+    if (lineage && e.startsNewConversation) {
+      s.startedAt = lineage.conversationStartedAt
+      s.conversationIndex = lineage.count
+    }
     s.lastEventAt = e.ts
     if (e.pid) s.pid = e.pid
+    // Refreshed here rather than left at what ensure stamped, for exactly the
+    // reason the pid above is: a session id can outlive its process, because
+    // `claude --resume <id>` reuses the id under a brand new one. A record that
+    // survives that (it need only be within the reaper's window) would
+    // otherwise name the live process by pid while reporting the *dead*
+    // process's uptime as its shell total — a number too large by however long
+    // the old shell ran, and one that never resets for the life of the record.
+    // Guarded on undefined rather than assigned outright so a transient /proc
+    // failure can only fail to update a good value, never blank one.
+    if (e.agentStartedAt !== undefined) s.processStartedAt = e.agentStartedAt
+    // Written here, alongside the pid it must agree with, rather than once at
+    // creation: a session id can outlive its process (`claude --resume` reuses
+    // the id under a new pid), and this is the only place pid is refreshed.
+    // Leaving an old stamp in place would pin the record to the dead
+    // process's lineage forever. Taken from the Lineage this event resolved
+    // to, never rebuilt from the record's own fields, so it stays exact.
+    if (lineage) s.lineageKey = makeLineageKey(e.agent, lineage.pid, lineage.processStartedAt)
     if (e.transcriptPath) s.transcriptPath = e.transcriptPath
 
     let kindState: SessionState
@@ -227,7 +367,50 @@ export class SessionStore {
         dropped.push(key)
       }
     }
+    this.pruneLineages(pidAlive)
     if (dropped.length > 0) this.emit()
     return dropped
+  }
+
+  /**
+   * A lineage outlives the records it numbers — that is the whole point of it —
+   * so it cannot be collected with them. It goes once nothing references it and
+   * its process is confirmed gone.
+   *
+   * Runs on every sweep rather than only when a session was dropped: an agent
+   * can die long after its last record was collected, and that sweep drops
+   * nothing, so a dropped-only guard would leak the lineage for good.
+   *
+   * The referenced set is read from each Session's own lineageKey stamp rather
+   * than rebuilt from its current pid and processStartedAt. Both of those are
+   * refreshed on every event now, so staleness is no longer the reason — the
+   * reason is that they are the *event's* values, under two independent guards
+   * (a pid of 0 is not written, an undefined start time is not written), while
+   * a lineage stays filed under whatever the key was when it was minted. The
+   * divergence that survives that refresh: an event with a resolved pid but an
+   * undefined start time keys the lineage on `<agent>:<pid>:0`, while
+   * s.processStartedAt keeps whatever real value an earlier event supplied —
+   * rebuilding from the record's own two fields would reach for
+   * `<agent>:<pid>:<that-earlier-value>` instead, miss the lineage actually
+   * referenced, and leak it until the map hit its cap. The stamp is written
+   * from the Lineage object itself, in apply, so it names the map entry
+   * exactly and cannot be reconstructed wrong.
+   *
+   * It can still be *stale*, in one case: at the lineage cap, and only when
+   * this process's lineage is not already in it, lineageFor returns null, so
+   * apply refreshes s.pid without refreshing the stamp beside it. The record
+   * then keeps naming the lineage it has left, which holds that entry
+   * referenced — and therefore unprunable — even once its process is gone. It
+   * frees itself when the referencing record is reaped, and reaching it at all
+   * takes a peer minting three hundred processes, so it is left as is.
+   */
+  private pruneLineages(pidAlive: (pid: number) => boolean): void {
+    const referenced = new Set<string>()
+    for (const s of this.sessions.values()) {
+      if (s.lineageKey !== undefined) referenced.add(s.lineageKey)
+    }
+    for (const [key, l] of [...this.lineages]) {
+      if (!referenced.has(key) && !pidAlive(l.pid)) this.lineages.delete(key)
+    }
   }
 }

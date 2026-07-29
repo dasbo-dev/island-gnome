@@ -291,6 +291,20 @@ export const Island = GObject.registerClass(
         this._emptyRow.destroy()
         this._emptyRow = null
       }
+
+      // A row built above opens on its constructor's placeholder ('0s', no
+      // conversation number) and would keep it until the next timer beat —
+      // up to a full second of a visibly wrong clock on precisely the row
+      // /clear just created, which is the one the user is looking at. The
+      // same beat also lands /compact's in-place renumber, which update()
+      // cannot write because it never knows the current time.
+      //
+      // _timerId is the popup's "is open" signal: it is set by _startTimer on
+      // open and cleared by _stopTimer on close. Guarding on it keeps this
+      // from ticking rows nobody can see, on a store that emits whether or
+      // not the menu is up — and _startTimer already ticks once itself, so
+      // rows built while the popup is closed are covered when it opens.
+      if (this._timerId) this._tickAll()
     }
 
     refresh(): void {

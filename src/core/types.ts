@@ -66,6 +66,14 @@ export interface AgentEvent {
    * whenever the agent would ask, so absence always means "gate normally".
    */
   permissionsBypassed?: boolean
+  /**
+   * Set when this event begins a conversation distinct from the one before it,
+   * inside an agent process that keeps running — Claude's `/clear` and
+   * `/compact`. Only adapters whose dialect can tell set it, so absence means
+   * "same conversation, or no way to know". Never `false`: a single truthiness
+   * test is all any consumer should need.
+   */
+  startsNewConversation?: boolean
 }
 
 export interface PendingPermission {
@@ -88,7 +96,20 @@ export interface Session {
   currentTool?: string
   detail?: string
   pid: number
+  /**
+   * When the current conversation began. Equal to the agent process's start
+   * time until the user clears or compacts, which begins a new conversation
+   * inside a process that keeps running — see SessionStore's lineage map.
+   */
   startedAt: number
+  /** 1-based. Which conversation this is within its agent process. */
+  conversationIndex: number
+  /**
+   * When the agent process started, in ms since the epoch, resolved from /proc
+   * by the shell layer. Undefined when /proc could not supply it. Distinct from
+   * startedAt, which moves with the conversation while this does not.
+   */
+  processStartedAt?: number
   lastEventAt: number
   /** Set when a session-end arrives; used for the done-linger sweep. */
   doneAt?: number
@@ -100,6 +121,25 @@ export interface Session {
    * event arrived during the hold.
    */
   deferredState?: SessionState
+  /**
+   * The key of the lineage the most recent event resolved to, written
+   * whenever pid is refreshed rather than once at creation — a session id can
+   * outlive its process (`claude --resume` reuses the id under a new pid), so
+   * every event has to re-pin the record to whatever process it now belongs
+   * to. Undefined when the agent could not be identified and no lineage was
+   * minted, and stale whenever the lineage map was at its cap on the last
+   * event and this process's lineage was not already in it — no lineage
+   * resolves there, so the pid moves on without this, and the record goes on
+   * naming a lineage it has left. Read back rather than rebuilt, because
+   * rebuilding the key from this record's own pid and processStartedAt would
+   * use two fields that can come from different events and no longer form the
+   * pair a lineage was keyed on. Can name a different lineage than the one
+   * conversationIndex was numbered from — a resume under a new pid moves this
+   * forward without renumbering the record — which is intended: pruneLineages
+   * wants to know what is referenced *now*, not what a past conversation was
+   * counted by.
+   */
+  lineageKey?: string
 }
 
 export type DecisionKind = 'allow' | 'deny' | 'fallthrough'
