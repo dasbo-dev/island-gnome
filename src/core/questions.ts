@@ -83,3 +83,40 @@ export function formatAnswer(questions: Question[], answers: string[][]): string
   if (parts.length === 0) return `${prefix} The user selected nothing.`
   return `${prefix} ${parts.join('; ')}`
 }
+
+/**
+ * The three characters Pango's markup parser acts on outside attribute values.
+ *
+ * Hand-rolled rather than `GLib.markup_escape_text` because `src/core` is pure
+ * (see test/core/purity.test.ts), and because escaping this way is covered by
+ * tests. The ampersand is replaced first, or the entities introduced for `<` and
+ * `>` would themselves be escaped.
+ */
+export function escapeMarkup(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+/**
+ * One option as a single line of Pango markup: the label bold, the description
+ * dimmed behind an em dash.
+ *
+ * One label rather than a bold one beside a dim one, because the popup's width is
+ * fixed at 26em and a description wrapped inside its own right-hand column would
+ * break every two or three words.
+ *
+ * `alpha` is a Pango span attribute rather than a hex colour, so the dimming
+ * survives a light theme. It replaces the actor-level `opacity = 178` the old
+ * description label carried, which cannot be reused now that one label holds both
+ * halves — dimming the actor would dim the bold label with it. A Pango that
+ * ignores `alpha` renders the description at full strength, which costs
+ * hierarchy, not information.
+ *
+ * Both halves come from an agent's `AskUserQuestion` payload, so both are
+ * escaped: a description containing `<b>` would otherwise be swallowed as markup
+ * or make `set_markup` throw.
+ */
+export function optionMarkup(label: string, description: string): string {
+  const bold = `<b>${escapeMarkup(label)}</b>`
+  if (description.length === 0) return bold
+  return `${bold} — <span alpha="70%">${escapeMarkup(description)}</span>`
+}

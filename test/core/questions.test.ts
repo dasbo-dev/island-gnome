@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { parseQuestions, formatAnswer, type Question } from '../../src/core/questions.js'
+import {
+  parseQuestions,
+  formatAnswer,
+  escapeMarkup,
+  optionMarkup,
+  type Question,
+} from '../../src/core/questions.js'
 
 const oneQuestion = {
   questions: [
@@ -159,5 +165,40 @@ describe('formatAnswer', () => {
 
   it('collapses newlines in free text so the reason stays one line', () => {
     expect(formatAnswer([q('Notes')], [['first\nsecond']])).toBe(`${PREFIX} Notes: first second`)
+  })
+})
+
+describe('escapeMarkup', () => {
+  it('escapes the three characters Pango parses', () => {
+    expect(escapeMarkup('a & b <c> d')).toBe('a &amp; b &lt;c&gt; d')
+  })
+
+  // Ampersand first, or the entity introduced for < would itself be escaped.
+  it('does not double-escape an existing entity', () => {
+    expect(escapeMarkup('&lt;')).toBe('&amp;lt;')
+  })
+
+  it('leaves ordinary text alone', () => {
+    expect(escapeMarkup('Keep both scrolls')).toBe('Keep both scrolls')
+  })
+})
+
+describe('optionMarkup', () => {
+  it('renders the label bold and the description dimmed behind an em dash', () => {
+    expect(optionMarkup('One scroll', 'the popup scrolls once')).toBe(
+      '<b>One scroll</b> — <span alpha="70%">the popup scrolls once</span>'
+    )
+  })
+
+  it('drops the dash and the span when there is no description', () => {
+    expect(optionMarkup('One scroll', '')).toBe('<b>One scroll</b>')
+  })
+
+  // Both halves are agent-supplied. Unescaped, this would be swallowed as
+  // markup or make ClutterText.set_markup throw.
+  it('escapes markup in either half', () => {
+    expect(optionMarkup('a <b>x</b>', 'r & d')).toBe(
+      '<b>a &lt;b&gt;x&lt;/b&gt;</b> — <span alpha="70%">r &amp; d</span>'
+    )
   })
 })
