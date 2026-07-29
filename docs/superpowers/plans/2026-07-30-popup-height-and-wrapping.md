@@ -18,6 +18,7 @@
 - Pango ignores `line_wrap` while an ellipsize mode is set, so every wrapping label must set `ellipsize = Pango.EllipsizeMode.NONE` explicitly.
 - Wrap mode is `Pango.WrapMode.WORD_CHAR`, never `WORD`: popup text carries file paths and flags with no break opportunity in them.
 - The popup's content width is fixed at 26em by `.dasbo-fixed-width` in `stylesheet.css`. Wrapping labels depend on that ancestor for their bound; do not change it.
+- The monitor work area and the measured chrome (header + separator preferred height) are both read in physical pixels — the same stage coordinate space — while St multiplies CSS lengths such as `max-height` by the theme context's scale factor. `bodyMaxHeight` divides by the scale factor to convert back before writing the style. On Wayland, mutter forces the scale factor to 1 and the work area is already logical, so the division is a no-op; on X11 the work area is physical and the scale factor is N, so the division is what keeps the cap honest. The arithmetic is the same on both — only which side of it happens to be a no-op changes.
 - Comments in this codebase record *why*, at the density of the surrounding file. A change that invalidates a neighbouring comment must rewrite that comment in the same commit.
 - Commands: `npm test` (vitest), `npm run typecheck` (two tsconfigs), `npm run build` (esbuild → `dist/`).
 - Commit style: conventional prefix with a scope, imperative and specific (`fix(shell): …`, `feat(core): …`).
@@ -56,9 +57,9 @@ describe('bodyMaxHeight', () => {
     ).toBe(500)
   })
 
-  // St multiplies CSS lengths by the scale factor while Meta reports the work
-  // area in logical pixels, so an unscaled max-height would let the body grow to
-  // twice the cap on a 2x monitor.
+  // The work area is in physical pixels while St multiplies CSS lengths — such
+  // as max-height — by the scale factor, so an unscaled max-height would let
+  // the body grow to twice the cap on a 2x monitor.
   it('divides by the scale factor', () => {
     expect(bodyMaxHeight({ workAreaHeight: 1000, chromeHeight: 100, scaleFactor: 2 })).toBe(400)
   })
@@ -125,7 +126,7 @@ export const MIN_BODY = 120
 const DEFAULT_FRACTION = 0.9
 
 export interface BodyMaxHeightInput {
-  /** Monitor work area height in logical pixels, excluding the top bar. */
+  /** Monitor work area height in physical pixels, excluding the top bar. */
   workAreaHeight: number
   /** Height of everything pinned outside the scroll view: header + separator. */
   chromeHeight: number
@@ -138,17 +139,19 @@ export interface BodyMaxHeightInput {
 /**
  * The scroll view's `max-height`, in CSS pixels.
  *
- * The division by the scale factor is not cosmetic: St multiplies CSS lengths by
- * the theme context's scale factor, while Meta reports the work area in logical
- * pixels. An unscaled value would let the body grow to twice the intended cap on
- * a 2x monitor — precisely the clipping the cap exists to prevent. A scale factor
- * of 0 or NaN is read as 1: a slightly generous cap beats a division by zero.
+ * The division by the scale factor is not cosmetic: the work area (and the
+ * measured chrome, which is in the same stage coordinate space) is in physical
+ * pixels, while St multiplies CSS lengths — such as this max-height — by the
+ * theme context's scale factor. An unscaled value would let the body grow to
+ * twice the intended cap on a 2x monitor — precisely the clipping the cap
+ * exists to prevent. A scale factor of 0 or NaN is read as 1: a slightly
+ * generous cap beats a division by zero.
  */
 export function bodyMaxHeight(o: BodyMaxHeightInput): number {
   const fraction = o.fraction ?? DEFAULT_FRACTION
   const scale = Number.isFinite(o.scaleFactor) && o.scaleFactor > 0 ? o.scaleFactor : 1
-  const logical = o.workAreaHeight * fraction - o.chromeHeight
-  return Math.max(MIN_BODY, Math.floor(logical / scale))
+  const physical = o.workAreaHeight * fraction - o.chromeHeight
+  return Math.max(MIN_BODY, Math.floor(physical / scale))
 }
 
 export interface ScrollIntoViewInput {
@@ -406,6 +409,10 @@ Directly after the two existing `addMenuItem` calls for the header and separator
         // vertical budget this whole arrangement exists to spend.
         hscrollbar_policy: St.PolicyType.NEVER,
         vscrollbar_policy: St.PolicyType.AUTOMATIC,
+        // GNOME 46's own PopupSubMenu sets this on its St.ScrollView too: without
+        // it, rows can paint outside the capped viewport during the popup's open
+        // animation.
+        clip_to_allocation: true,
       })
       this._scroll.set_child(this._body.actor)
       ;(this.menu as PopupMenu.PopupMenu).box.add_child(this._scroll)
@@ -531,7 +538,7 @@ Replace the body of the existing `open-state-changed` handler:
         }
 ```
 
-- [ ] **Step 7: Release the stage handler and destroy the new actors**
+- [ ] **Step 7: Release the stage handler, the session-mode handler, and destroy the new actors**
 
 In `_releaseExternalRefs`, beside `this._stopTimer()` — `global.get_stage()` outlives this widget, so a Clutter-side destroy must drop this too:
 
@@ -539,6 +546,29 @@ In `_releaseExternalRefs`, beside `this._stopTimer()` — `global.get_stage()` o
       this._unwatchKeyFocus()
       this._stopTimer()
 ```
+
+Immediately after those two lines, release `_body`'s own external connection:
+
+```ts
+      // PopupMenuBase's constructor connects this._body to Main.sessionMode,
+      // and only PopupMenuBase.destroy() releases it — but a Clutter-side
+      // destroy reaches _releaseExternalRefs(), not destroy(), and this._body
+      // is never destroyed there either (menu.removeAll() filters menu.box's
+      // children by _delegate, which skips the scroll view and the section
+      // inside it). Left alone, that's a permanent Main.sessionMode handler
+      // pointing at a section whose actor is gone. Dropping only the external
+      // reference here, and leaving this._body's own teardown in destroy(),
+      // keeps this a no-op cleanup rather than reaching into destroy()'s
+      // ordering: destroy() calls this before destroying the SessionRows, so
+      // destroying this._body from here would pull the row actors out from
+      // under the later row.destroy() calls. A second disconnectObject for
+      // the same object during PopupMenuBase.destroy() is a harmless no-op.
+      Main.sessionMode.disconnectObject(this._body)
+```
+
+`this._body` is a `PopupMenu.PopupMenuSection`, a `PopupMenuBase`, so it inherits
+this connection the moment its constructor runs — nothing in this plan makes it,
+and nothing but `PopupMenuBase.destroy()` would otherwise release it.
 
 In `destroy()`, beside the header and separator:
 
@@ -636,6 +666,13 @@ The class comment on `QuestionPanel` says option labels "neither wrap nor shrink
  * starve each other.
 ```
 
+This step named only `questionPanel.ts`'s own class comment. That was incomplete:
+`sessionRow.ts`'s `_questionBox` carries a near-duplicate of the same claim —
+"option labels neither wrap nor shrink" — as the reason `_questionBox` gets its
+own full-width line, and this step left it standing. A post-review fix caught
+it and rewrote it to the same reason this step gives `questionPanel.ts`, while
+keeping the rest of that comment (the `ClutterBoxLayout` spacing note) intact.
+
 - [ ] **Step 4: Drop the two dead rules**
 
 In `stylesheet.css`, delete these two lines — the bold and the 0.9em they carried now live in the markup, and the labels they targeted no longer exist:
@@ -687,6 +724,24 @@ EOF
 - Consumes: the popup-level scroll view from Task 3 — the only remaining bound on a long plan.
 - Produces: `TaskList` keeps its public shape (`attachTo`, `detach`, `setExpanded`, `update`, `destroy`), so `island.ts` and `sessionRow.ts` need no change.
 
+That last claim was wrong for `sessionRow.ts`: no *code* there changes, but two of
+its *comments* describe facts this task removes. `_taskBox`'s comment says a
+collapsed `TaskList`'s "own fold (setExpanded) hides its ScrollView while
+leaving it parented here" — true before this task, false after, since
+`TaskList` no longer owns a `ScrollView` at all (Step 3 below). And
+`src/core/tasks.ts`'s `sameTasks` doc comment says `TaskList` skips its
+rebuild "which would otherwise throw the reader's scroll position back to the
+top" — the same now-deleted scroll view. Both were missed at the time and
+caught in a later review pass:
+- `sessionRow.ts`'s `_taskBox` comment now names the widget this task leaves
+  behind — "hides its own St.BoxLayout while leaving it parented here" — and
+  is otherwise unchanged; it is load-bearing for two other bug fixes, so
+  nothing about its length or its conclusion changes.
+- `tasks.ts`'s `sameTasks` comment now gives the same reason `taskList.ts`'s
+  own `update()` comment gives (Step 4 below): an unconditional rebuild churns
+  actors under the *popup's* scroll position and can change the body's
+  height, not the list's own (now nonexistent) one.
+
 - [ ] **Step 1: Write the failing test**
 
 Create `test/shell/noEllipsis.test.ts`:
@@ -721,6 +776,24 @@ describe('the popup never truncates an option or a task', () => {
   })
 })
 ```
+
+This suite guards only half its invariant as written: every assertion above is
+negative (no `EllipsizeMode.END/START/MIDDLE`, no `ScrollView`, no
+`dasbo-tasks-scroll`), so deleting `line_wrap = true` or the `line_wrap_mode`
+line from either file leaves every one of them green while producing one
+unwrapped line that overhangs the popup's fixed 26em width — a different
+failure from an ellipsis, and just as bad. A post-review fix strengthened this
+suite:
+- Added, in the same loop over both files, the positive half of the
+  invariant: `expect(src).toContain('line_wrap = true')`,
+  `expect(src).toContain('Pango.WrapMode.WORD_CHAR')`, and
+  `expect(src).toContain('Pango.EllipsizeMode.NONE')`.
+- Strengthened the stylesheet assertion. `not.toContain('dasbo-tasks-scroll')`
+  passes if a cap is reintroduced under any other class name, so it gained a
+  second assertion matching the shape of the problem rather than its old name:
+  `expect(css).not.toMatch(/\.dasbo-task[^{]*\{[^}]*max-height/)`, kept
+  alongside the original class-name check since both catch something the
+  other does not.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
