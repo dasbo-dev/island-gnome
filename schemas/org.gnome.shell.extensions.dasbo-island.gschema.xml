@@ -27,6 +27,11 @@
       <summary>Permission prompt timeout in seconds</summary>
       <description>Seconds to wait for a decision before falling through to the agent's own prompt. Zero waits indefinitely.</description>
     </key>
+    <key name="question-timeout" type="i">
+      <default>120</default>
+      <summary>Agent question timeout in seconds</summary>
+      <description>Seconds to wait for an answer before falling through to the agent's own picker. Longer than the permission timeout because a question has to be read. Zero waits indefinitely.</description>
+    </key>
     <key name="auto-open-on-permission" type="b">
       <default>true</default>
       <summary>Auto-expand the popup on a permission request</summary>

@@ -71,6 +71,14 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     settings.bind('permission-timeout', timeout, 'value', 0)
     group.add(timeout)
 
+    const questionTimeout = new Adw.SpinRow({
+      title: 'Question timeout',
+      subtitle: 'Seconds before an agent\'s question falls through to its own picker. Zero waits indefinitely.',
+      adjustment: new Gtk.Adjustment({ lower: 0, upper: 3600, step_increment: 15 }),
+    })
+    settings.bind('question-timeout', questionTimeout, 'value', 0)
+    group.add(questionTimeout)
+
     const autoOpen = new Adw.SwitchRow({
       title: 'Open the popup automatically',
       subtitle: 'Suppressed while a fullscreen window is on the primary monitor',
