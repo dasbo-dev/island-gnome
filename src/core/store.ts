@@ -45,7 +45,10 @@ export class SessionStore {
         cwd: e.cwd,
         state: 'idle',
         pid: e.pid,
-        startedAt: e.ts,
+        // The agent process's own start time when the shell layer could read it,
+        // so a record recreated after a reap or a shell reload reports the same
+        // number rather than restarting the clock at the current task.
+        startedAt: e.agentStartedAt ?? e.ts,
         lastEventAt: e.ts,
       }
       this.sessions.set(key, s)
@@ -164,9 +167,10 @@ export class SessionStore {
         // so a killed agent mid-permission would otherwise wedge this session
         // forever. Only collect it once the process is confirmed gone AND no
         // timer will ever fire. Guarded on pid > 0 for the same reason as the
-        // liveness check below: resolveAgentPid returns 0 when it cannot read
-        // /proc, and pidAlive(0) is false, which would otherwise drop a live
-        // session with an unresolved pid on the first sweep.
+        // liveness check below: resolveAgent returns pid 0 when it cannot read
+        // /proc or cannot identify the agent, and pidAlive(0) is false, which
+        // would otherwise drop a live session with an unresolved pid on the
+        // first sweep.
         const zombie = s.pid > 0 && s.pendingPermission.deadline === 0 && !pidAlive(s.pid)
         if (zombie) {
           this.sessions.delete(key)
@@ -209,13 +213,13 @@ export class SessionStore {
         continue
       }
       // `pid` is the agent process, not the hook — the D-Bus handlers resolve it
-      // through resolveAgentPid while the hook is still blocked in its call — so
+      // through resolveAgent while the hook is still blocked in its call — so
       // this is a real liveness test. It is the only thing that clears the pill
       // for an agent with no session-end event, or a Claude install predating the
-      // SessionEnd hook. Guarded on pid > 0 because resolveAgentPid returns 0
-      // when it cannot read /proc and pidAlive(0) is false, which would otherwise
-      // reap a perfectly live session on the very first sweep. Those fall back to
-      // the stale window below.
+      // SessionEnd hook. Guarded on pid > 0 because resolveAgent returns pid 0
+      // when it cannot read /proc or cannot identify the agent, and pidAlive(0)
+      // is false, which would otherwise reap a perfectly live session on the
+      // very first sweep. Those fall back to the stale window below.
       const agentGone = s.pid > 0 && !pidAlive(s.pid)
       const abandoned = now - s.lastEventAt > STALE_MS && !pidAlive(s.pid)
       if (agentGone || abandoned) {

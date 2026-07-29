@@ -5,8 +5,17 @@ export type AgentId = 'claude' | 'codex' | 'antigravity'
  * Adapters prefer payload values where they exist and fall back to these.
  */
 export interface HookContext {
-  /** PID of the hook process, the seed for jump-back ancestry. */
+  /**
+   * PID of the agent process, resolved from the hook's ancestry by
+   * `resolveAgent`. 0 when the agent could not be identified.
+   */
   pid: number
+  /**
+   * When the agent process started, in ms since the epoch, resolved from /proc
+   * by the shell layer. Undefined when /proc could not supply it; the store
+   * then falls back to the event timestamp.
+   */
+  agentStartedAt?: number
   /** Milliseconds since epoch, supplied by the caller so adapters stay pure. */
   ts: number
   /** Working directory of the hook process. Used when the payload carries no cwd. */
@@ -37,8 +46,17 @@ export interface AgentEvent {
   /** Human-readable detail, e.g. the bash command being run. */
   detail?: string
   transcriptPath?: string
-  /** PID of the hook process, used as the seed for jump-back ancestry. */
+  /**
+   * PID of the agent process, resolved from the hook's ancestry by
+   * `resolveAgent`. 0 when the agent could not be identified.
+   */
   pid: number
+  /**
+   * When the agent process started, in ms since the epoch, resolved from /proc
+   * by the shell layer. Undefined when /proc could not supply it; the store
+   * then falls back to the event timestamp.
+   */
+  agentStartedAt?: number
   /** Milliseconds since epoch, supplied by the caller, never read from a clock here. */
   ts: number
   /**

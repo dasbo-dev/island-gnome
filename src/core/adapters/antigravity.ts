@@ -25,6 +25,7 @@ function detailFromToolCall(toolCall: unknown): string | undefined {
 export const antigravityAdapter: AgentAdapter = {
   id: 'antigravity',
   displayName: 'Antigravity CLI',
+  procNames: ['agy'],
 
   normalize(raw, ctx) {
     if (!isRecord(raw)) return null
@@ -55,6 +56,7 @@ export const antigravityAdapter: AgentAdapter = {
       detail: error ?? detailFromToolCall(toolCall),
       transcriptPath: str(raw['transcriptPath']),
       pid: ctx.pid,
+      agentStartedAt: ctx.agentStartedAt,
       ts: ctx.ts,
     }
   },

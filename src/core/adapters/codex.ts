@@ -37,6 +37,7 @@ const KIND_BY_EVENT: Record<string, EventKind> = {
 export const codexAdapter: AgentAdapter = {
   id: 'codex',
   displayName: 'Codex CLI',
+  procNames: ['codex'],
 
   normalize(raw, ctx) {
     if (!isRecord(raw)) return null
@@ -61,6 +62,7 @@ export const codexAdapter: AgentAdapter = {
       detail: detailFromToolInput(raw['tool_input']) ?? str(raw['command']),
       transcriptPath: str(raw['transcript_path']),
       pid: ctx.pid,
+      agentStartedAt: ctx.agentStartedAt,
       ts: ctx.ts,
     }
   },

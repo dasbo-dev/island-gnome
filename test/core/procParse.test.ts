@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { ancestorPids, parsePpid } from '../../src/core/procParse.js'
+import {
+  agentStartMs,
+  ancestorPids,
+  parseBtime,
+  parseCmdlineArgs,
+  parseComm,
+  parsePpid,
+  parseStartTicks,
+  selectAgentPid,
+} from '../../src/core/procParse.js'
 
 describe('parsePpid', () => {
   it('reads the ppid field from a normal stat line', () => {
@@ -41,5 +50,230 @@ describe('ancestorPids', () => {
 
   it('returns an empty array for pid zero', () => {
     expect(ancestorPids(0, readStat)).toEqual([])
+  })
+})
+
+describe('parseComm', () => {
+  it('reads comm from a normal stat line', () => {
+    expect(parseComm('1234 (claude) S 1000 1234 ...')).toBe('claude')
+  })
+
+  it('survives a comm containing spaces and parentheses', () => {
+    expect(parseComm('4242 (my weird (proc)) S 99 4242 ...')).toBe('my weird (proc)')
+  })
+
+  it('returns null for junk', () => {
+    expect(parseComm('')).toBeNull()
+    expect(parseComm('no parens here')).toBeNull()
+    expect(parseComm('1234 )backwards( S 1')).toBeNull()
+  })
+})
+
+describe('parseStartTicks', () => {
+  // Fields 3..22 after the closing paren: state, ppid, pgrp, session, tty_nr,
+  // tpgid, flags, minflt, cminflt, majflt, cmajflt, utime, stime, cutime,
+  // cstime, priority, nice, num_threads, itrealvalue, starttime.
+  const stat = (starttime: number) =>
+    `1234 (claude) S 1000 1234 1234 34816 1234 4194304 900 0 0 0 12 3 0 0 20 0 14 0 ${starttime} 123456 ...`
+
+  it('reads starttime, field 22', () => {
+    expect(parseStartTicks(stat(987654))).toBe(987654)
+  })
+
+  it('survives a comm containing spaces and parentheses', () => {
+    expect(parseStartTicks(stat(11).replace('(claude)', '(my weird (proc))'))).toBe(11)
+  })
+
+  it('returns null when the line is too short or unparseable', () => {
+    expect(parseStartTicks('1234 (claude) S 1000 1234')).toBeNull()
+    expect(parseStartTicks('')).toBeNull()
+    expect(
+      parseStartTicks(
+        '1234 (claude) S 1000 1234 1234 34816 1234 4194304 900 0 0 0 12 3 0 0 20 0 14 0 nope 999'
+      )
+    ).toBeNull()
+  })
+})
+
+describe('parseBtime', () => {
+  const procStat = 'cpu  1 2 3\ncpu0 1 2 3\nintr 99\nctxt 12345\nbtime 1753000000\nprocesses 700\n'
+
+  it('reads the btime line', () => {
+    expect(parseBtime(procStat)).toBe(1753000000)
+  })
+
+  it('returns null when there is no btime line', () => {
+    expect(parseBtime('cpu  1 2 3\nctxt 12345\n')).toBeNull()
+  })
+
+  it('returns null for a non-numeric or zero btime', () => {
+    expect(parseBtime('btime later\n')).toBeNull()
+    expect(parseBtime('btime 0\n')).toBeNull()
+  })
+})
+
+describe('selectAgentPid', () => {
+  /** Build a readStat over a { pid: [ppid, comm] } tree. */
+  const reader = (tree: Record<number, [number, string]>) => (pid: number) => {
+    const entry = tree[pid]
+    return entry === undefined ? null : `${pid} (${entry[1]}) S ${entry[0]} rest`
+  }
+  /** No cmdline available, unless a test needs one. */
+  const noCmdline = () => null
+
+  it('picks the ancestor whose comm matches the agent signature', () => {
+    // hook -> wrapper shell -> claude -> terminal -> init
+    const readStat = reader({
+      900: [800, 'gjs'], 800: [700, 'zsh'], 700: [600, 'claude'],
+      600: [500, 'kitty'], 500: [1, 'systemd'], 1: [0, 'systemd'],
+    })
+    expect(selectAgentPid(900, ['claude'], readStat, noCmdline)).toBe(700)
+  })
+
+  it('sees through a wrapper shell plus a login shell', () => {
+    const readStat = reader({
+      900: [800, 'gjs'], 800: [750, 'zsh'], 750: [700, 'bash'], 700: [1, 'claude'], 1: [0, 'systemd'],
+    })
+    expect(selectAgentPid(900, ['claude'], readStat, noCmdline)).toBe(700)
+  })
+
+  it('never returns the hook process itself', () => {
+    const readStat = reader({ 900: [1, 'claude'], 1: [0, 'systemd'] })
+    expect(selectAgentPid(900, ['claude'], readStat, noCmdline)).toBe(0)
+  })
+
+  it('falls back to the nearest non-shell, non-interpreter ancestor for an unknown agent', () => {
+    const readStat = reader({
+      900: [800, 'gjs'], 800: [700, 'zsh'], 700: [600, 'someagent'], 600: [1, 'kitty'], 1: [0, 'systemd'],
+    })
+    expect(selectAgentPid(900, ['claude'], readStat, noCmdline)).toBe(700)
+  })
+
+  it('prefers a signature match over a nearer non-shell ancestor', () => {
+    const readStat = reader({
+      900: [800, 'gjs'], 800: [700, 'tmux'], 700: [1, 'claude'], 1: [0, 'systemd'],
+    })
+    expect(selectAgentPid(900, ['claude'], readStat, noCmdline)).toBe(700)
+  })
+
+  it('returns 0 when every ancestor is a shell or init', () => {
+    const readStat = reader({ 900: [800, 'gjs'], 800: [1, 'zsh'], 1: [0, 'systemd'] })
+    expect(selectAgentPid(900, ['claude'], readStat, noCmdline)).toBe(0)
+  })
+
+  it('matches the kernel-truncated 15-character comm', () => {
+    const readStat = reader({ 900: [800, 'gjs'], 800: [1, 'antigravity-cli'], 1: [0, 'systemd'] })
+    expect(selectAgentPid(900, ['antigravity-cli'], readStat, noCmdline)).toBe(800)
+  })
+
+  it('stops at an unreadable link without throwing', () => {
+    const readStat = reader({ 900: [800, 'gjs'] })
+    expect(selectAgentPid(900, ['claude'], readStat, noCmdline)).toBe(0)
+  })
+
+  it('returns 0 for a non-positive hook pid', () => {
+    const readStat = reader({ 900: [1, 'claude'], 1: [0, 'systemd'] })
+    expect(selectAgentPid(0, ['claude'], readStat, noCmdline)).toBe(0)
+  })
+
+  it('finds a node-hosted agent by cmdline', () => {
+    // hook -> wrapper shell -> node (the agent, via a #!/usr/bin/env node shim) -> login shell -> terminal -> init
+    const readStat = reader({
+      900: [800, 'gjs'], 800: [700, 'zsh'], 700: [600, 'node'],
+      600: [500, 'zsh'], 500: [1, 'gnome-terminal-'], 1: [0, 'systemd'],
+    })
+    const readCmdline = (pid: number) =>
+      pid === 700 ? 'node\0/home/u/.npm-global/bin/claude\0--flag\0' : null
+    expect(selectAgentPid(900, ['claude'], readStat, readCmdline)).toBe(700)
+  })
+
+  it('stops the walk at an unrelated node process instead of selecting the terminal', () => {
+    const readStat = reader({
+      900: [800, 'gjs'], 800: [700, 'zsh'], 700: [600, 'node'],
+      600: [500, 'zsh'], 500: [1, 'gnome-terminal-'], 1: [0, 'systemd'],
+    })
+    const readCmdline = (pid: number) => (pid === 700 ? 'node\0server.js\0' : null)
+    expect(selectAgentPid(900, ['claude'], readStat, readCmdline)).toBe(0)
+  })
+
+  it('stops at an interpreter but keeps a fallback found earlier in the walk', () => {
+    // hook -> wrapper shell -> tmux (fallback) -> node (unrelated, stops the walk) -> terminal
+    const readStat = reader({
+      900: [800, 'gjs'], 800: [700, 'zsh'], 700: [600, 'tmux'],
+      600: [500, 'node'], 500: [1, 'gnome-terminal-'], 1: [0, 'systemd'],
+    })
+    const readCmdline = (pid: number) => (pid === 600 ? 'node\0unrelated.js\0' : null)
+    expect(selectAgentPid(900, ['claude'], readStat, readCmdline)).toBe(700)
+  })
+
+  it('a signature match nearer than an interpreter still wins', () => {
+    // hook -> wrapper shell -> claude (matches, returned before the walk ever reaches the interpreter)
+    const readStat = reader({
+      900: [800, 'gjs'], 800: [700, 'zsh'], 700: [600, 'claude'], 600: [1, 'node'], 1: [0, 'systemd'],
+    })
+    expect(selectAgentPid(900, ['claude'], readStat, noCmdline)).toBe(700)
+  })
+
+  it('stops at an interpreter whose cmdline cannot be read', () => {
+    // hook -> wrapper shell -> node (unreadable cmdline, stops) -> terminal -> init
+    const readStat = reader({
+      900: [800, 'gjs'], 800: [700, 'zsh'], 700: [600, 'node'],
+      600: [500, 'gnome-terminal-'], 500: [1, 'systemd'],
+    })
+    const readCmdline = (pid: number) => (pid === 700 ? null : null)
+    expect(selectAgentPid(900, ['claude'], readStat, readCmdline)).toBe(0)
+  })
+})
+
+describe('parseCmdlineArgs', () => {
+  it('splits a normal NUL-separated cmdline', () => {
+    expect(parseCmdlineArgs('node\0/home/u/.npm-global/bin/claude\0--flag\0')).toEqual([
+      'node',
+      '/home/u/.npm-global/bin/claude',
+      '--flag',
+    ])
+  })
+
+  it('drops a trailing NUL without adding an empty entry', () => {
+    expect(parseCmdlineArgs('node\0server.js\0')).toEqual(['node', 'server.js'])
+  })
+
+  it('returns an empty array for an empty string', () => {
+    expect(parseCmdlineArgs('')).toEqual([])
+  })
+})
+
+describe('agentStartMs', () => {
+  const BTIME = 1753000000 // seconds since epoch
+  const procStat = `cpu  1 2 3\nbtime ${BTIME}\nprocesses 700\n`
+  /** starttime in ticks; USER_HZ is 100, so 100 ticks = 1 second after boot. */
+  const stat = (ticks: number) =>
+    `1234 (claude) S 1 1 1 0 1 0 0 0 0 0 0 0 0 0 20 0 1 0 ${ticks} 999 ...`
+  const bootedMs = BTIME * 1000
+
+  it('adds starttime to boot time and returns milliseconds', () => {
+    expect(agentStartMs(stat(360000), procStat, bootedMs + 4_000_000)).toBe(bootedMs + 3_600_000)
+  })
+
+  it('returns null when starttime cannot be read', () => {
+    expect(agentStartMs('1234 (claude) S 1', procStat, bootedMs + 4_000_000)).toBeNull()
+  })
+
+  it('returns null when btime cannot be read', () => {
+    expect(agentStartMs(stat(100), 'cpu 1 2 3\n', bootedMs + 4_000_000)).toBeNull()
+  })
+
+  it('rejects a start time in the future beyond the slack window', () => {
+    expect(agentStartMs(stat(100_000), procStat, bootedMs)).toBeNull()
+  })
+
+  it('accepts a start time a few seconds ahead of now', () => {
+    // 100 ticks = 1s after boot, evaluated 1s before boot: inside the 5s slack.
+    expect(agentStartMs(stat(100), procStat, bootedMs - 1000)).toBe(bootedMs + 1000)
+  })
+
+  it('rejects a start time older than thirty days', () => {
+    const now = bootedMs + 31 * 24 * 60 * 60 * 1000
+    expect(agentStartMs(stat(100), procStat, now)).toBeNull()
   })
 })

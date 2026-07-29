@@ -129,7 +129,7 @@ describe('SessionStore', () => {
   })
 
   it('reap never uses liveness on an unresolved pid, which would delete a live session', () => {
-    // resolveAgentPid returns 0 when it cannot read /proc, and pidAlive(0) is
+    // resolveAgent returns 0 when it cannot read /proc, and pidAlive(0) is
     // false. Without the pid > 0 guard this session would go on the first sweep.
     const s = new SessionStore()
     s.apply(ev({ ts: 0, pid: 0 }))
@@ -187,7 +187,7 @@ describe('SessionStore', () => {
   })
 
   it('reap does not treat a pending permission with an unresolved pid as a zombie', () => {
-    // resolveAgentPid returns 0 when it cannot read /proc, and pidAlive(0) is
+    // resolveAgent returns 0 when it cannot read /proc, and pidAlive(0) is
     // false. Without the pid > 0 guard, a live session with an unresolved pid
     // and permission-timeout=0 would be dropped on the first sweep, silently
     // resolving the held D-Bus reply as fallthrough. The zombie rule checks
@@ -361,5 +361,32 @@ describe('SessionStore', () => {
       s.apply(ev({ sessionId: `s${i}`, ts: i }))
     }
     expect(s.list().length).toBe(300)
+  })
+
+  it('stamps startedAt from the agent process when the event carries it', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 9000, agentStartedAt: 1500 }))
+    expect(s.list()[0]!.startedAt).toBe(1500)
+  })
+
+  it('falls back to the event timestamp when /proc supplied nothing', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 9000 }))
+    expect(s.list()[0]!.startedAt).toBe(9000)
+  })
+
+  it('keeps lastEventAt on the event timestamp, not the process start', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 9000, agentStartedAt: 1500 }))
+    expect(s.list()[0]!.lastEventAt).toBe(9000)
+  })
+
+  it('reports the same startedAt after a reap recreates the session', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 9000, agentStartedAt: 1500 }))
+    s.reap(9000, () => false)
+    expect(s.list()).toHaveLength(0)
+    s.apply(ev({ kind: 'tool-start', tool: 'Edit', ts: 20000, agentStartedAt: 1500 }))
+    expect(s.list()[0]!.startedAt, 'the clock must not restart with the record').toBe(1500)
   })
 })

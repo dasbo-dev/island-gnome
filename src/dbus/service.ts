@@ -3,7 +3,7 @@ import GLib from 'gi://GLib'
 import { BUS_NAME, IFACE_XML, OBJECT_PATH } from './iface.js'
 import { adapters, isAgentId, normalizeFor } from '../core/adapters/index.js'
 import { sessionKey } from '../core/types.js'
-import { resolveAgentPid } from '../shell/windowFinder.js'
+import { resolveAgent } from '../shell/windowFinder.js'
 import type { SessionStore } from '../core/store.js'
 import type { PermissionTable } from '../core/permissions.js'
 
@@ -76,7 +76,14 @@ export class IslandService {
     }
     // Resolved now, while the hook is still alive to have a readable /proc
     // entry — its own pid is dead within milliseconds of this call returning.
-    const e = normalizeFor(agent, raw, { pid: resolveAgentPid(pid), ts: Date.now(), cwd, event })
+    const agentProc = resolveAgent(agent, pid)
+    const e = normalizeFor(agent, raw, {
+      pid: agentProc.pid,
+      agentStartedAt: agentProc.startedAt,
+      ts: Date.now(),
+      cwd,
+      event,
+    })
     if (!e) return
     this.store.apply(e)
   }
@@ -120,7 +127,14 @@ export class IslandService {
 
       // Resolved now, while the hook is still alive to have a readable /proc
       // entry — its own pid is dead within milliseconds of this call returning.
-      const e = normalizeFor(agent, raw, { pid: resolveAgentPid(pid), ts: Date.now(), cwd, event })
+      const agentProc = resolveAgent(agent, pid)
+      const e = normalizeFor(agent, raw, {
+        pid: agentProc.pid,
+        agentStartedAt: agentProc.startedAt,
+        ts: Date.now(),
+        cwd,
+        event,
+      })
       if (!e) return reply(fallthroughJson())
 
       // Register the session first so the permission has a row to attach to.
