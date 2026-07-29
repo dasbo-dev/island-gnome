@@ -203,18 +203,25 @@ export const SessionRow = GObject.registerClass(
         ? `#${this._session.conversationIndex} ${elapsed}`
         : elapsed
       const processStartedAt = this._session.processStartedAt
-      const showsTotal = this._session.conversationIndex > 1 && processStartedAt !== undefined
-      if (processStartedAt !== undefined) {
+      // One condition decides both halves, and it is the same condition on
+      // both branches, so the label can never be visible with empty or stale
+      // text: the write and the reveal happen together, in that order, and
+      // every path that does not write also hides. This is the only place
+      // that knows both the current time and what the text will say, so it is
+      // the only place that can turn the label on at all.
+      //
+      // The text write used to be guarded on processStartedAt alone, which is
+      // true of nearly every row — so the common case, a first conversation
+      // that never shows this label, reformatted and reassigned a string
+      // nobody could see once a second. The else branch keeps the other half
+      // of the old behaviour: a row that stops qualifying is hidden right
+      // here, on the next tick, rather than waiting for update() to notice.
+      if (processStartedAt !== undefined && this._session.conversationIndex > 1) {
         this._shellTotal.text = formatElapsed(now - processStartedAt)
+        this._shellTotal.visible = true
+      } else {
+        this._shellTotal.visible = false
       }
-      // Set unconditionally, not nested in the guard above: this is the only
-      // place that knows both the current time and what the label's text
-      // will say, so it is the only place that can turn the label on without
-      // it ever being visible with stale or empty text. Running it outside
-      // the guard also means a row whose processStartedAt is undefined gets
-      // hidden right here on every tick, rather than waiting on update()'s
-      // next call to notice.
-      this._shellTotal.visible = showsTotal
     }
 
     showTransient(text: string): void {
