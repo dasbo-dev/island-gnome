@@ -264,8 +264,12 @@ export const Island = GObject.registerClass(
 
     /**
      * Kick off a task-directory read for one session, unless one is already in
-     * flight for it. The key stays dirty until the read comes back, so a change
-     * landing mid-read is picked up by the next tick rather than lost.
+     * flight for it. The mark is consumed here, before the read starts, rather
+     * than in the completion callback — so a notifyTasksChanged() landing while
+     * the read is in flight re-dirties the key instead of being swallowed by
+     * it, and the next tick re-reads. Clearing it on completion instead would
+     * let a mid-read mark be added and then deleted underneath the read that
+     * never saw it, losing the update until the popup is closed and reopened.
      */
     private _readTasksFor(session: Session): void {
       const key = session.key
@@ -278,10 +282,10 @@ export const Island = GObject.registerClass(
         this._dirtyTasks.delete(key)
         return
       }
+      this._dirtyTasks.delete(key)
       this._readingTasks.add(key)
       readTasks(dir, (tasks) => {
         this._readingTasks.delete(key)
-        this._dirtyTasks.delete(key)
         // null means the directory could not be read at all, which is the
         // ordinary state of a session that has never made a plan. Setting an
         // empty list here would also blank a good list on a transient failure,
