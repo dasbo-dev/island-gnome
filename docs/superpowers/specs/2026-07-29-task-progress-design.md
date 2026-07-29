@@ -187,7 +187,13 @@ Owns the dirty set — a `Set<string>` of session keys — because it is the onl
 thing that knows whether the popup is open. `onTasksChanged(key)` adds to it.
 A read is kicked off when the popup opens (`_startTimer`, already the "is open"
 signal, as `_rebuildRows` records) for every session, and on the one-second tick
-for any session in the set. A completed read clears that key.
+for any session in the set. The key is cleared when its read *starts*, not when
+it completes: clearing it on completion would let a mark that lands while the
+read is in flight be swallowed by that same read and then deleted, losing the
+update until the popup is closed and reopened. Clearing at the start instead
+means a mid-read mark re-dirties the key, and the read already running has no
+way to un-dirty something added after it began — so the next tick sees the key
+dirty again and reads it.
 
 Panel lifecycle mirrors the question panel's: a `TaskList` is built when a
 session first has tasks, `update`d in place afterwards, and destroyed with the
@@ -205,8 +211,10 @@ asynchronous throughout, because this runs on the compositor thread. Claude
 returns `~/.claude/tasks/<sessionId>` via `GLib.get_home_dir()`; every other
 agent returns null.
 
-One read in flight per session. A dirty mark arriving mid-read re-runs it once
-on completion rather than queueing.
+One read in flight per session. The caller (`island.ts`) consumes the dirty
+mark before starting the read rather than after it finishes, so a mark arriving
+mid-read re-dirties the key instead of being lost, and is picked up by the
+next tick rather than queued onto the read already running.
 
 Lives in `src/shell` so `test/core/purity.test.ts` stays satisfied.
 
@@ -229,15 +237,25 @@ question call site is untouched. Fold state:
 - tasks only → **collapsed** by default; a plan is reference material, not a demand
 - a question arrives → **force-expanded**, keeping today's rule that an answer
   can never hide behind a fold left over from something else
-- the question resolves → the row keeps whatever fold the user last chose,
-  rather than snapping shut on a list they had opened
+- the question resolves → the row keeps whatever fold the user last chose, but
+  only while a task list remains to apply that choice to. A row with tasks
+  still attached stays as the user left it — closing an answer must not also
+  close a plan they opened on purpose. A row with no tasks has nothing left to
+  fold, so it resets to collapsed instead of leaving the arrow stuck open with
+  no control left to close it — otherwise a later plan on that same row would
+  reveal an arrow already reading open, forcing the list out and shoving every
+  row below it down the popup.
 
 **Region.** `_questionBox` is unchanged. A new `_taskBox` below it: an
 `St.ScrollView` (`vscrollbar_policy: AUTOMATIC`) around a vertical
-`St.BoxLayout`, max-height in the stylesheet. Same `child-added` /
-`child-removed` visibility handling the other two boxes use, because
+`St.BoxLayout`, max-height in the stylesheet. `_taskBox` uses the same
+`child-added` / `child-removed` wiring the other two boxes use, because
 `ClutterBoxLayout` spaces only between visible children and an always-present
-empty box would cost every row a gap.
+empty box would cost every row a gap — but child count alone is not enough for
+this box: a `TaskList` stays attached (a child) while collapsed, so the row
+also folds its own `_expanded` state into `_taskBox`'s visibility. A non-empty
+`_taskBox` is shown only while the row is open, so the ordinary collapsed case
+does not carry the gap above nothing.
 
 ### `src/shell/taskList.ts` (new)
 
@@ -275,11 +293,16 @@ the reader's scroll position back to the top.
 | No task directory yet, or a session predating the feature | `tasks` stays undefined: no counter, no arrow, row identical to today |
 | Directory unreadable, enumerate fails | Previous list retained, never blanked — the same rule `processStartedAt` follows: a transient failure may fail to update a good value, never destroy one |
 | One `<id>.json` malformed or half-written | That file skipped, the rest render. Claude writes these without an atomic rename, so a partial read is expected, not exceptional |
-| Implausible number of files | Read bounded at 200 entries — a bound on work, not a display cap; no real plan approaches it |
+| Implausible number of files | Read bounded at 200 directory entries — a bound on work, not a display cap; no real plan approaches it. The bound is applied before the `.json` filter, so a full 200-entry batch that happens to contain no `.json` names is treated as "could not read it properly" (null, previous list retained) rather than as a genuine empty plan — only a batch shorter than 200 with no `.json` names is trusted as one |
 | Codex `update_plan` shape differs from the guess | `parseTasks` returns null, nothing is set, Codex rows look as they do today |
 | A tool renamed again | Dirty-marking stops firing; the popup-open read keeps the list current whenever it is on screen |
 
-Every path degrades to the row as it exists today. None produces a wrong number.
+Most paths degrade to the row as it exists today. The one exception is the
+half-written file: skipping it lowers the denominator along with the
+numerator, so a ten-task plan caught mid-`TaskCreate` reads `3/9` for that one
+read cycle rather than `3/10`. That number is transiently low, not wrong in a
+way that sticks — the next read, a second later, sees the completed write and
+corrects it.
 
 ## Testing
 

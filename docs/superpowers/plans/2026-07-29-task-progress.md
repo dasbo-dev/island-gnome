@@ -748,12 +748,12 @@ export function readTasks(dir: string, done: (tasks: AgentTask[] | null) => void
         return
       }
       enumerator.next_files_async(MAX_FILES, GLib.PRIORITY_LOW, null, (esrc, eres) => {
+        let entryCount: number
         let names: string[]
         try {
-          names = (esrc as Gio.FileEnumerator)
-            .next_files_finish(eres)
-            .map((info) => info.get_name())
-            .filter((name) => name.endsWith('.json'))
+          const entries = (esrc as Gio.FileEnumerator).next_files_finish(eres)
+          entryCount = entries.length
+          names = entries.map((info) => info.get_name()).filter((name) => name.endsWith('.json'))
         } catch {
           done(null)
           return
@@ -762,7 +762,17 @@ export function readTasks(dir: string, done: (tasks: AgentTask[] | null) => void
         }
 
         if (names.length === 0) {
-          done([])
+          // A full batch (MAX_FILES raw entries) with none of them .json is not
+          // proof of an empty plan — the bound was applied to directory entries
+          // before the filter ran, so a directory that happens to hold 200+
+          // non-.json entries ahead of the task files in enumeration order
+          // would hit this with real tasks still unseen. null tells the caller
+          // "could not read it properly", the same as any other failed read, so
+          // a good list is not blanked by an artifact of the enumeration order.
+          // A short batch (fewer than MAX_FILES entries) with none of them
+          // .json has genuinely seen the whole directory and found no plan —
+          // that is a real empty plan, and stays [].
+          done(entryCount === MAX_FILES ? null : [])
           return
         }
 
@@ -1075,6 +1085,15 @@ Directly after the `_questionBox` block (the one with the `child-added` / `child
       // Same visibility handling as the two boxes above, for the same reason:
       // ClutterBoxLayout spaces only between visible children, so an
       // always-present empty box would cost every row a gap it never uses.
+      //
+      // But the child-count rule alone is not enough for this box specifically:
+      // unlike the permission and question boxes, this one holds a TaskList
+      // whose own fold (setExpanded) hides its ScrollView while leaving it
+      // parented here — so a *collapsed* list, which is the default, still
+      // counts as a child and would keep this box visible, costing the row a
+      // 6px .dasbo-row-outer gap above nothing. _syncTaskBoxVisible folds the
+      // expanded state into the same visible flag so a non-empty box is only
+      // ever shown while the row is open.
       this._taskBox = new St.BoxLayout({
         vertical: true,
         x_expand: true,
@@ -1082,10 +1101,10 @@ Directly after the `_questionBox` block (the one with the `child-added` / `child
       })
       this._taskBox.visible = false
       this._taskBox.connect('child-added', () => {
-        this._taskBox.visible = true
+        this._syncTaskBoxVisible()
       })
       this._taskBox.connect('child-removed', () => {
-        this._taskBox.visible = this._taskBox.get_n_children() > 0
+        this._syncTaskBoxVisible()
       })
 ```
 
@@ -1102,12 +1121,14 @@ Change the expander's initial label to match the new collapsed default:
         label: '▸',
 ```
 
-and rename the callback it fires:
+and rename the callback it fires, and have it keep `_taskBox`'s visibility in
+step with the fold it just changed:
 
 ```ts
       this._expander.connect('clicked', () => {
         this._expanded = !this._expanded
         this._expander.label = this._expanded ? '▾' : '▸'
+        this._syncTaskBoxVisible()
         this._cb.onToggleExpanded(this._expanded)
       })
 ```
@@ -1153,7 +1174,18 @@ Replace `setHasQuestion` with the pair below:
       if (has) {
         this._expanded = true
         this._expander.label = '▾'
+      } else if (!this._hasTasks) {
+        // Restore the collapsed default only when there is no task list left
+        // to fold: if there is, the row's fold is the user's own choice (they
+        // opened it to read the plan, or closed it on purpose) and a question
+        // resolving must not overwrite that. Without this guard, a question
+        // that resolves on a row with no tasks leaves _expanded stuck at true
+        // with no arrow to undo it — until a later plan reveals an arrow that
+        // already reads open and shoves the rest of the popup down on its own.
+        this._expanded = false
+        this._expander.label = '▸'
       }
+      this._syncTaskBoxVisible()
       this._syncExpander()
     }
 
@@ -1164,11 +1196,26 @@ Replace `setHasQuestion` with the pair below:
      */
     setHasTasks(has: boolean): void {
       this._hasTasks = has
+      this._syncTaskBoxVisible()
       this._syncExpander()
     }
 
     private _syncExpander(): void {
       this._expander.visible = this._hasQuestion || this._hasTasks
+    }
+
+    /**
+     * _taskBox's own child-added/child-removed handlers only know whether it
+     * has a child, not whether the row is folded — and a TaskList that is
+     * attached but collapsed (the default) is a non-empty box with nothing
+     * visible inside it. Left keyed on child count alone, that box would stay
+     * visible and cost the row .dasbo-row-outer's 6px inter-child spacing for
+     * a gap above zero height, on every row with a plan, in the common
+     * (collapsed) case. Folding _expanded into the same flag makes a
+     * non-empty box visible only while the row is open.
+     */
+    private _syncTaskBoxVisible(): void {
+      this._taskBox.visible = this._taskBox.get_n_children() > 0 && this._expanded
     }
 ```
 
@@ -1313,8 +1360,12 @@ Add these two methods beside `_tickAll`:
 ```ts
     /**
      * Kick off a task-directory read for one session, unless one is already in
-     * flight for it. The key stays dirty until the read comes back, so a change
-     * landing mid-read is picked up by the next tick rather than lost.
+     * flight for it. The mark is consumed here, before the read starts, rather
+     * than in the completion callback — so a notifyTasksChanged() landing while
+     * the read is in flight re-dirties the key instead of being swallowed by
+     * it, and the next tick re-reads. Clearing it on completion instead would
+     * let a mid-read mark be added and then deleted underneath the read that
+     * never saw it, losing the update until the popup is closed and reopened.
      */
     private _readTasksFor(session: Session): void {
       const key = session.key
@@ -1327,10 +1378,10 @@ Add these two methods beside `_tickAll`:
         this._dirtyTasks.delete(key)
         return
       }
+      this._dirtyTasks.delete(key)
       this._readingTasks.add(key)
       readTasks(dir, (tasks) => {
         this._readingTasks.delete(key)
-        this._dirtyTasks.delete(key)
         // null means the directory could not be read at all, which is the
         // ordinary state of a session that has never made a plan. Setting an
         // empty list here would also blank a good list on a transient failure,
