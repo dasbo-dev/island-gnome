@@ -26,6 +26,12 @@ interface Lineage {
  * Keyed on the pid *and* the process start time, never the pid alone: the
  * kernel recycles pids, and the start time is what makes one of them mean one
  * process. Callers pass 0 for an unknown start time so the key stays total.
+ *
+ * A transient /proc read failure can therefore split one process into two
+ * lineages: an event whose pid resolved but whose start time did not keys to
+ * `<agent>:<pid>:0` while its neighbours key to the real start time. The
+ * consequence is a restarted count and conversation clock for that lineage,
+ * not a wrong one, so it is left as is.
  */
 function lineageKey(agent: AgentId, pid: number, processStartedAt: number): string {
   return `${agent}:${pid}:${processStartedAt}`
@@ -48,6 +54,10 @@ export class SessionStore {
   }
 
   list(): Session[] {
+    // startedAt now marks when the current conversation began, not when the
+    // agent process did, so rows order by conversation age rather than
+    // process age — a record recreated by /clear sorts to the end while the
+    // outgoing record it replaced keeps its old position. Intended.
     return [...this.sessions.values()].sort((a, b) => a.startedAt - b.startedAt)
   }
 

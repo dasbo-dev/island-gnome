@@ -485,7 +485,8 @@ describe('SessionStore', () => {
   it('keeps the conversation clock when a reap recreates the record', () => {
     const s = new SessionStore()
     s.apply(ev({ sessionId: 'b', ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
-    s.reap(3000, () => true)
+    s.reap(3000, () => false)
+    expect(s.list()).toHaveLength(0)
     s.apply(ev({ sessionId: 'b', kind: 'tool-start', tool: 'Edit', ts: 30000, agentStartedAt: 1000 }))
     expect(s.list()[0]!.startedAt, 'the lineage outlives the record it numbered').toBe(2000)
     expect(s.list()[0]!.conversationIndex).toBe(2)
