@@ -53,6 +53,27 @@
 .dasbo-deny   { padding: 2px 10px; }
 .dasbo-always { padding: 2px 10px; font-size: 0.85em; }
 
+/* Every row here is a PopupBaseMenuItem built `reactive: false` (see the class
+   comments in popupHeader.ts and sessionRow.ts — an activatable item would turn
+   the whole row into a close button). That costs us the text colour twice over:
+   St adds the `:insensitive` pseudo class to any non-reactive actor, and
+   popupMenu.js adds the `popup-inactive-menu-item` style class to any
+   non-activatable item. The shell theme's
+   `.popup-inactive-menu-item:insensitive { color: #9a9a9a }` then wins, and
+   because `color` inherits, every label in the popup renders disabled-grey —
+   with the deliberate 0.7 dimming on activity/elapsed stacked on top of it.
+
+   The rows aren't disabled, only unclickable, so take the colour back. `inherit`
+   rather than a hex: it resolves up to `.popup-menu`, which is #ffffff under the
+   dark theme and #282828 under the light one. Prefixed with .popup-menu-content
+   purely for specificity — a bare `.dasbo-row:insensitive` only ties with the
+   theme's rule, and a tie is settled by stylesheet order, which is St's to
+   decide, not ours. */
+.popup-menu-content .dasbo-row:insensitive,
+.popup-menu-content .dasbo-header:insensitive {
+  color: inherit;
+}
+
 .dasbo-header { spacing: 12px; }
 
 .dasbo-header-title {
