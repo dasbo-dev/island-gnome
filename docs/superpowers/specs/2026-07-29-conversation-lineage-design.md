@@ -220,8 +220,7 @@ All the logic worth testing is pure and lives in `src/core`.
 
 - `startup` → index 1, `startedAt` = `agentStartedAt`
 - `clear` with a new session id → index 2, `startedAt` = event ts
-- `compact` → index 3, in both shapes: a new session id, and the same session id
-  rewritten in place
+- `compact` → index 3, same session id rewritten in place (measured in Risks)
 - the outgoing record keeps its own `startedAt` and index after a clear
 - `pid: 0` → no lineage, index 1, `startedAt` = `agentStartedAt`
 - a fresh store whose first event is a plain `tool-start` → index 1, pinning the
