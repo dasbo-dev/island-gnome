@@ -15,7 +15,7 @@ Spec: `docs/superpowers/specs/2026-07-29-task-progress-design.md`
 - `src/core/` must never import `gi://` or `resource://`. `test/core/purity.test.ts` enforces it. Everything touching the filesystem lives in `src/shell/`.
 - `src/shell/`, `src/dbus/` and `src/prefs.ts` have no unit tests and cannot get them — they need a running GNOME Shell. Their verification is `npm run typecheck` plus the manual `tools/fake-agent.js` drive described in each task.
 - No blocking filesystem calls on the compositor thread. Every read in `taskReader.ts` uses the `_async` / `_finish` pair.
-- `session_id` arrives from an untrusted D-Bus payload and is interpolated into a path. It must be rejected if it contains `/`.
+- `session_id` arrives from an untrusted D-Bus payload and is interpolated into a path. It must be exactly one ordinary path component — rejected if it contains `/` or starts with `.`.
 - Target: GNOME Shell 46, TypeScript 5.6, vitest 2.1.
 - Full test command: `npm test`. Typecheck: `npm run typecheck` (runs both tsconfigs and sums exit codes). Build: `npm run build`.
 - Commit style follows the existing log: `feat(core):`, `feat(shell):`, `fix(shell):`, `test(core):`, `docs:`.
@@ -705,12 +705,14 @@ const MAX_FILES = 200
  * directory with no cleanup anywhere.
  *
  * The id arrives over D-Bus from an unprivileged peer and is interpolated into
- * a path, so a separator in it is rejected outright. Without that, a crafted id
- * would let a peer point this reader anywhere in the user's home directory.
+ * a path, so it must be exactly one ordinary path component — a separator is
+ * rejected, and so is a leading dot, which covers `.` and `..`. `GLib.build_filenamev`
+ * does not normalise segments, so without the second half of that rule an id of
+ * `..` would resolve one directory up and point this reader at the whole of `~/.claude`.
  */
 export function taskDir(agent: AgentId, sessionId: string): string | null {
   if (agent !== 'claude') return null
-  if (!sessionId || sessionId.includes('/')) return null
+  if (!sessionId || sessionId.includes('/') || sessionId.startsWith('.')) return null
   return GLib.build_filenamev([GLib.get_home_dir(), '.claude', 'tasks', sessionId])
 }
 

@@ -20,12 +20,14 @@ const MAX_FILES = 200
  * directory with no cleanup anywhere.
  *
  * The id arrives over D-Bus from an unprivileged peer and is interpolated into
- * a path, so a separator in it is rejected outright. Without that, a crafted id
- * would let a peer point this reader anywhere in the user's home directory.
+ * a path, so it must be exactly one ordinary path component — a separator is
+ * rejected, and so is a leading dot, which covers `.` and `..`. `GLib.build_filenamev`
+ * does not normalise segments, so without the second half of that rule an id of
+ * `..` would resolve one directory up and point this reader at the whole of `~/.claude`.
  */
 export function taskDir(agent: AgentId, sessionId: string): string | null {
   if (agent !== 'claude') return null
-  if (!sessionId || sessionId.includes('/')) return null
+  if (!sessionId || sessionId.includes('/') || sessionId.startsWith('.')) return null
   return GLib.build_filenamev([GLib.get_home_dir(), '.claude', 'tasks', sessionId])
 }
 
