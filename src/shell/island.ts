@@ -129,10 +129,15 @@ export const Island = GObject.registerClass(
       // bounding what any row is allowed to say. menu.box is a plain
       // St.BoxLayout and a plain PopupMenu does not scroll in GNOME Shell 46 —
       // only PopupSubMenu.actor is an St.ScrollView — so the scrolling has to be
-      // added here. A PopupMenuSection inside it keeps addMenuItem working
-      // exactly as menu.addMenuItem does, so SessionRow and EmptyRow are
-      // unchanged; the header and separator stay direct menu items above it, so
-      // the preferences gear is still reachable with a long list of sessions.
+      // added here. A PopupMenuSection inside it keeps addMenuItem working like
+      // menu.addMenuItem for SessionRow and EmptyRow, which is all it needs to
+      // do here — but because it is parented with box.add_child rather than
+      // menu.addMenuItem, its _setParent is never called, so _getTopMenu()
+      // returns the section itself and itemActivated() cannot close the popup;
+      // harmless for today's non-activatable rows, but an ordinary activatable
+      // PopupMenuItem added here later would silently fail to close the menu.
+      // The header and separator stay direct menu items above it, so the
+      // preferences gear is still reachable with a long list of sessions.
       this._body = new PopupMenu.PopupMenuSection()
       this._scroll = new St.ScrollView({
         x_expand: true,
@@ -141,6 +146,10 @@ export const Island = GObject.registerClass(
         // vertical budget this whole arrangement exists to spend.
         hscrollbar_policy: St.PolicyType.NEVER,
         vscrollbar_policy: St.PolicyType.AUTOMATIC,
+        // GNOME 46's own PopupSubMenu sets this on its St.ScrollView too: without
+        // it, rows can paint outside the capped viewport during the popup's open
+        // animation.
+        clip_to_allocation: true,
       })
       this._scroll.set_child(this._body.actor)
       ;(this.menu as PopupMenu.PopupMenu).box.add_child(this._scroll)
@@ -363,6 +372,20 @@ export const Island = GObject.registerClass(
       this._transientIds.clear()
       this._unwatchKeyFocus()
       this._stopTimer()
+      // PopupMenuBase's constructor connects this._body to Main.sessionMode,
+      // and only PopupMenuBase.destroy() releases it — but a Clutter-side
+      // destroy reaches _releaseExternalRefs(), not destroy(), and this._body
+      // is never destroyed there either (menu.removeAll() filters menu.box's
+      // children by _delegate, which skips the scroll view and the section
+      // inside it). Left alone, that's a permanent Main.sessionMode handler
+      // pointing at a section whose actor is gone. Dropping only the external
+      // reference here, and leaving this._body's own teardown in destroy(),
+      // keeps this a no-op cleanup rather than reaching into destroy()'s
+      // ordering: destroy() calls this before destroying the SessionRows, so
+      // destroying this._body from here would pull the row actors out from
+      // under the later row.destroy() calls. A second disconnectObject for
+      // the same object during PopupMenuBase.destroy() is a harmless no-op.
+      Main.sessionMode.disconnectObject(this._body)
     }
 
     private _tickAll(): void {

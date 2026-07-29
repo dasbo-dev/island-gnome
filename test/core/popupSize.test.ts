@@ -12,9 +12,9 @@ describe('bodyMaxHeight', () => {
     ).toBe(500)
   })
 
-  // St multiplies CSS lengths by the scale factor while Meta reports the work
-  // area in logical pixels, so an unscaled max-height would let the body grow to
-  // twice the cap on a 2x monitor.
+  // The work area is in physical pixels while St multiplies CSS lengths — such
+  // as max-height — by the scale factor, so an unscaled max-height would let
+  // the body grow to twice the cap on a 2x monitor.
   it('divides by the scale factor', () => {
     expect(bodyMaxHeight({ workAreaHeight: 1000, chromeHeight: 100, scaleFactor: 2 })).toBe(400)
   })

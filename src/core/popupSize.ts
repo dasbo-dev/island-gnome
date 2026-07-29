@@ -30,11 +30,13 @@ export interface BodyMaxHeightInput {
 /**
  * The scroll view's `max-height`, in CSS pixels.
  *
- * The division by the scale factor is not cosmetic: St multiplies CSS lengths by
- * the theme context's scale factor, while Meta reports the work area in logical
- * pixels. An unscaled value would let the body grow to twice the intended cap on
- * a 2x monitor — precisely the clipping the cap exists to prevent. A scale factor
- * of 0 or NaN is read as 1: a slightly generous cap beats a division by zero.
+ * The division by the scale factor is not cosmetic: the work area (and the
+ * measured chrome, which is in the same stage coordinate space) is in physical
+ * pixels, while St multiplies CSS lengths — such as this max-height — by the
+ * theme context's scale factor. An unscaled value would let the body grow to
+ * twice the intended cap on a 2x monitor — precisely the clipping the cap
+ * exists to prevent. A scale factor of 0 or NaN is read as 1: a slightly
+ * generous cap beats a division by zero.
  */
 export function bodyMaxHeight(o: BodyMaxHeightInput): number {
   const fraction = o.fraction ?? DEFAULT_FRACTION
