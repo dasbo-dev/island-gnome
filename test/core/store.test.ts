@@ -482,14 +482,20 @@ describe('SessionStore', () => {
     ).toBe(2)
   })
 
-  it('keeps the conversation clock when a reap recreates the record', () => {
+  it('starts the lineage over when a reap collects it because the process died', () => {
+    // Before Task 5 a lineage unconditionally survived a reap: nothing ever
+    // pruned it. Task 5 makes it collectible once nothing references it and
+    // the process is confirmed gone — exactly this case, since pidAlive
+    // returns false throughout and no session survives to reference it. The
+    // replacement lineage the next event mints starts its own count and
+    // clock, seeded from agentStartedAt, rather than continuing the old one.
     const s = new SessionStore()
     s.apply(ev({ sessionId: 'b', ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
     s.reap(3000, () => false)
     expect(s.list()).toHaveLength(0)
     s.apply(ev({ sessionId: 'b', kind: 'tool-start', tool: 'Edit', ts: 30000, agentStartedAt: 1000 }))
-    expect(s.list()[0]!.startedAt, 'the lineage outlives the record it numbered').toBe(2000)
-    expect(s.list()[0]!.conversationIndex).toBe(2)
+    expect(s.list()[0]!.startedAt, 'the process is gone, so the lineage restarts').toBe(1000)
+    expect(s.list()[0]!.conversationIndex).toBe(1)
   })
 
   it('renumbers and restarts a session that keeps its id across a new conversation', () => {
@@ -515,5 +521,61 @@ describe('SessionStore', () => {
     s.apply(ev({ sessionId: 'same', pid: 0, ts: 20000, agentStartedAt: 1000, startsNewConversation: true }))
     expect(s.list()[0]!.conversationIndex).toBe(1)
     expect(s.list()[0]!.startedAt).toBe(1000)
+  })
+
+  it('collects a lineage once nothing references it and its process is gone', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'a', pid: 7, ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'b', pid: 7, ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    s.apply(ev({ sessionId: 'c', pid: 7, ts: 3000, agentStartedAt: 1000, startsNewConversation: true }))
+    s.reap(4000, () => false)
+    expect(s.list()).toHaveLength(0)
+
+    s.apply(ev({ sessionId: 'd', pid: 7, ts: 5000, agentStartedAt: 1000, startsNewConversation: true }))
+    expect(
+      s.list()[0]!.conversationIndex,
+      'a collected lineage starts over at 1, then this clear takes it to 2'
+    ).toBe(2)
+  })
+
+  it('keeps a lineage whose process is still alive after its sessions are gone', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'a', pid: 7, ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'b', pid: 7, ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    s.apply(ev({ sessionId: 'b', kind: 'session-end', ts: 3000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'a', kind: 'session-end', ts: 3000, agentStartedAt: 1000 }))
+    s.reap(3000 + 11_000, () => true)
+    expect(s.list()).toHaveLength(0)
+
+    s.apply(ev({ sessionId: 'c', pid: 7, ts: 40000, agentStartedAt: 1000, startsNewConversation: true }))
+    expect(
+      s.list()[0]!.conversationIndex,
+      'the process never died, so its count must survive its records'
+    ).toBe(3)
+  })
+
+  it('keeps a lineage its live session still references', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'a', pid: 7, ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'b', pid: 7, ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    s.apply(ev({ sessionId: 'a', kind: 'session-end', ts: 2000, agentStartedAt: 1000 }))
+    s.reap(2000 + 11_000, () => true)
+    expect(s.list().map((x) => x.sessionId), 'only the ended one goes').toEqual(['b'])
+    expect(s.list()[0]!.conversationIndex).toBe(2)
+  })
+
+  it('caps the lineage map so a hostile peer cannot grow it unbounded', () => {
+    const s = new SessionStore()
+    // One session id throughout, so the session cap is never the thing that
+    // stops this: each event mints a lineage for a pid the store has not seen.
+    for (let i = 1; i <= 300; i++) {
+      s.apply(ev({ sessionId: 'only', pid: i, ts: i, agentStartedAt: i }))
+    }
+    s.apply(ev({ sessionId: 'only', pid: 9999, ts: 400000, agentStartedAt: 400000,
+      startsNewConversation: true }))
+    expect(
+      s.list()[0]!.conversationIndex,
+      'at the cap there is no lineage to bump, so the record is left as it was'
+    ).toBe(1)
   })
 })

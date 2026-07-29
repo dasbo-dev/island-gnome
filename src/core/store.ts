@@ -114,6 +114,12 @@ export class SessionStore {
         conversationIndex: lineage?.count ?? 1,
         processStartedAt: e.agentStartedAt,
         lastEventAt: e.ts,
+        // Stamped from the lineage's own fields, not the event's, so the stamp
+        // and the map entry can never disagree — see pruneLineages, which reads
+        // this back rather than rebuilding the key from the record later.
+        lineageKey: lineage
+          ? lineageKey(e.agent, lineage.pid, lineage.processStartedAt)
+          : undefined,
       }
       this.sessions.set(key, s)
     }
@@ -308,7 +314,36 @@ export class SessionStore {
         dropped.push(key)
       }
     }
+    this.pruneLineages(pidAlive)
     if (dropped.length > 0) this.emit()
     return dropped
+  }
+
+  /**
+   * A lineage outlives the records it numbers — that is the whole point of it —
+   * so it cannot be collected with them. It goes once nothing references it and
+   * its process is confirmed gone.
+   *
+   * Runs on every sweep rather than only when a session was dropped: an agent
+   * can die long after its last record was collected, and that sweep drops
+   * nothing, so a dropped-only guard would leak the lineage for good.
+   *
+   * The referenced set is read from each Session's own lineageKey stamp rather
+   * than rebuilt from its current pid and processStartedAt. apply refreshes
+   * s.pid on every event but ensure stamps s.processStartedAt only once, when
+   * the record is created — so the two can come from different events and no
+   * longer form the pair a lineage was keyed on. Rebuilding the key from those
+   * two fields would then match no lineage, leaking the real one until the map
+   * hits its cap. The stamp is written once, from the lineage itself, so it can
+   * never drift out of step with the map entry it names.
+   */
+  private pruneLineages(pidAlive: (pid: number) => boolean): void {
+    const referenced = new Set<string>()
+    for (const s of this.sessions.values()) {
+      if (s.lineageKey !== undefined) referenced.add(s.lineageKey)
+    }
+    for (const [key, l] of [...this.lineages]) {
+      if (!referenced.has(key) && !pidAlive(l.pid)) this.lineages.delete(key)
+    }
   }
 }

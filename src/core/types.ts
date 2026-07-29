@@ -121,6 +121,14 @@ export interface Session {
    * event arrived during the hold.
    */
   deferredState?: SessionState
+  /**
+   * The key of the lineage this record was numbered from, stamped once when the
+   * record is created. Undefined when the agent could not be identified and no
+   * lineage was minted. Read back rather than rebuilt, because a record's pid is
+   * refreshed by later events while its processStartedAt is not, so the two can
+   * stop being the pair the lineage was keyed on.
+   */
+  lineageKey?: string
 }
 
 export type DecisionKind = 'allow' | 'deny' | 'fallthrough'
