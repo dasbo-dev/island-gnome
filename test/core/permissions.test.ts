@@ -388,3 +388,113 @@ describe('PermissionTable', () => {
     ).toBe('running')
   })
 })
+
+const qs = [
+  {
+    question: 'Which library?',
+    header: 'Library',
+    options: [
+      { label: 'date-fns', description: '' },
+      { label: 'Luxon', description: '' },
+    ],
+    multiSelect: false,
+  },
+]
+
+describe('PermissionTable question entries', () => {
+  it('publishes a pending question rather than a pending permission', () => {
+    const store = seeded()
+    const { timers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    t.request({ sessionKey: 'claude:s1', tool: 'AskUserQuestion', questions: qs, timeoutSeconds: 120 }, () => {})
+    const s = store.get('claude:s1')!
+    expect(s.state).toBe('waiting')
+    expect(s.pendingQuestion?.questions).toEqual(qs)
+    expect(s.pendingPermission).toBeUndefined()
+  })
+
+  it('resolves with an answer and clears the hold', () => {
+    const store = seeded()
+    const { timers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    // TS narrows `let got: Decision | null = null; (d) => { got = d }` to
+    // `never` on later member access under this project's TS 5.9 — a compiler
+    // quirk in closure-narrowing, not a real type conflict. The push-into-array
+    // form the rest of this file already uses sidesteps it.
+    const got: Decision[] = []
+    const id = t.request(
+      { sessionKey: 'claude:s1', tool: 'AskUserQuestion', questions: qs, timeoutSeconds: 120 },
+      (d) => { got.push(d) }
+    )
+    t.resolve(id, { kind: 'answer', answer: 'Library: Luxon' })
+    expect(got).toEqual([{ kind: 'answer', answer: 'Library: Luxon' }])
+    expect(store.get('claude:s1')!.pendingQuestion).toBeUndefined()
+  })
+
+  it('falls through when the question times out', () => {
+    const store = seeded()
+    const { timers, advance } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    const got: Decision[] = []
+    t.request(
+      { sessionKey: 'claude:s1', tool: 'AskUserQuestion', questions: qs, timeoutSeconds: 120 },
+      (d) => { got.push(d) }
+    )
+    advance(120_000)
+    expect(got[0]?.kind).toBe('fallthrough')
+    expect(store.get('claude:s1')!.pendingQuestion).toBeUndefined()
+  })
+
+  it('is never short-circuited by an always-allow grant', () => {
+    const store = seeded()
+    const { timers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    t.grantAlways('claude:s1', 'AskUserQuestion')
+    const got: Decision[] = []
+    t.request(
+      { sessionKey: 'claude:s1', tool: 'AskUserQuestion', questions: qs, timeoutSeconds: 120 },
+      (d) => { got.push(d) }
+    )
+    expect(got).toHaveLength(0)
+    expect(store.get('claude:s1')!.pendingQuestion).toBeDefined()
+  })
+
+  it('promotes a question queued behind a permission, swapping what the row shows', () => {
+    const store = seeded()
+    const { timers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    const first = t.request({ sessionKey: 'claude:s1', tool: 'Bash', timeoutSeconds: 30 }, () => {})
+    t.request({ sessionKey: 'claude:s1', tool: 'AskUserQuestion', questions: qs, timeoutSeconds: 120 }, () => {})
+    expect(store.get('claude:s1')!.pendingPermission?.tool).toBe('Bash')
+    t.resolve(first, { kind: 'allow' })
+    const s = store.get('claude:s1')!
+    expect(s.pendingQuestion?.questions).toEqual(qs)
+    expect(s.pendingPermission).toBeUndefined()
+  })
+
+  it('drains a held question on shutdown', () => {
+    const store = seeded()
+    const { timers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    const got: Decision[] = []
+    t.request(
+      { sessionKey: 'claude:s1', tool: 'AskUserQuestion', questions: qs, timeoutSeconds: 0 },
+      (d) => { got.push(d) }
+    )
+    t.resolveAllFallthrough()
+    expect(got[0]?.kind).toBe('fallthrough')
+  })
+
+  it('releases a held question when its session is reaped', () => {
+    const store = seeded()
+    const { timers } = fakeTimers()
+    const t = new PermissionTable(store, timers)
+    const got: Decision[] = []
+    t.request(
+      { sessionKey: 'claude:s1', tool: 'AskUserQuestion', questions: qs, timeoutSeconds: 0 },
+      (d) => { got.push(d) }
+    )
+    t.releaseSession('claude:s1')
+    expect(got[0]?.kind).toBe('fallthrough')
+  })
+})

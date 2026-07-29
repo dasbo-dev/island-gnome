@@ -69,7 +69,11 @@ export const antigravityAdapter: AgentAdapter = {
   // control failing open, silently. Treat as best-effort until confirmed
   // against a real Antigravity permission round-trip.
   encodeDecision(d: Decision) {
-    if (d.kind === 'fallthrough') return {}
+    // 'answer' joins 'fallthrough' here: Antigravity has no question concept, so
+    // it can never receive one — and if it somehow did, emitting `d.kind` below
+    // would put the string "answer" in a field that accepts only
+    // allow/deny/ask.
+    if (d.kind === 'fallthrough' || d.kind === 'answer') return {}
     return {
       permissionDecision: d.kind,
       permissionDecisionReason:

@@ -1,3 +1,6 @@
+import type { AgentTask } from './tasks.js'
+import type { Question } from './questions.js'
+
 export type AgentId = 'claude' | 'codex' | 'antigravity'
 
 /**
@@ -91,6 +94,29 @@ export interface PendingPermission {
   queued: number
 }
 
+/**
+ * A question the agent asked and the island is holding open. Deliberately
+ * separate from PendingPermission rather than a union of the two: both
+ * `activityText` and the row's control attachment branch on these, and a union
+ * would make every consumer re-narrow before it could read a field.
+ *
+ * There is no queued count and no tool name, because neither means anything
+ * here — a question is not a tool call, and a second question queued behind
+ * this one is simply invisible until this one resolves.
+ *
+ * Which question the panel is showing, and what has been picked so far, are
+ * *not* here. They belong to the widget and live only as long as it does; the
+ * store records what the agent reported, and routing every option click through
+ * a store mutation would fire a subscriber notification — and so a full row
+ * rebuild — under the user's cursor.
+ */
+export interface PendingQuestion {
+  id: string
+  questions: Question[]
+  /** Milliseconds since epoch when this request must fall through. 0 means never. */
+  deadline: number
+}
+
 export interface Session {
   key: string
   agent: AgentId
@@ -122,6 +148,18 @@ export interface Session {
   doneAt?: number
   transcriptPath?: string
   pendingPermission?: PendingPermission
+  /** Mutually exclusive with pendingPermission: the store clears each when setting the other. */
+  pendingQuestion?: PendingQuestion
+  /**
+   * The agent's plan, as of the last time it was read. Undefined means "never
+   * seen one", an empty array means "looked and found none"; the row draws both
+   * the same way, so nothing downstream has to tell them apart.
+   *
+   * Nothing clears this but the death of the record. A `/clear` mints a new
+   * session id and therefore a new record, so a finished plan keeps reading
+   * 10/10 for the rest of its conversation — which is true, not stale.
+   */
+  tasks?: AgentTask[]
   /**
    * What the most recent event would have set the state to, recorded while a
    * permission is pending so clearPending can settle to it. Undefined when no
@@ -149,11 +187,19 @@ export interface Session {
   lineageKey?: string
 }
 
-export type DecisionKind = 'allow' | 'deny' | 'fallthrough'
+/**
+ * `answer` is not a permission verdict. It carries the user's reply to an
+ * agent's question, and every adapter that has no question concept must map it
+ * to the same silence it uses for `fallthrough` — never onto a permission
+ * field, where the string `"answer"` would be an invalid decision value.
+ */
+export type DecisionKind = 'allow' | 'deny' | 'fallthrough' | 'answer'
 
 export interface Decision {
   kind: DecisionKind
   reason?: string
+  /** Set only for `kind: 'answer'`. The complete text built by `formatAnswer`. */
+  answer?: string
 }
 
 export interface FileEdit {

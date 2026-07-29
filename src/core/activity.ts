@@ -27,12 +27,21 @@ export interface Activity {
  *
  * The catch-all at the end returns 'error' for any state that isn't
  * `running`/`idle`/`done` — safe only because `store.ts` enforces that
- * `waiting` always implies a pending permission (`setPending` sets both in one
- * statement, `apply`'s guard is inside `if (s.pendingPermission)`, and
- * `clearPending` clears both together). This function is pure and does not
- * re-check that invariant itself.
+ * `waiting` always implies a pending permission or question (`setPending` sets
+ * both in one statement, `apply`'s guard is inside `if (s.pendingPermission)`,
+ * `clearPending` clears both together, and `setPendingQuestion` is the pair
+ * that keeps `waiting` honest for questions). This function is pure and does
+ * not re-check that invariant itself.
  */
 export function activityText(session: Session): Activity {
+  const question = session.pendingQuestion
+  if (question) {
+    // The header, not the question text: Claude bounds it at 12 characters, so
+    // it needs no truncation and cannot push the expander off the row. The
+    // question itself is one click away in the panel.
+    return { text: `question · ${question.questions[0]?.header ?? ''}`, hint: false }
+  }
+
   const pending = session.pendingPermission
   if (pending) {
     // The tool name comes from the payload, so it needs bounding for the same

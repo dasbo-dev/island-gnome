@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { SessionStore } from '../../src/core/store.js'
-import type { AgentEvent } from '../../src/core/types.js'
+import type { AgentEvent, PendingQuestion } from '../../src/core/types.js'
 
 function ev(over: Partial<AgentEvent> = {}): AgentEvent {
   return {
@@ -797,5 +797,143 @@ describe('SessionStore', () => {
       s.list()[0]!.conversationIndex,
       'at the cap there is no lineage to bump, so the record is left as it was'
     ).toBe(1)
+  })
+})
+
+const question: PendingQuestion = {
+  id: 'perm-1',
+  deadline: 0,
+  questions: [
+    {
+      question: 'Which library?',
+      header: 'Library',
+      options: [
+        { label: 'date-fns', description: '' },
+        { label: 'Luxon', description: '' },
+      ],
+      multiSelect: false,
+    },
+  ],
+}
+
+describe('SessionStore question holds', () => {
+  it('puts the session into waiting', () => {
+    const s = new SessionStore()
+    s.apply({ agent: 'claude', kind: 'session-start', sessionId: 's1', cwd: '/p/app', pid: 10, ts: 0 })
+    s.setPendingQuestion('claude:s1', question)
+    expect(s.get('claude:s1')!.state).toBe('waiting')
+    expect(s.get('claude:s1')!.pendingQuestion).toEqual(question)
+  })
+
+  it('holds waiting across an event that would have changed the state', () => {
+    const s = new SessionStore()
+    s.apply({ agent: 'claude', kind: 'session-start', sessionId: 's1', cwd: '/p/app', pid: 10, ts: 0 })
+    s.setPendingQuestion('claude:s1', question)
+    s.apply({ agent: 'claude', kind: 'turn-end', sessionId: 's1', cwd: '/p/app', pid: 10, ts: 1000 })
+    expect(s.get('claude:s1')!.state).toBe('waiting')
+  })
+
+  it('settles to what the deferred event meant when the question clears', () => {
+    const s = new SessionStore()
+    s.apply({ agent: 'claude', kind: 'session-start', sessionId: 's1', cwd: '/p/app', pid: 10, ts: 0 })
+    s.setPendingQuestion('claude:s1', question)
+    s.apply({ agent: 'claude', kind: 'turn-end', sessionId: 's1', cwd: '/p/app', pid: 10, ts: 1000 })
+    s.clearPending('claude:s1')
+    expect(s.get('claude:s1')!.state).toBe('idle')
+    expect(s.get('claude:s1')!.pendingQuestion).toBeUndefined()
+  })
+
+  it('never holds a question and a permission at once', () => {
+    const s = new SessionStore()
+    s.apply({ agent: 'claude', kind: 'session-start', sessionId: 's1', cwd: '/p/app', pid: 10, ts: 0 })
+    s.setPending('claude:s1', { id: 'perm-1', tool: 'Bash', deadline: 0, queued: 0 })
+    s.setPendingQuestion('claude:s1', { ...question, id: 'perm-2' })
+    expect(s.get('claude:s1')!.pendingPermission).toBeUndefined()
+
+    s.setPending('claude:s1', { id: 'perm-3', tool: 'Bash', deadline: 0, queued: 0 })
+    expect(s.get('claude:s1')!.pendingQuestion).toBeUndefined()
+  })
+
+  it('does not reap a session holding a question with a live agent', () => {
+    const s = new SessionStore()
+    s.apply({ agent: 'claude', kind: 'session-start', sessionId: 's1', cwd: '/p/app', pid: 10, ts: 0 })
+    s.setPendingQuestion('claude:s1', question)
+    expect(s.reap(1000, () => true)).toEqual([])
+    expect(s.get('claude:s1')).toBeDefined()
+  })
+
+  it('collects a question held by an agent that is gone with no timer to fire', () => {
+    const s = new SessionStore()
+    s.apply({ agent: 'claude', kind: 'session-start', sessionId: 's1', cwd: '/p/app', pid: 10, ts: 0 })
+    s.setPendingQuestion('claude:s1', question) // deadline 0 — no timer will ever resolve it
+    expect(s.reap(1000, () => false)).toEqual(['claude:s1'])
+  })
+})
+
+describe('setTasks', () => {
+  it('stores a list on the session and notifies subscribers', () => {
+    const s = new SessionStore()
+    s.apply(ev())
+    let emits = 0
+    s.subscribe(() => { emits += 1 })
+
+    s.setTasks('claude:s1', [{ id: '1', subject: 'Explore', status: 'completed' }])
+
+    expect(s.get('claude:s1')?.tasks).toEqual([
+      { id: '1', subject: 'Explore', status: 'completed' },
+    ])
+    expect(emits).toBe(1)
+  })
+
+  it('does not emit when the list has not moved', () => {
+    const s = new SessionStore()
+    s.apply(ev())
+    const list = [{ id: '1', subject: 'Explore', status: 'completed' as const }]
+    s.setTasks('claude:s1', list)
+
+    let emits = 0
+    s.subscribe(() => { emits += 1 })
+    s.setTasks('claude:s1', [{ id: '1', subject: 'Explore', status: 'completed' }])
+
+    expect(emits).toBe(0)
+  })
+
+  it('emits when a status moves', () => {
+    const s = new SessionStore()
+    s.apply(ev())
+    s.setTasks('claude:s1', [{ id: '1', subject: 'Explore', status: 'pending' }])
+
+    let emits = 0
+    s.subscribe(() => { emits += 1 })
+    s.setTasks('claude:s1', [{ id: '1', subject: 'Explore', status: 'completed' }])
+
+    expect(emits).toBe(1)
+    expect(s.get('claude:s1')?.tasks?.[0]?.status).toBe('completed')
+  })
+
+  it('ignores a key it has never seen', () => {
+    const s = new SessionStore()
+    let emits = 0
+    s.subscribe(() => { emits += 1 })
+    s.setTasks('claude:nope', [{ id: '1', subject: 'Explore', status: 'pending' }])
+    expect(emits).toBe(0)
+  })
+
+  it('sorts what it is given, so the reader need not', () => {
+    const s = new SessionStore()
+    s.apply(ev())
+    s.setTasks('claude:s1', [
+      { id: '10', subject: 'Ten', status: 'pending' },
+      { id: '9', subject: 'Nine', status: 'pending' },
+    ])
+    expect(s.get('claude:s1')?.tasks?.map((t) => t.id)).toEqual(['9', '10'])
+  })
+
+  it('lets the tasks go when the session is reaped', () => {
+    const s = new SessionStore()
+    s.apply(ev())
+    s.setTasks('claude:s1', [{ id: '1', subject: 'Explore', status: 'pending' }])
+    s.reap(1000 + 16 * 60 * 1000, () => false)
+    expect(s.get('claude:s1')).toBeUndefined()
   })
 })

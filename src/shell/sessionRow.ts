@@ -5,6 +5,7 @@ import GObject from 'gi://GObject'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 import { formatElapsed } from '../core/format.js'
 import { activityText } from '../core/activity.js'
+import { summarize } from '../core/tasks.js'
 import type { Session, SessionState } from '../core/types.js'
 
 const STATE_CLASS: Record<SessionState, string> = {
@@ -17,6 +18,12 @@ const STATE_CLASS: Record<SessionState, string> = {
 
 export interface SessionRowCallbacks {
   onJump: (session: Session) => void
+  /**
+   * Fired by the expander arrow. The Island owns both the question panel and
+   * the task list this shows and hides — one arrow, both regions, because a row
+   * with two independent folds is two controls competing for the same corner.
+   */
+  onToggleExpanded: (expanded: boolean) => void
 }
 
 export const SessionRow = GObject.registerClass(
@@ -28,9 +35,20 @@ export const SessionRow = GObject.registerClass(
     private _shellTotal!: St.Label
     private _activity!: St.Label
     private _elapsed!: St.Label
+    private _taskCount!: St.Label
+    private _taskBox!: St.BoxLayout
+    private _hasQuestion = false
+    private _hasTasks = false
     private _jump!: St.Button
     private _actionBox!: St.BoxLayout
     private _permissionBox!: St.BoxLayout
+    private _expander!: St.Button
+    // Collapsed is the resting state: a plan is reference material, not a
+    // demand, and a row that opened itself for one would push every other
+    // session down the popup. setHasQuestion(true) overrides this, because a
+    // question *is* a demand.
+    private _expanded = false
+    private _questionBox!: St.BoxLayout
 
     constructor(session: Session, cb: SessionRowCallbacks) {
       super({ reactive: false, can_focus: false, style_class: 'dasbo-row' })
@@ -104,6 +122,24 @@ export const SessionRow = GObject.registerClass(
       activityRow.add_child(this._dot)
       activityRow.add_child(this._activity)
 
+      // Leads the title row so its arrow lines up down the popup's left edge
+      // rather than floating after a project name of unpredictable width.
+      this._expander = new St.Button({
+        label: '▸',
+        style_class: 'dasbo-expander',
+        y_align: Clutter.ActorAlign.CENTER,
+        // The row is can_focus: false, so without this the only way to fold a
+        // question away is the mouse — see Jump and the header gear.
+        can_focus: true,
+        visible: false,
+      })
+      this._expander.connect('clicked', () => {
+        this._expanded = !this._expanded
+        this._expander.label = this._expanded ? '▾' : '▸'
+        this._syncTaskBoxVisible()
+        this._cb.onToggleExpanded(this._expanded)
+      })
+      titleRow.add_child(this._expander)
       titleRow.add_child(this._project)
       titleRow.add_child(this._shellTotal)
       textCol.add_child(titleRow)
@@ -111,6 +147,19 @@ export const SessionRow = GObject.registerClass(
 
       this._elapsed = new St.Label({ text: '0s', style_class: 'dasbo-row-elapsed',
         y_align: Clutter.ActorAlign.CENTER })
+
+      // Its own label rather than text appended to _elapsed: the clock is
+      // rewritten every tick while this changes only when the store emits, and
+      // merging them would reformat an unchanged number once a second — the
+      // waste the _shellTotal comment records. tnum in the stylesheet keeps
+      // 9/10 and 10/10 the same width, so the row does not twitch.
+      this._taskCount = new St.Label({
+        text: '',
+        style_class: 'dasbo-row-taskcount',
+        y_align: Clutter.ActorAlign.CENTER,
+        visible: false,
+      })
+      this._taskCount.opacity = 178
 
       this._jump = new St.Button({ label: 'Jump', style_class: 'button dasbo-jump',
         y_align: Clutter.ActorAlign.CENTER,
@@ -122,6 +171,7 @@ export const SessionRow = GObject.registerClass(
 
       this._actionBox = new St.BoxLayout({ style_class: 'dasbo-row-actions' })
       this._actionBox.add_child(this._elapsed)
+      this._actionBox.add_child(this._taskCount)
       this._actionBox.add_child(this._jump)
 
       topRow.add_child(textCol)
@@ -149,8 +199,52 @@ export const SessionRow = GObject.registerClass(
         this._permissionBox.visible = this._permissionBox.get_n_children() > 0
       })
 
+      // Its own line for the same reason the permission cluster has one: option
+      // labels neither wrap nor shrink. Same visibility handling too —
+      // ClutterBoxLayout spaces only between visible children, so an
+      // always-present empty box would cost every row a gap.
+      this._questionBox = new St.BoxLayout({
+        vertical: true,
+        x_expand: true,
+        style_class: 'dasbo-row-question',
+      })
+      this._questionBox.visible = false
+      this._questionBox.connect('child-added', () => {
+        this._questionBox.visible = true
+      })
+      this._questionBox.connect('child-removed', () => {
+        this._questionBox.visible = this._questionBox.get_n_children() > 0
+      })
+
+      // Same visibility handling as the two boxes above, for the same reason:
+      // ClutterBoxLayout spaces only between visible children, so an
+      // always-present empty box would cost every row a gap it never uses.
+      //
+      // But the child-count rule alone is not enough for this box specifically:
+      // unlike the permission and question boxes, this one holds a TaskList
+      // whose own fold (setExpanded) hides its ScrollView while leaving it
+      // parented here — so a *collapsed* list, which is the default, still
+      // counts as a child and would keep this box visible, costing the row a
+      // 6px .dasbo-row-outer gap above nothing. _syncTaskBoxVisible folds the
+      // expanded state into the same visible flag so a non-empty box is only
+      // ever shown while the row is open.
+      this._taskBox = new St.BoxLayout({
+        vertical: true,
+        x_expand: true,
+        style_class: 'dasbo-row-tasks',
+      })
+      this._taskBox.visible = false
+      this._taskBox.connect('child-added', () => {
+        this._syncTaskBoxVisible()
+      })
+      this._taskBox.connect('child-removed', () => {
+        this._syncTaskBoxVisible()
+      })
+
       outer.add_child(topRow)
       outer.add_child(this._permissionBox)
+      outer.add_child(this._questionBox)
+      outer.add_child(this._taskBox)
       this.add_child(outer)
 
       this.update(session)
@@ -159,6 +253,76 @@ export const SessionRow = GObject.registerClass(
     /** Where the Island attaches the Allow / Deny / Always controls. */
     get permissionBox(): St.BoxLayout {
       return this._permissionBox
+    }
+
+    /** Where the Island attaches the QuestionPanel. */
+    get questionBox(): St.BoxLayout {
+      return this._questionBox
+    }
+
+    /** Where the Island attaches the TaskList. */
+    get taskBox(): St.BoxLayout {
+      return this._taskBox
+    }
+
+    /** So the Island can bring a freshly attached panel into line with the fold. */
+    get expanded(): boolean {
+      return this._expanded
+    }
+
+    /**
+     * Show or hide the expander arrow for a question, and always open the row.
+     * A question arrives already open (the popup opens itself for it), and a
+     * row that kept a fold left over from browsing a task list would hide the
+     * answer behind an arrow the user never chose to close.
+     */
+    setHasQuestion(has: boolean): void {
+      this._hasQuestion = has
+      if (has) {
+        this._expanded = true
+        this._expander.label = '▾'
+      } else if (!this._hasTasks) {
+        // Restore the collapsed default only when there is no task list left
+        // to fold: if there is, the row's fold is the user's own choice (they
+        // opened it to read the plan, or closed it on purpose) and a question
+        // resolving must not overwrite that. Without this guard, a question
+        // that resolves on a row with no tasks leaves _expanded stuck at true
+        // with no arrow to undo it — until a later plan reveals an arrow that
+        // already reads open and shoves the rest of the popup down on its own.
+        this._expanded = false
+        this._expander.label = '▸'
+      }
+      this._syncTaskBoxVisible()
+      this._syncExpander()
+    }
+
+    /**
+     * Show or hide the expander arrow for a task list. Unlike a question this
+     * never forces the row open: a plan appearing mid-session must not shove
+     * the rest of the popup down under the user's cursor.
+     */
+    setHasTasks(has: boolean): void {
+      this._hasTasks = has
+      this._syncTaskBoxVisible()
+      this._syncExpander()
+    }
+
+    private _syncExpander(): void {
+      this._expander.visible = this._hasQuestion || this._hasTasks
+    }
+
+    /**
+     * _taskBox's own child-added/child-removed handlers only know whether it
+     * has a child, not whether the row is folded — and a TaskList that is
+     * attached but collapsed (the default) is a non-empty box with nothing
+     * visible inside it. Left keyed on child count alone, that box would stay
+     * visible and cost the row .dasbo-row-outer's 6px inter-child spacing for
+     * a gap above zero height, on every row with a plan, in the common
+     * (collapsed) case. Folding _expanded into the same flag makes a
+     * non-empty box visible only while the row is open.
+     */
+    private _syncTaskBoxVisible(): void {
+      this._taskBox.visible = this._taskBox.get_n_children() > 0 && this._expanded
     }
 
     get session(): Session {
@@ -191,6 +355,21 @@ export const SessionRow = GObject.registerClass(
       // .dasbo-row-activity rule cannot carry this. Set on every call, not just
       // the hint branches: one label is reused across every state.
       this._activity.opacity = hint ? 178 : 255
+
+      // Derived here rather than pushed in by the Island, so the row stays a
+      // pure function of its Session — update(s) is already called on every
+      // rebuild, and nothing else has to remember to keep the counter honest.
+      const tasks = session.tasks ?? []
+      if (tasks.length > 0) {
+        const { completed, total } = summarize(tasks)
+        this._taskCount.text = `${completed}/${total}`
+        this._taskCount.visible = true
+      } else {
+        this._taskCount.visible = false
+      }
+      // The arrow follows the tasks, but the counter does not follow the fold:
+      // a collapsed row showing 3/10 is the whole point of the collapsed state.
+      this.setHasTasks(tasks.length > 0)
     }
 
     /** Called once per second by the Island while the popup is open. */

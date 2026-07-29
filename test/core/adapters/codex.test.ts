@@ -91,3 +91,54 @@ describe('codex fixture status', () => {
     ).toBe(false)
   })
 })
+
+describe('codexAdapter.encodeDecision for an answer', () => {
+  it('says nothing at all, since Codex has no question concept', () => {
+    expect(codexAdapter.encodeDecision({ kind: 'answer', answer: 'x' })).toEqual({})
+  })
+})
+
+describe('codex parseTasks (UNVERIFIED shape)', () => {
+  const updatePlan = {
+    tool_name: 'update_plan',
+    tool_input: {
+      plan: [
+        { step: 'Read the spec', status: 'completed' },
+        { step: 'Write the parser', status: 'in_progress' },
+        { step: 'Wire the row', status: 'pending' },
+      ],
+    },
+  }
+
+  it('turns a plan snapshot into tasks numbered by position', () => {
+    expect(codexAdapter.parseTasks?.(updatePlan)).toEqual([
+      { id: '1', subject: 'Read the spec', status: 'completed' },
+      { id: '2', subject: 'Write the parser', status: 'in_progress' },
+      { id: '3', subject: 'Wire the row', status: 'pending' },
+    ])
+  })
+
+  it('returns null for any other tool', () => {
+    expect(codexAdapter.parseTasks?.({ ...updatePlan, tool_name: 'shell' })).toBeNull()
+  })
+
+  it('returns null when the plan is not an array of steps', () => {
+    expect(codexAdapter.parseTasks?.({ tool_name: 'update_plan', tool_input: {} })).toBeNull()
+    expect(
+      codexAdapter.parseTasks?.({ tool_name: 'update_plan', tool_input: { plan: 'soon' } })
+    ).toBeNull()
+  })
+
+  it('rejects the whole snapshot when one step is unusable', () => {
+    const bad = {
+      tool_name: 'update_plan',
+      tool_input: { plan: [{ step: 'Fine', status: 'pending' }, { step: 'Broken' }] },
+    }
+    expect(codexAdapter.parseTasks?.(bad)).toBeNull()
+  })
+
+  it('accepts an empty plan as an empty list, not a failure', () => {
+    expect(codexAdapter.parseTasks?.({ tool_name: 'update_plan', tool_input: { plan: [] } }))
+      .toEqual([])
+  })
+})

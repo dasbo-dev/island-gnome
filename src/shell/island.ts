@@ -11,6 +11,9 @@ import type { SessionStore } from '../core/store.js'
 import type { Session, SessionState } from '../core/types.js'
 import { SessionRow } from './sessionRow.js'
 import { PermissionControls } from './permissionRow.js'
+import { QuestionPanel } from './questionPanel.js'
+import { TaskList } from './taskList.js'
+import { taskDir, readTasks } from './taskReader.js'
 import { PopupHeader, EmptyRow } from './popupHeader.js'
 import { GridIcon } from './gridIcon.js'
 import { pillState } from '../core/pillState.js'
@@ -51,10 +54,25 @@ export const Island = GObject.registerClass(
     private _onJump: (s: Session) => void = () => {}
     private _onPrefs: () => void = () => {}
     private _controls = new Map<string, { id: string; controls: PermissionControls }>()
+    private _questions = new Map<string, { id: string; panel: QuestionPanel }>()
+    private _taskLists = new Map<string, { list: TaskList }>()
+    /**
+     * Session keys whose task directory may have moved since it was last read.
+     * The Island owns this rather than the service, because it is the only
+     * thing that knows whether the popup is open — and a read whose result
+     * nobody can see is pure waste.
+     */
+    private _dirtyTasks = new Set<string>()
+    /** Keys with a read in flight, so a burst of TaskUpdates cannot stack reads. */
+    private _readingTasks = new Set<string>()
     private _transientIds = new Set<number>()
     private _permHandlers: {
       resolve: (id: string, kind: 'allow' | 'deny') => void
       grantAllowAlways: (sessionKey: string, tool: string, id: string) => void
+    } | null = null
+    private _questionHandlers: {
+      answer: (id: string, text: string) => void
+      handOff: (id: string) => void
     } | null = null
 
     constructor(store: SessionStore, settings: Gio.Settings) {
@@ -166,6 +184,13 @@ export const Island = GObject.registerClass(
       this._permHandlers = h
     }
 
+    setQuestionHandlers(h: {
+      answer: (id: string, text: string) => void
+      handOff: (id: string) => void
+    }): void {
+      this._questionHandlers = h
+    }
+
     /** Called by the D-Bus service after a permission row has been registered. */
     notifyPermissionOpened(): void {
       if (!this._settings.get_boolean('auto-open-on-permission')) return
@@ -173,8 +198,24 @@ export const Island = GObject.registerClass(
       this.menu.open(true)
     }
 
+    /**
+     * Called by the D-Bus service when a task tool finished for this session.
+     * Marks and returns: the read itself happens on the next tick, and only
+     * while the popup is open. A session whose plan moved while nobody was
+     * looking is read once, when the popup next opens.
+     */
+    notifyTasksChanged(key: string): void {
+      this._dirtyTasks.add(key)
+    }
+
     private _startTimer(): void {
       if (this._timerId) return
+      // Every session, not only the dirty ones. This is the safety net under
+      // the dirty flag: the flag is keyed on tool names, those names have been
+      // renamed once already (TodoWrite -> TaskCreate), and a rename that stops
+      // the marking would otherwise stop the feature dead. Marking everything
+      // on open degrades that failure to "refreshes when you look at it".
+      for (const s of this._store.list()) this._dirtyTasks.add(s.key)
       this._tickAll()
       this._timerId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 1, () => {
         this._tickAll()
@@ -218,6 +259,59 @@ export const Island = GObject.registerClass(
     private _tickAll(): void {
       const now = Date.now()
       for (const row of this._rows.values()) row.tick(now)
+      this._readDirtyTasks()
+    }
+
+    /**
+     * Kick off a task-directory read for one session, unless one is already in
+     * flight for it. The mark is consumed here, before the read starts, rather
+     * than in the completion callback — so a notifyTasksChanged() landing while
+     * the read is in flight re-dirties the key instead of being swallowed by
+     * it, and the next tick re-reads. Clearing it on completion instead would
+     * let a mid-read mark be added and then deleted underneath the read that
+     * never saw it, losing the update until the popup is closed and reopened.
+     */
+    private _readTasksFor(session: Session): void {
+      const key = session.key
+      if (this._readingTasks.has(key)) return
+      const dir = taskDir(session.agent, session.sessionId)
+      if (!dir) {
+        // No directory for this agent — Codex publishes its plan through the
+        // adapter instead. Clearing the flag stops this session re-checking on
+        // every tick forever.
+        this._dirtyTasks.delete(key)
+        return
+      }
+      this._dirtyTasks.delete(key)
+      this._readingTasks.add(key)
+      readTasks(dir, (tasks) => {
+        this._readingTasks.delete(key)
+        // null means the directory could not be read at all, which is the
+        // ordinary state of a session that has never made a plan. Setting an
+        // empty list here would also blank a good list on a transient failure,
+        // so a failed read changes nothing — the same rule processStartedAt
+        // follows in the store.
+        if (tasks === null) return
+        this._store.setTasks(key, tasks)
+      })
+    }
+
+    /**
+     * Every dirty session, read. Called from the tick, so it only runs while
+     * the popup is open — _timerId is the "is open" signal, as _rebuildRows
+     * records.
+     */
+    private _readDirtyTasks(): void {
+      if (this._dirtyTasks.size === 0) return
+      for (const key of [...this._dirtyTasks]) {
+        const session = this._store.get(key)
+        // The session was reaped between the mark and the read.
+        if (!session) {
+          this._dirtyTasks.delete(key)
+          continue
+        }
+        this._readTasksFor(session)
+      }
     }
 
     private _rebuildRows(): void {
@@ -235,8 +329,20 @@ export const Island = GObject.registerClass(
             stale.controls.destroy()
             this._controls.delete(key)
           }
+          const staleQuestion = this._questions.get(key)
+          if (staleQuestion) {
+            staleQuestion.panel.destroy()
+            this._questions.delete(key)
+          }
+          const staleTasks = this._taskLists.get(key)
+          if (staleTasks) {
+            staleTasks.list.destroy()
+            this._taskLists.delete(key)
+          }
           row.destroy()
           this._rows.delete(key)
+          this._dirtyTasks.delete(key)
+          this._readingTasks.delete(key)
         }
       }
 
@@ -245,7 +351,13 @@ export const Island = GObject.registerClass(
         if (existing) {
           existing.update(s)
         } else {
-          const row = new SessionRow(s, { onJump: (sess) => this._onJump(sess) })
+          const row = new SessionRow(s, {
+            onJump: (sess) => this._onJump(sess),
+            onToggleExpanded: (expanded) => {
+              this._questions.get(s.key)?.panel.setExpanded(expanded)
+              this._taskLists.get(s.key)?.list.setExpanded(expanded)
+            },
+          })
           this._rows.set(s.key, row)
           ;(this.menu as PopupMenu.PopupMenu).addMenuItem(row)
         }
@@ -276,6 +388,74 @@ export const Island = GObject.registerClass(
           existing.controls.destroy()
           this._controls.delete(s.key)
         }
+      }
+
+      for (const s of sessions) {
+        const row = this._rows.get(s.key)
+        if (!row) continue
+        const pending = s.pendingQuestion
+        const existing = this._questions.get(s.key)
+
+        // Keyed on the id for the same reason the permission cluster is: the
+        // table promotes a queued entry by publishing a new hold without ever
+        // clearing the old one, so a truthy `existing` can still be bound to a
+        // request that already resolved.
+        if (pending && existing?.id !== pending.id) {
+          existing?.panel.destroy()
+          const panel = new QuestionPanel(pending.questions, {
+            onAnswer: (text) => this._questionHandlers?.answer(pending.id, text),
+            onHandOff: () => this._questionHandlers?.handOff(pending.id),
+          })
+          panel.attachTo(row.questionBox)
+          this._questions.set(s.key, { id: pending.id, panel })
+          row.setHasQuestion(true)
+        } else if (!pending && existing) {
+          existing.panel.destroy()
+          this._questions.delete(s.key)
+          row.setHasQuestion(false)
+        }
+      }
+
+      for (const s of sessions) {
+        const row = this._rows.get(s.key)
+        if (!row) continue
+        const tasks = s.tasks ?? []
+        const existing = this._taskLists.get(s.key)
+
+        if (tasks.length === 0) {
+          // Keyed on emptiness, not on absence: a plan whose every task was
+          // deleted leaves an empty array behind, and the list widget for it
+          // must go with it.
+          if (existing) {
+            existing.list.destroy()
+            this._taskLists.delete(s.key)
+          }
+          continue
+        }
+        if (existing) {
+          // update() no-ops when the drawing would not differ, so this is safe
+          // to call on every rebuild — and doing so is what keeps the list in
+          // step without a second subscription.
+          existing.list.update(tasks)
+          continue
+        }
+        const list = new TaskList(tasks)
+        list.attachTo(row.taskBox)
+        this._taskLists.set(s.key, { list })
+      }
+
+      // One arrow, two regions, so both must agree with it — and neither can
+      // work that out for itself. A list attached to a collapsed row has never
+      // been folded and would otherwise show through; and a question arriving
+      // on a collapsed row forces the arrow open (see setHasQuestion) without
+      // the task list beside it ever hearing, leaving an open arrow above a
+      // hidden list. Syncing every attached region here, on every rebuild,
+      // rather than only at attach time, covers both directions at once.
+      for (const s of sessions) {
+        const row = this._rows.get(s.key)
+        if (!row) continue
+        this._questions.get(s.key)?.panel.setExpanded(row.expanded)
+        this._taskLists.get(s.key)?.list.setExpanded(row.expanded)
       }
 
       // Ordering needs no care here: by the time this method returns, the empty
@@ -335,6 +515,8 @@ export const Island = GObject.registerClass(
     destroy(): void {
       for (const c of this._controls.values()) c.controls.destroy()
       this._controls.clear()
+      for (const q of this._questions.values()) q.panel.destroy()
+      this._questions.clear()
       this._releaseExternalRefs()
       if (this._menuStateId) {
         ;(this.menu as MenuWithOpenSignal).disconnect(this._menuStateId)

@@ -38,6 +38,13 @@ Each agent row shows whether its hooks are installed. If the extension
 directory moves, or a release adds a hook event the installed set is missing,
 the row offers **Update** — every installed hook command embeds an absolute
 path, and an install written before a new event existed is out of date.
+
+When an agent keeps a task list, its row shows how far through it is — `3/10`
+beside the clock — and the expander arrow opens the list itself, one line per
+task: `✓` done, `▸` in progress, `○` still to do. Claude Code's list is read
+from `~/.claude/tasks/<session-id>/`, so it appears without any extra hook.
+`/clear` starts a fresh list, because it starts a fresh session id.
+
 Panel box and position changes apply immediately,
 with no reload; note that extensions replacing the top bar, such as Dash to
 Panel, decide where each box ends up on screen.

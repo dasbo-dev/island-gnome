@@ -1,5 +1,7 @@
 import { basename, sessionKey } from './types.js'
-import type { AgentEvent, AgentId, PendingPermission, Session, SessionState } from './types.js'
+import type { AgentEvent, AgentId, PendingPermission, PendingQuestion, Session, SessionState } from './types.js'
+import { sameTasks, sortTasks } from './tasks.js'
+import type { AgentTask } from './tasks.js'
 
 const STALE_MS = 15 * 60 * 1000
 /**
@@ -287,13 +289,13 @@ export class SessionStore {
         s.detail = e.detail
         break
     }
-    // Never leave 'waiting' while a permission is pending: PermissionTable owns
-    // that state through setPending/clearPending, and a parallel tool batch
-    // (which Claude Code issues routinely) can deliver a tool-end or stop for
-    // one tool while another tool's permission on the same session is still
-    // held open. Losing 'waiting' here would make the pill lie about a session
-    // that is actually blocked on the user.
-    if (s.pendingPermission) {
+    // Never leave 'waiting' while a permission or a question is pending:
+    // PermissionTable owns that state through setPending/clearPending, and a
+    // parallel tool batch (which Claude Code issues routinely) can deliver a
+    // tool-end or stop for one tool while another tool's permission on the
+    // same session is still held open. Losing 'waiting' here would make the
+    // pill lie about a session that is actually blocked on the user.
+    if (s.pendingPermission || s.pendingQuestion) {
       // Remember what this event meant so clearPending can settle to it, rather
       // than reconstructing a state from flags — which loses 'error' entirely
       // and mistakes a stale doneAt for a freshly finished session.
@@ -310,18 +312,52 @@ export class SessionStore {
     const s = this.sessions.get(key)
     if (!s) return
     s.pendingPermission = pending
+    // One hold at a time. PermissionTable activates the head of a session's
+    // queue without clearing the previous head's published state, so a question
+    // promoted after a permission (or the reverse) would otherwise leave both
+    // fields set and the row would render two things at once.
+    s.pendingQuestion = undefined
     s.state = 'waiting'
+    this.emit()
+  }
+
+  setPendingQuestion(key: string, pending: PendingQuestion): void {
+    const s = this.sessions.get(key)
+    if (!s) return
+    s.pendingQuestion = pending
+    s.pendingPermission = undefined
+    s.state = 'waiting'
+    this.emit()
+  }
+
+  /**
+   * Publish the agent's plan for a session. Sorted here rather than by the
+   * caller, because there are two callers — the shell's directory reader and
+   * Codex's payload parser — and only one right order.
+   *
+   * Silent when nothing moved. The shell re-reads the task directory on every
+   * popup open and on every tick while a session is dirty, and most of those
+   * reads return the same bytes; emitting for them would rebuild every row in
+   * the popup once a second for no visible change.
+   */
+  setTasks(key: string, tasks: AgentTask[]): void {
+    const s = this.sessions.get(key)
+    if (!s) return
+    const sorted = sortTasks(tasks)
+    if (sameTasks(s.tasks, sorted)) return
+    s.tasks = sorted
     this.emit()
   }
 
   clearPending(key: string): void {
     const s = this.sessions.get(key)
-    if (!s?.pendingPermission) return
+    if (!s?.pendingPermission && !s?.pendingQuestion) return
     s.pendingPermission = undefined
-    // Settle to whatever the last event actually meant while the permission was
-    // held — a turn-end settles to 'idle', a session-end to 'done', an error to
+    s.pendingQuestion = undefined
+    // Settle to whatever the last event actually meant while the hold was in
+    // place — a turn-end settles to 'idle', a session-end to 'done', an error to
     // 'error'. With no event during the hold, the agent simply proceeds with
-    // (or without) the tool it asked about, so 'running' is the right settle.
+    // (or without) whatever it asked about, so 'running' is the right settle.
     if (s.state === 'waiting') s.state = s.deferredState ?? 'running'
     s.deferredState = undefined
     this.emit()
@@ -336,7 +372,11 @@ export class SessionStore {
   reap(now: number, pidAlive: (pid: number) => boolean): string[] {
     const dropped: string[] = []
     for (const [key, s] of [...this.sessions]) {
-      if (s.pendingPermission) {
+      // A question is held on exactly the same terms as a permission: its own
+      // timer resolves it if it has one, and only a confirmed-dead agent with
+      // no timer at all may be collected underneath it.
+      const held = s.pendingPermission ?? s.pendingQuestion
+      if (held) {
         // Normally a pending permission is untouchable — its own timer (if any)
         // will resolve it. But with permission-timeout = 0 no timer ever starts,
         // so a killed agent mid-permission would otherwise wedge this session
@@ -346,7 +386,7 @@ export class SessionStore {
         // /proc or cannot identify the agent, and pidAlive(0) is false, which
         // would otherwise drop a live session with an unresolved pid on the
         // first sweep.
-        const zombie = s.pid > 0 && s.pendingPermission.deadline === 0 && !pidAlive(s.pid)
+        const zombie = s.pid > 0 && held.deadline === 0 && !pidAlive(s.pid)
         if (zombie) {
           this.sessions.delete(key)
           dropped.push(key)
@@ -359,7 +399,7 @@ export class SessionStore {
           // liveness alone. Guarded on deadline=0 (no timer to eventually resolve it)
           // and !pidAlive so a live agent with deadline=0 can wait indefinitely for
           // the user to respond to the permission.
-          s.pendingPermission.deadline === 0 &&
+          held.deadline === 0 &&
           now - s.lastEventAt > STALE_MS &&
           !pidAlive(s.pid)
         ) {

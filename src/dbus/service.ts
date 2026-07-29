@@ -13,9 +13,17 @@ export interface ServiceOptions {
   /** Read live from GSettings on every request, so changes need no restart. */
   timeoutSeconds: () => number
   /** Read live from GSettings on every request, so changes need no restart. */
+  questionTimeoutSeconds: () => number
+  /** Read live from GSettings on every request, so changes need no restart. */
   enabledAgents: () => string[]
   /** Called after a permission row appears, so the UI can pulse and auto-open. */
   onPermissionOpened: () => void
+  /**
+   * Called when a tool that maintains this agent's task list has finished, so
+   * the UI can re-read it. Only a hint that something moved — the service does
+   * no filesystem work itself, and never learns whether anyone was looking.
+   */
+  onTasksChanged: (key: string) => void
 }
 
 export class IslandService {
@@ -86,6 +94,22 @@ export class IslandService {
     })
     if (!e) return
     this.store.apply(e)
+
+    const key = sessionKey(e.agent, e.sessionId)
+    // Two shapes of plan, one store method. Codex ships the whole thing in the
+    // payload, so it is published here directly; Claude keeps it on disk, so
+    // all this can do is say that it moved.
+    const adapter = adapters[agent]
+    const tasks = adapter.parseTasks?.(raw) ?? null
+    if (tasks) {
+      this.store.setTasks(key, tasks)
+      return
+    }
+    // On tool-end, not tool-start: the pre-tool event fires before the write
+    // lands, so reading there would show the list as it was a moment ago.
+    if (e.kind === 'tool-end' && adapter.taskTools?.has(e.tool ?? '')) {
+      this.opts.onTasksChanged(key)
+    }
   }
 
   /**
@@ -140,6 +164,28 @@ export class IslandService {
       // Register the session first so the permission has a row to attach to.
       this.store.apply(e)
       const key = sessionKey(e.agent, e.sessionId)
+
+      // Before the bypass check, deliberately. `bypassPermissions` suppresses
+      // permission *prompts*; it does not suppress AskUserQuestion, which still
+      // asks the user in that mode. Checking bypass first would swallow every
+      // question asked in the mode where this feature is most useful.
+      const questions = adapter.parseQuestions?.(raw) ?? null
+      if (questions) {
+        const qid = this.permissions.request(
+          {
+            sessionKey: key,
+            tool: e.tool ?? 'AskUserQuestion',
+            questions,
+            timeoutSeconds: this.opts.questionTimeoutSeconds(),
+          },
+          (decision) => reply(JSON.stringify(adapter.encodeDecision(decision)))
+        )
+        // Same test as the permission path below: a request that merely queued
+        // behind an active one leaves the published hold unchanged, and only the
+        // one that actually became active should pull the popup open.
+        if (this.store.get(key)?.pendingQuestion?.id === qid) this.opts.onPermissionOpened()
+        return
+      }
 
       // The agent is in a mode that asks about nothing, yet still runs its
       // pre-tool hook. Gating here would put the island in front of a decision
