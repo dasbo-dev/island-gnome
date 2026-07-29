@@ -25,6 +25,7 @@ export const SessionRow = GObject.registerClass(
     private _cb!: SessionRowCallbacks
     private _dot!: St.Widget
     private _project!: St.Label
+    private _shellTotal!: St.Label
     private _activity!: St.Label
     private _elapsed!: St.Label
     private _jump!: St.Button
@@ -44,7 +45,30 @@ export const SessionRow = GObject.registerClass(
       const topRow = new St.BoxLayout({ x_expand: true, style_class: 'dasbo-row-top' })
 
       const textCol = new St.BoxLayout({ vertical: true, x_expand: true })
-      this._project = new St.Label({ text: session.project, style_class: 'dasbo-row-project' })
+      // The project name and the shell's uptime share a line. x_expand and the
+      // START alignment sit on the *total*, not the name: that makes the total
+      // absorb the row's slack while still drawing hard against the name, so
+      // the two read as one phrase instead of the total drifting to the right
+      // margin. The ellipsize stays on the name alone, so a long project
+      // shrinks and the total is never the thing that gets clipped.
+      const titleRow = new St.BoxLayout({ style_class: 'dasbo-row-title', x_expand: true })
+      this._project = new St.Label({
+        text: session.project,
+        style_class: 'dasbo-row-project',
+        y_align: Clutter.ActorAlign.CENTER,
+      })
+      this._shellTotal = new St.Label({
+        text: '',
+        style_class: 'dasbo-row-shell-total',
+        x_expand: true,
+        x_align: Clutter.ActorAlign.START,
+        y_align: Clutter.ActorAlign.CENTER,
+      })
+      // St's CSS engine does not honour `opacity` — the same finding that made
+      // the empty row set it on the actor. 140 (~0.55) rather than the 178 used
+      // for the activity line: the shell's uptime is the least important number
+      // in the row and should sit below it, not level with it.
+      this._shellTotal.opacity = 140
       // St's `width` sets an actor's minimum as well as its natural width, so
       // the row's fixed width bounds the menu but cannot clamp a child whose
       // own minimum exceeds it — the content spills past the popup's
@@ -73,7 +97,9 @@ export const SessionRow = GObject.registerClass(
       activityRow.add_child(this._dot)
       activityRow.add_child(this._activity)
 
-      textCol.add_child(this._project)
+      titleRow.add_child(this._project)
+      titleRow.add_child(this._shellTotal)
+      textCol.add_child(titleRow)
       textCol.add_child(activityRow)
 
       this._elapsed = new St.Label({ text: '0s', style_class: 'dasbo-row-elapsed',
@@ -137,6 +163,13 @@ export const SessionRow = GObject.registerClass(
       this._project.text = session.project
       this._dot.style_class = `dasbo-dot ${STATE_CLASS[session.state]}`.trim()
 
+      // On a first conversation the number is always #1 and the shell's uptime
+      // is the conversation's own age, so both are noise. Hidden rather than
+      // blanked: ClutterBoxLayout only spaces between visible children, so an
+      // empty label would still cost the row its gap.
+      this._shellTotal.visible =
+        session.conversationIndex > 1 && session.processStartedAt !== undefined
+
       const { text, hint } = activityText(session)
       this._activity.text = text
       // St's CSS engine does not reliably honour `opacity` — the same finding
@@ -148,7 +181,17 @@ export const SessionRow = GObject.registerClass(
 
     /** Called once per second by the Island while the popup is open. */
     tick(now: number): void {
-      this._elapsed.text = formatElapsed(now - this._session.startedAt)
+      const elapsed = formatElapsed(now - this._session.startedAt)
+      // The number rides on the clock rather than getting a label of its own:
+      // one string means tnum covers both halves, and the pair reads as "third
+      // conversation, eight minutes in".
+      this._elapsed.text = this._session.conversationIndex > 1
+        ? `#${this._session.conversationIndex} ${elapsed}`
+        : elapsed
+      const processStartedAt = this._session.processStartedAt
+      if (processStartedAt !== undefined) {
+        this._shellTotal.text = formatElapsed(now - processStartedAt)
+      }
     }
 
     showTransient(text: string): void {

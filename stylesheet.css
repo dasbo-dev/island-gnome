@@ -25,6 +25,16 @@
   font-weight: bold;
 }
 
+/* The gap between the project name and the shell's uptime. */
+.dasbo-row-title { spacing: 6px; }
+
+/* The agent process's total uptime, shown only once the conversation clock
+   beside it has stopped agreeing with it. Dimming lives on the actor, not
+   here — see sessionRow.ts. */
+.dasbo-row-shell-total {
+  font-size: 0.85em;
+}
+
 .dasbo-row-activity {
   font-size: 0.85em;
   opacity: 0.7;
@@ -33,11 +43,13 @@
 /* min-width because the row's total width is now fixed and the action box is
    right-hand: "5s" growing to "12m" would otherwise slide Jump sideways.
    tnum handles jitter within a digit count, min-width handles the change in
-   digit count. 3em covers the widest output, e.g. "100h". */
+   digit count. 6em covers the widest output, "#99 100h" — it was 3em before
+   the conversation number joined the clock. Those 3em come out of the activity
+   text's share of the fixed row width, so it wraps a little earlier. */
 .dasbo-row-elapsed {
   font-feature-settings: "tnum";
   opacity: 0.7;
-  min-width: 3em;
+  min-width: 6em;
 }
 
 /* .dasbo-row-outer is now the vertical box holding the top row and the
