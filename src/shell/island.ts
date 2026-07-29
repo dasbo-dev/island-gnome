@@ -17,6 +17,7 @@ import { taskDir, readTasks } from './taskReader.js'
 import { PopupHeader, EmptyRow } from './popupHeader.js'
 import { GridIcon } from './gridIcon.js'
 import { pillState } from '../core/pillState.js'
+import { bodyMaxHeight, scrollIntoView } from '../core/popupSize.js'
 
 /**
  * `PanelMenu.Button#menu` is typed as `PopupMenu | PopupDummyMenu` because a
@@ -46,6 +47,10 @@ export const Island = GObject.registerClass(
     private _rows = new Map<string, InstanceType<typeof SessionRow>>()
     private _header!: InstanceType<typeof PopupHeader>
     private _separator!: PopupMenu.PopupSeparatorMenuItem
+    private _body!: PopupMenu.PopupMenuSection
+    private _scroll!: St.ScrollView
+    /** Stage focus watch, live only while the popup is open. */
+    private _keyFocusId = 0
     private _emptyRow: InstanceType<typeof EmptyRow> | null = null
     private _timerId = 0
     private _settingsChangedId = 0
@@ -120,6 +125,26 @@ export const Island = GObject.registerClass(
       ;(this.menu as PopupMenu.PopupMenu).addMenuItem(this._header)
       ;(this.menu as PopupMenu.PopupMenu).addMenuItem(this._separator)
 
+      // The rows live in one scroll view so the popup can be bounded without
+      // bounding what any row is allowed to say. menu.box is a plain
+      // St.BoxLayout and a plain PopupMenu does not scroll in GNOME Shell 46 —
+      // only PopupSubMenu.actor is an St.ScrollView — so the scrolling has to be
+      // added here. A PopupMenuSection inside it keeps addMenuItem working
+      // exactly as menu.addMenuItem does, so SessionRow and EmptyRow are
+      // unchanged; the header and separator stay direct menu items above it, so
+      // the preferences gear is still reachable with a long list of sessions.
+      this._body = new PopupMenu.PopupMenuSection()
+      this._scroll = new St.ScrollView({
+        x_expand: true,
+        // NEVER: nothing in the popup wraps sideways, so there is nothing to
+        // scroll to, and a horizontal bar would only steal height from the
+        // vertical budget this whole arrangement exists to spend.
+        hscrollbar_policy: St.PolicyType.NEVER,
+        vscrollbar_policy: St.PolicyType.AUTOMATIC,
+      })
+      this._scroll.set_child(this._body.actor)
+      ;(this.menu as PopupMenu.PopupMenu).box.add_child(this._scroll)
+
       this._unsubscribe = this._store.subscribe(() => this.refresh())
 
       this._settingsChangedId = this._settings.connect('changed::always-show', () =>
@@ -148,8 +173,14 @@ export const Island = GObject.registerClass(
       this._menuStateId = (this.menu as MenuWithOpenSignal).connect(
         'open-state-changed',
         (_menu, open) => {
-          if (open) this._startTimer()
-          else this._stopTimer()
+          if (open) {
+            this._applyBodyCap()
+            this._watchKeyFocus()
+            this._startTimer()
+          } else {
+            this._unwatchKeyFocus()
+            this._stopTimer()
+          }
         }
       )
 
@@ -240,6 +271,83 @@ export const Island = GObject.registerClass(
       this._icon.setPaused(!this.visible || fullscreen)
     }
 
+    /**
+     * Bound the body to a share of the monitor it is opening on.
+     *
+     * Recomputed per open rather than watched: that covers a monitor swap, a
+     * resolution change and a font-scale change with no extra signal
+     * connections, and the work area cannot change under an already-open popup
+     * in a way the reader would notice. Expanding a row inside an
+     * already-capped scroll view needs no recomputation at all.
+     */
+    private _applyBodyCap(): void {
+      const found = Main.layoutManager.findIndexForActor(this)
+      // findIndexForActor can hand back a stale or invalid index mid
+      // monitors-changed; the primary monitor is a better guess than none.
+      const index = found >= 0 ? found : Main.layoutManager.primaryIndex
+      const workAreaHeight = Main.layoutManager.getWorkAreaForMonitor(index)?.height ?? 0
+      // Nothing to measure against. The previous cap is a better guess than any
+      // number invented here, so write no style at all rather than clamping the
+      // popup to MIN_BODY.
+      if (workAreaHeight <= 0) return
+      // get_preferred_height, not .height: this runs on the first open too,
+      // before either item has been allocated, where .height still reads 0.
+      const [, headerHeight] = this._header.get_preferred_height(-1)
+      const [, separatorHeight] = this._separator.get_preferred_height(-1)
+      const scaleFactor = St.ThemeContext.get_for_stage(global.get_stage()).scale_factor
+      const px = bodyMaxHeight({
+        workAreaHeight,
+        chromeHeight: headerHeight + separatorHeight,
+        scaleFactor,
+      })
+      // Inline rather than in the stylesheet: the number depends on the monitor.
+      this._scroll.style = `max-height: ${px}px`
+    }
+
+    /**
+     * Scroll a keyboard-focused control into view.
+     *
+     * Jump, Allow/Deny/Always and every option button is focusable, so Tab can
+     * reach one below the fold; without this the focus ring lands somewhere the
+     * reader cannot see. Watched on the stage rather than connected to the
+     * scroll view: Clutter emits key-focus-in on the actor that gains focus, not
+     * on its ancestors, so a handler on the scroll view would never fire.
+     *
+     * Deliberately not the Shell's own ensureActorVisibleInScrollView: it lives
+     * behind a private resource path that has already moved once between
+     * releases, and the arithmetic it would save is the part worth testing.
+     */
+    private _revealFocus(): void {
+      const focus = global.get_stage().get_key_focus()
+      if (!focus) return
+      const body = this._body.actor
+      if (!body.contains(focus)) return
+      const [, bodyY] = body.get_transformed_position()
+      const [, focusY] = focus.get_transformed_position()
+      const adjustment = this._scroll.vadjustment
+      // The body's own transformed position already carries the current scroll
+      // offset, so the difference is the child's y within the box.
+      adjustment.value = scrollIntoView({
+        value: adjustment.value,
+        pageSize: adjustment.page_size,
+        childY: focusY - bodyY,
+        childHeight: focus.height,
+      })
+    }
+
+    private _watchKeyFocus(): void {
+      if (this._keyFocusId) return
+      this._keyFocusId = global
+        .get_stage()
+        .connect('notify::key-focus', () => this._revealFocus())
+    }
+
+    private _unwatchKeyFocus(): void {
+      if (!this._keyFocusId) return
+      global.get_stage().disconnect(this._keyFocusId)
+      this._keyFocusId = 0
+    }
+
     private _releaseExternalRefs(): void {
       if (this._settingsChangedId) {
         this._settings.disconnect(this._settingsChangedId)
@@ -253,6 +361,7 @@ export const Island = GObject.registerClass(
       this._unsubscribe = null
       for (const id of this._transientIds) GLib.Source.remove(id)
       this._transientIds.clear()
+      this._unwatchKeyFocus()
       this._stopTimer()
     }
 
@@ -359,7 +468,7 @@ export const Island = GObject.registerClass(
             },
           })
           this._rows.set(s.key, row)
-          ;(this.menu as PopupMenu.PopupMenu).addMenuItem(row)
+          this._body.addMenuItem(row)
         }
       }
 
@@ -466,7 +575,7 @@ export const Island = GObject.registerClass(
       // two session rows.
       if (sessions.length === 0 && !this._emptyRow) {
         this._emptyRow = new EmptyRow()
-        ;(this.menu as PopupMenu.PopupMenu).addMenuItem(this._emptyRow)
+        this._body.addMenuItem(this._emptyRow)
       } else if (sessions.length > 0 && this._emptyRow) {
         this._emptyRow.destroy()
         this._emptyRow = null
@@ -528,6 +637,8 @@ export const Island = GObject.registerClass(
       this._emptyRow = null
       this._header.destroy()
       this._separator.destroy()
+      this._body.destroy()
+      this._scroll.destroy()
       super.destroy()
     }
   }
