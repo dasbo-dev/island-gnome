@@ -69,6 +69,20 @@ export default class DasboIslandExtension extends Extension {
       },
     })
 
+    this._island.setQuestionHandlers({
+      answer: (id, text) => {
+        this._permissions?.resolve(id, { kind: 'answer', answer: text })
+      },
+      handOff: (id) => {
+        // Fall-through, not a denial: the agent must go on to ask the question
+        // its own way, exactly as it would if the island were not installed.
+        this._permissions?.resolve(id, {
+          kind: 'fallthrough',
+          reason: 'Answering in the terminal',
+        })
+      },
+    })
+
     this._service = new IslandService(this._store, this._permissions, {
       timeoutSeconds: () => settings.get_int('permission-timeout'),
       questionTimeoutSeconds: () => settings.get_int('question-timeout'),

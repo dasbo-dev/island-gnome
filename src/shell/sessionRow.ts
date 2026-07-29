@@ -17,6 +17,8 @@ const STATE_CLASS: Record<SessionState, string> = {
 
 export interface SessionRowCallbacks {
   onJump: (session: Session) => void
+  /** Fired by the expander arrow. The Island owns the panel this shows and hides. */
+  onToggleQuestion: (expanded: boolean) => void
 }
 
 export const SessionRow = GObject.registerClass(
@@ -31,6 +33,9 @@ export const SessionRow = GObject.registerClass(
     private _jump!: St.Button
     private _actionBox!: St.BoxLayout
     private _permissionBox!: St.BoxLayout
+    private _expander!: St.Button
+    private _expanded = true
+    private _questionBox!: St.BoxLayout
 
     constructor(session: Session, cb: SessionRowCallbacks) {
       super({ reactive: false, can_focus: false, style_class: 'dasbo-row' })
@@ -104,6 +109,23 @@ export const SessionRow = GObject.registerClass(
       activityRow.add_child(this._dot)
       activityRow.add_child(this._activity)
 
+      // Leads the title row so its arrow lines up down the popup's left edge
+      // rather than floating after a project name of unpredictable width.
+      this._expander = new St.Button({
+        label: '▾',
+        style_class: 'dasbo-expander',
+        y_align: Clutter.ActorAlign.CENTER,
+        // The row is can_focus: false, so without this the only way to fold a
+        // question away is the mouse — see Jump and the header gear.
+        can_focus: true,
+        visible: false,
+      })
+      this._expander.connect('clicked', () => {
+        this._expanded = !this._expanded
+        this._expander.label = this._expanded ? '▾' : '▸'
+        this._cb.onToggleQuestion(this._expanded)
+      })
+      titleRow.add_child(this._expander)
       titleRow.add_child(this._project)
       titleRow.add_child(this._shellTotal)
       textCol.add_child(titleRow)
@@ -149,8 +171,26 @@ export const SessionRow = GObject.registerClass(
         this._permissionBox.visible = this._permissionBox.get_n_children() > 0
       })
 
+      // Its own line for the same reason the permission cluster has one: option
+      // labels neither wrap nor shrink. Same visibility handling too —
+      // ClutterBoxLayout spaces only between visible children, so an
+      // always-present empty box would cost every row a gap.
+      this._questionBox = new St.BoxLayout({
+        vertical: true,
+        x_expand: true,
+        style_class: 'dasbo-row-question',
+      })
+      this._questionBox.visible = false
+      this._questionBox.connect('child-added', () => {
+        this._questionBox.visible = true
+      })
+      this._questionBox.connect('child-removed', () => {
+        this._questionBox.visible = this._questionBox.get_n_children() > 0
+      })
+
       outer.add_child(topRow)
       outer.add_child(this._permissionBox)
+      outer.add_child(this._questionBox)
       this.add_child(outer)
 
       this.update(session)
@@ -159,6 +199,23 @@ export const SessionRow = GObject.registerClass(
     /** Where the Island attaches the Allow / Deny / Always controls. */
     get permissionBox(): St.BoxLayout {
       return this._permissionBox
+    }
+
+    /** Where the Island attaches the QuestionPanel. */
+    get questionBox(): St.BoxLayout {
+      return this._questionBox
+    }
+
+    /**
+     * Show or hide the expander arrow. Always resets to expanded: a question
+     * arrives already open (the popup opens itself for it), and a row that kept
+     * a fold left over from the *previous* question would hide the new one
+     * behind an arrow the user never chose to close.
+     */
+    setHasQuestion(has: boolean): void {
+      this._expander.visible = has
+      this._expanded = true
+      this._expander.label = '▾'
     }
 
     get session(): Session {

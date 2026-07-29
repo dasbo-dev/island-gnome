@@ -11,6 +11,7 @@ import type { SessionStore } from '../core/store.js'
 import type { Session, SessionState } from '../core/types.js'
 import { SessionRow } from './sessionRow.js'
 import { PermissionControls } from './permissionRow.js'
+import { QuestionPanel } from './questionPanel.js'
 import { PopupHeader, EmptyRow } from './popupHeader.js'
 import { GridIcon } from './gridIcon.js'
 import { pillState } from '../core/pillState.js'
@@ -51,10 +52,15 @@ export const Island = GObject.registerClass(
     private _onJump: (s: Session) => void = () => {}
     private _onPrefs: () => void = () => {}
     private _controls = new Map<string, { id: string; controls: PermissionControls }>()
+    private _questions = new Map<string, { id: string; panel: QuestionPanel }>()
     private _transientIds = new Set<number>()
     private _permHandlers: {
       resolve: (id: string, kind: 'allow' | 'deny') => void
       grantAllowAlways: (sessionKey: string, tool: string, id: string) => void
+    } | null = null
+    private _questionHandlers: {
+      answer: (id: string, text: string) => void
+      handOff: (id: string) => void
     } | null = null
 
     constructor(store: SessionStore, settings: Gio.Settings) {
@@ -166,6 +172,13 @@ export const Island = GObject.registerClass(
       this._permHandlers = h
     }
 
+    setQuestionHandlers(h: {
+      answer: (id: string, text: string) => void
+      handOff: (id: string) => void
+    }): void {
+      this._questionHandlers = h
+    }
+
     /** Called by the D-Bus service after a permission row has been registered. */
     notifyPermissionOpened(): void {
       if (!this._settings.get_boolean('auto-open-on-permission')) return
@@ -235,6 +248,11 @@ export const Island = GObject.registerClass(
             stale.controls.destroy()
             this._controls.delete(key)
           }
+          const staleQuestion = this._questions.get(key)
+          if (staleQuestion) {
+            staleQuestion.panel.destroy()
+            this._questions.delete(key)
+          }
           row.destroy()
           this._rows.delete(key)
         }
@@ -245,7 +263,10 @@ export const Island = GObject.registerClass(
         if (existing) {
           existing.update(s)
         } else {
-          const row = new SessionRow(s, { onJump: (sess) => this._onJump(sess) })
+          const row = new SessionRow(s, {
+            onJump: (sess) => this._onJump(sess),
+            onToggleQuestion: (expanded) => this._questions.get(s.key)?.panel.setExpanded(expanded),
+          })
           this._rows.set(s.key, row)
           ;(this.menu as PopupMenu.PopupMenu).addMenuItem(row)
         }
@@ -275,6 +296,32 @@ export const Island = GObject.registerClass(
         } else if (!pending && existing) {
           existing.controls.destroy()
           this._controls.delete(s.key)
+        }
+      }
+
+      for (const s of sessions) {
+        const row = this._rows.get(s.key)
+        if (!row) continue
+        const pending = s.pendingQuestion
+        const existing = this._questions.get(s.key)
+
+        // Keyed on the id for the same reason the permission cluster is: the
+        // table promotes a queued entry by publishing a new hold without ever
+        // clearing the old one, so a truthy `existing` can still be bound to a
+        // request that already resolved.
+        if (pending && existing?.id !== pending.id) {
+          existing?.panel.destroy()
+          const panel = new QuestionPanel(pending.questions, {
+            onAnswer: (text) => this._questionHandlers?.answer(pending.id, text),
+            onHandOff: () => this._questionHandlers?.handOff(pending.id),
+          })
+          panel.attachTo(row.questionBox)
+          this._questions.set(s.key, { id: pending.id, panel })
+          row.setHasQuestion(true)
+        } else if (!pending && existing) {
+          existing.panel.destroy()
+          this._questions.delete(s.key)
+          row.setHasQuestion(false)
         }
       }
 
@@ -335,6 +382,8 @@ export const Island = GObject.registerClass(
     destroy(): void {
       for (const c of this._controls.values()) c.controls.destroy()
       this._controls.clear()
+      for (const q of this._questions.values()) q.panel.destroy()
+      this._questions.clear()
       this._releaseExternalRefs()
       if (this._menuStateId) {
         ;(this.menu as MenuWithOpenSignal).disconnect(this._menuStateId)
