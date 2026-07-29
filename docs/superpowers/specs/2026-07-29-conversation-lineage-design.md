@@ -34,8 +34,8 @@ Three facts follow, and the design rests on them:
 - The payloads carry `source` and `reason`, which the Claude adapter currently
   discards.
 
-`/compact` also reports a `source` of `"compact"`. Its full event shape has
-**not** been measured — see Risks.
+`/compact` also reports a `source` of `"compact"`, but its event shape does
+**not** mirror `/clear`'s — see Risks.
 
 ## Goals
 
@@ -149,8 +149,9 @@ total.
    rewrite that record's `startedAt` and `conversationIndex` from the lineage.
 
 Step 5 exists so the design is correct whether or not `/compact` mints a new
-`session_id`. Step 4 alone assumes it does, which is measured for `clear` and
-unmeasured for `compact`.
+`session_id`. Step 4 alone is sufficient for `clear`, which mints one. It is
+not sufficient for `compact`, which does not — see Risks. Step 5 is what
+makes compaction move the count at all.
 
 Existing records are never otherwise rewritten, and that is what makes the
 `/clear` sequence work. `SessionEnd` lands first, so the outgoing row keeps its
@@ -241,12 +242,35 @@ popup colour fix was verified — a throwaway probe extension in a nested
 
 ## Risks
 
-**`/compact`'s event shape is unmeasured.** The design assumes it resembles
-`clear`. Step 5 of `apply` covers the case where it reuses the `session_id`
-instead of minting a new one. If it turns out `/compact` emits no `SessionStart`
-at all, the count will simply not move for it, and that is a behaviour change to
-revisit rather than a broken implementation. The plan should measure it first,
-with the same pty probe used for `clear`.
+**`/compact` does not mirror `/clear`.** Measured with the same pty probe,
+against a real conversation with two prior prompts (compaction reported
+"Not enough messages to compact." on a single-turn conversation, so this took
+a second, longer-conversation run to observe honestly):
+
+```
+SessionStart  session_id=926d57bf…   source: "startup"
+SessionStart  session_id=926d57bf…   source: "compact"
+SessionEnd    session_id=926d57bf…   reason: "prompt_input_exit"
+```
+
+Both `SessionStart` lines carry the **same** `session_id`. `/compact` does not
+end the old session and start a new one the way `/clear` does — it reuses the
+session in place. No `SessionEnd` with `reason: "compact"` was observed at any
+point; the single `SessionEnd` above comes from the later `/exit`, not from
+compaction.
+
+This is the second of the brief's three possible outcomes: `/compact` mints a
+`SessionStart` (so it can be detected via `source`), but does not mint a new
+`session_id`. That makes step 5 of `apply` — "if `startsNewConversation`
+arrives for a session that already exists, rewrite that record's `startedAt`
+and `conversationIndex` from the lineage" — **load-bearing for compaction, not
+belt-and-braces**. Step 4 alone (build a new record for a new `session_id`) is
+sufficient for `/clear`; it never fires for `/compact`, because `/compact`
+never presents a new `session_id`. Task 4's in-place rewrite is the only
+mechanism that makes the conversation count move when compaction occurs, and a
+reviewer should weigh it accordingly: without it, `'compact'` in Task 2's
+allowlist would set `startsNewConversation` on an event `store.apply` has no
+way to act on, and the count would silently fail to advance.
 
 ## Accepted limitations
 
