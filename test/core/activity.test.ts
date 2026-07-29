@@ -12,6 +12,7 @@ function session(over: Partial<Session> = {}): Session {
     state: 'idle',
     pid: 4242,
     startedAt: 0,
+    conversationIndex: 1,
     lastEventAt: 0,
     ...over,
   }

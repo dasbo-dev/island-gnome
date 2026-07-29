@@ -96,7 +96,20 @@ export interface Session {
   currentTool?: string
   detail?: string
   pid: number
+  /**
+   * When the current conversation began. Equal to the agent process's start
+   * time until the user clears or compacts, which begins a new conversation
+   * inside a process that keeps running — see SessionStore's lineage map.
+   */
   startedAt: number
+  /** 1-based. Which conversation this is within its agent process. */
+  conversationIndex: number
+  /**
+   * When the agent process started, in ms since the epoch, resolved from /proc
+   * by the shell layer. Undefined when /proc could not supply it. Distinct from
+   * startedAt, which moves with the conversation while this does not.
+   */
+  processStartedAt?: number
   lastEventAt: number
   /** Set when a session-end arrives; used for the done-linger sweep. */
   doneAt?: number

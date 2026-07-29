@@ -389,4 +389,105 @@ describe('SessionStore', () => {
     s.apply(ev({ kind: 'tool-start', tool: 'Edit', ts: 20000, agentStartedAt: 1500 }))
     expect(s.list()[0]!.startedAt, 'the clock must not restart with the record').toBe(1500)
   })
+
+  it('numbers the first conversation 1 and starts its clock at the process', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 9000, agentStartedAt: 1500 }))
+    expect(s.list()[0]!.conversationIndex).toBe(1)
+    expect(s.list()[0]!.startedAt).toBe(1500)
+    expect(s.list()[0]!.processStartedAt).toBe(1500)
+  })
+
+  it('restarts the clock and bumps the number when a clear begins a new conversation', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'old', ts: 9000, agentStartedAt: 1500 }))
+    s.apply(ev({ sessionId: 'new', ts: 20000, agentStartedAt: 1500, startsNewConversation: true }))
+    const fresh = s.list().find((x) => x.sessionId === 'new')!
+    expect(fresh.conversationIndex).toBe(2)
+    expect(fresh.startedAt, 'the clock measures the conversation, not the shell').toBe(20000)
+    expect(fresh.processStartedAt, 'the shell total still comes from /proc').toBe(1500)
+  })
+
+  it('leaves the outgoing record alone so it shows its own final duration', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'old', ts: 9000, agentStartedAt: 1500 }))
+    s.apply(ev({ sessionId: 'old', kind: 'session-end', ts: 19000, agentStartedAt: 1500 }))
+    s.apply(ev({ sessionId: 'new', ts: 20000, agentStartedAt: 1500, startsNewConversation: true }))
+    const old = s.list().find((x) => x.sessionId === 'old')!
+    expect(old.startedAt).toBe(1500)
+    expect(old.conversationIndex).toBe(1)
+  })
+
+  it('counts a third conversation, so compaction after a clear keeps climbing', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'a', ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'b', ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    s.apply(ev({ sessionId: 'c', ts: 3000, agentStartedAt: 1000, startsNewConversation: true }))
+    expect(s.list().find((x) => x.sessionId === 'c')!.conversationIndex).toBe(3)
+  })
+
+  it('keeps conversations in separate agent processes separate', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'a', pid: 10, ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'b', pid: 10, ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    s.apply(ev({ sessionId: 'c', pid: 20, ts: 3000, agentStartedAt: 3000 }))
+    expect(s.list().find((x) => x.sessionId === 'c')!.conversationIndex).toBe(1)
+  })
+
+  it('treats a reused pid with a different start time as a different process', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'a', pid: 10, ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'b', pid: 10, ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    s.apply(ev({ sessionId: 'c', pid: 10, ts: 9000, agentStartedAt: 8000, startsNewConversation: true }))
+    expect(
+      s.list().find((x) => x.sessionId === 'c')!.conversationIndex,
+      'a recycled pid must not inherit the dead process`s count'
+    ).toBe(2)
+  })
+
+  it('keeps a live conversation numbered across the events inside it', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'b', ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    s.apply(ev({ sessionId: 'b', kind: 'tool-start', tool: 'Edit', ts: 3000, agentStartedAt: 1000 }))
+    expect(s.list()[0]!.conversationIndex).toBe(2)
+    expect(s.list()[0]!.startedAt, 'an ordinary event must not move the clock').toBe(2000)
+  })
+
+  it('numbers a conversation 1 when the agent process could not be identified', () => {
+    const s = new SessionStore()
+    s.apply(ev({ pid: 0, ts: 9000, agentStartedAt: 1500, startsNewConversation: true }))
+    expect(
+      s.list()[0]!.conversationIndex,
+      'pid 0 is every unidentified agent at once; it can carry no lineage'
+    ).toBe(1)
+    expect(s.list()[0]!.startedAt).toBe(1500)
+  })
+
+  it('numbers a conversation 1 when the extension started mid-shell', () => {
+    const s = new SessionStore()
+    s.apply(ev({ kind: 'tool-start', tool: 'Edit', ts: 9000, agentStartedAt: 1500 }))
+    expect(
+      s.list()[0]!.conversationIndex,
+      'no SessionStart replays on reload, so this undercounts by design'
+    ).toBe(1)
+    expect(s.list()[0]!.startedAt).toBe(1500)
+  })
+
+  it('lands on 2 when the first event it ever sees is a clear', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 9000, agentStartedAt: 1500, startsNewConversation: true }))
+    expect(
+      s.list()[0]!.conversationIndex,
+      'at least two conversations have happened; 2 is the honest lower bound'
+    ).toBe(2)
+  })
+
+  it('keeps the conversation clock when a reap recreates the record', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'b', ts: 2000, agentStartedAt: 1000, startsNewConversation: true }))
+    s.reap(3000, () => true)
+    s.apply(ev({ sessionId: 'b', kind: 'tool-start', tool: 'Edit', ts: 30000, agentStartedAt: 1000 }))
+    expect(s.list()[0]!.startedAt, 'the lineage outlives the record it numbered').toBe(2000)
+    expect(s.list()[0]!.conversationIndex).toBe(2)
+  })
 })

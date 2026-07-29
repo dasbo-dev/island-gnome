@@ -1,5 +1,5 @@
 import { basename, sessionKey } from './types.js'
-import type { AgentEvent, PendingPermission, Session, SessionState } from './types.js'
+import type { AgentEvent, AgentId, PendingPermission, Session, SessionState } from './types.js'
 
 const STALE_MS = 15 * 60 * 1000
 /**
@@ -9,8 +9,31 @@ const STALE_MS = 15 * 60 * 1000
  */
 const MAX_SESSIONS = 300
 
+/**
+ * What the store remembers about one agent process across the conversations it
+ * hosts. `/clear` and `/compact` end a session and start a new one without
+ * restarting the process, so a new Session record is built for each — which is
+ * why neither the counter nor the conversation's start time can live on one.
+ */
+interface Lineage {
+  pid: number
+  processStartedAt: number
+  count: number
+  conversationStartedAt: number
+}
+
+/**
+ * Keyed on the pid *and* the process start time, never the pid alone: the
+ * kernel recycles pids, and the start time is what makes one of them mean one
+ * process. Callers pass 0 for an unknown start time so the key stays total.
+ */
+function lineageKey(agent: AgentId, pid: number, processStartedAt: number): string {
+  return `${agent}:${pid}:${processStartedAt}`
+}
+
 export class SessionStore {
   private sessions = new Map<string, Session>()
+  private lineages = new Map<string, Lineage>()
   private subscribers = new Set<() => void>()
   /** Seconds a done session lingers before reaping. Set from GSettings by the shell layer. */
   doneLingerSeconds = 10
@@ -32,7 +55,35 @@ export class SessionStore {
     return this.sessions.get(key)
   }
 
-  private ensure(e: AgentEvent): Session | null {
+  /**
+   * The lineage for the process this event came from, created on first sight.
+   * Null when there is nothing to key on: resolveAgent returns pid 0 whenever
+   * it cannot read /proc or cannot identify the agent, and a lineage keyed on 0
+   * would merge every unidentified agent on the machine into one count.
+   *
+   * Also null at the cap. Unlike the session map this one can be grown by a
+   * peer that never gets a session created — a lineage is minted before ensure
+   * runs — so it needs its own bound rather than inheriting that one.
+   */
+  private lineageFor(e: AgentEvent): Lineage | null {
+    if (!e.pid) return null
+    const processStartedAt = e.agentStartedAt ?? 0
+    const key = lineageKey(e.agent, e.pid, processStartedAt)
+    let l = this.lineages.get(key)
+    if (!l) {
+      if (this.lineages.size >= MAX_SESSIONS) return null
+      l = {
+        pid: e.pid,
+        processStartedAt,
+        count: 1,
+        conversationStartedAt: e.agentStartedAt ?? e.ts,
+      }
+      this.lineages.set(key, l)
+    }
+    return l
+  }
+
+  private ensure(e: AgentEvent, lineage: Lineage | null): Session | null {
     const key = sessionKey(e.agent, e.sessionId)
     let s = this.sessions.get(key)
     if (!s) {
@@ -45,10 +96,13 @@ export class SessionStore {
         cwd: e.cwd,
         state: 'idle',
         pid: e.pid,
-        // The agent process's own start time when the shell layer could read it,
-        // so a record recreated after a reap or a shell reload reports the same
+        // The conversation's start, which the lineage carries across the record
+        // boundary that /clear creates. Falling back to the process start keeps
+        // a record recreated after a reap or a shell reload reporting the same
         // number rather than restarting the clock at the current task.
-        startedAt: e.agentStartedAt ?? e.ts,
+        startedAt: lineage?.conversationStartedAt ?? e.agentStartedAt ?? e.ts,
+        conversationIndex: lineage?.count ?? 1,
+        processStartedAt: e.agentStartedAt,
         lastEventAt: e.ts,
       }
       this.sessions.set(key, s)
@@ -57,7 +111,16 @@ export class SessionStore {
   }
 
   apply(e: AgentEvent): void {
-    const s = this.ensure(e)
+    const lineage = this.lineageFor(e)
+    // Bumped before ensure, so the record ensure creates for the incoming
+    // session id is already numbered. /clear delivers its SessionEnd first, so
+    // the outgoing record is untouched and keeps showing its own duration for
+    // the length of its linger.
+    if (lineage && e.startsNewConversation) {
+      lineage.count += 1
+      lineage.conversationStartedAt = e.ts
+    }
+    const s = this.ensure(e, lineage)
     if (!s) return
     s.lastEventAt = e.ts
     if (e.pid) s.pid = e.pid
