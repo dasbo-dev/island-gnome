@@ -82,8 +82,6 @@
 .dasbo-question-option { padding: 3px 8px; border-radius: 6px; }
 .dasbo-question-option:hover { background-color: rgba(255, 255, 255, 0.08); }
 .dasbo-question-option:checked { background-color: rgba(255, 255, 255, 0.16); }
-.dasbo-question-label { font-weight: bold; padding-right: 8px; }
-.dasbo-question-desc { font-size: 0.9em; }
 .dasbo-question-entry { margin: 2px 0; }
 .dasbo-question-nav { spacing: 6px; padding-top: 2px; }
 .dasbo-question-next { padding: 2px 10px; }

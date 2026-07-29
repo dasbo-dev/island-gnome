@@ -1,7 +1,7 @@
 import St from 'gi://St'
 import Clutter from 'gi://Clutter'
 import Pango from 'gi://Pango'
-import { formatAnswer } from '../core/questions.js'
+import { formatAnswer, optionMarkup } from '../core/questions.js'
 import type { Question } from '../core/questions.js'
 
 export interface QuestionCallbacks {
@@ -17,8 +17,8 @@ export interface QuestionCallbacks {
  * Not a GObject class, for the same reason PermissionControls is not: it is a
  * plain owner of St actors so it can be attached to and detached from a
  * SessionRow's question box — its own full-width line beneath the row, because
- * option labels neither wrap nor shrink and beside the activity label they
- * would starve it.
+ * an option is a wrapped sentence and beside the activity label the two would
+ * starve each other.
  *
  * It owns the in-progress selections. They are not in the store: a half-made
  * choice is not something the agent reported, and routing every click through
@@ -152,20 +152,23 @@ export class QuestionPanel {
   }
 
   private optionButton(q: Question, label: string, description: string): St.Button {
-    const inner = new St.BoxLayout({ x_expand: true })
-    const name = new St.Label({ text: label, style_class: 'dasbo-question-label' })
-    const desc = new St.Label({ text: description, style_class: 'dasbo-question-desc',
-      x_expand: true })
-    // St's CSS engine does not reliably honour `opacity` — the finding recorded
-    // in popupHeader.ts and reused on the row's activity label — so this is set
-    // on the actor rather than in the stylesheet.
-    desc.opacity = 178
-    desc.clutter_text.ellipsize = Pango.EllipsizeMode.END
-    inner.add_child(name)
-    inner.add_child(desc)
+    const text = new St.Label({ x_expand: true })
+    // One label, not a bold one beside a dim one: the popup's width is fixed at
+    // 26em, and a description wrapped inside its own right-hand column would
+    // break every two or three words. The bold and the dimming come from Pango
+    // markup instead — see optionMarkup, which also escapes both halves.
+    text.clutter_text.set_markup(optionMarkup(label, description))
+    // The same wrapping triple the question prompt and the row's activity label
+    // carry. ellipsize must be NONE explicitly: Pango ignores line_wrap while an
+    // ellipsize mode is set, which would silently yield one truncated line.
+    // WORD_CHAR, not WORD: a description can hold a path or a flag with no break
+    // opportunity in it, which under WORD would overhang the fixed width.
+    text.clutter_text.line_wrap = true
+    text.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR
+    text.clutter_text.ellipsize = Pango.EllipsizeMode.NONE
 
     const button = new St.Button({ style_class: 'dasbo-question-option', can_focus: true,
-      x_expand: true, child: inner })
+      x_expand: true, child: text })
     button.connect('clicked', () => {
       if (this.done) return
       if (q.multiSelect) {
