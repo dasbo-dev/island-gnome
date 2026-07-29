@@ -128,15 +128,16 @@ export interface Session {
    * every event has to re-pin the record to whatever process it now belongs
    * to. Undefined when the agent could not be identified and no lineage was
    * minted, and stale whenever the lineage map was at its cap on the last
-   * event — no lineage resolves there, so the pid moves on without this, and
-   * the record goes on naming a lineage it has left. Read back rather than
-   * rebuilt, because rebuilding the key from
-   * this record's own pid and processStartedAt would use two fields that can
-   * come from different events and no longer form the pair a lineage was
-   * keyed on. Can name a different lineage than the one conversationIndex was
-   * numbered from — a resume under a new pid moves this forward without
-   * renumbering the record — which is intended: pruneLineages wants to know
-   * what is referenced *now*, not what a past conversation was counted by.
+   * event and this process's lineage was not already in it — no lineage
+   * resolves there, so the pid moves on without this, and the record goes on
+   * naming a lineage it has left. Read back rather than rebuilt, because
+   * rebuilding the key from this record's own pid and processStartedAt would
+   * use two fields that can come from different events and no longer form the
+   * pair a lineage was keyed on. Can name a different lineage than the one
+   * conversationIndex was numbered from — a resume under a new pid moves this
+   * forward without renumbering the record — which is intended: pruneLineages
+   * wants to know what is referenced *now*, not what a past conversation was
+   * counted by.
    */
   lineageKey?: string
 }

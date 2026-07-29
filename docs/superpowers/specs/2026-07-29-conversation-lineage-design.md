@@ -143,8 +143,11 @@ total.
 3. If `e.startsNewConversation`, then `count++` and
    `conversationStartedAt = e.ts`.
 4. `ensure()` builds a **new** record from the lineage:
-   `startedAt = conversationStartedAt`, `conversationIndex = count`,
-   `processStartedAt = e.agentStartedAt`.
+   `startedAt = conversationStartedAt`, `conversationIndex = count`, seeding
+   `processStartedAt = e.agentStartedAt` at creation. `apply` then refreshes
+   that field from every event carrying one — not only the record's first —
+   so a session that outlives its process still reports the live process's
+   uptime.
 5. If `e.startsNewConversation` arrives for a session that **already exists**,
    rewrite that record's `startedAt` and `conversationIndex` from the lineage.
 
@@ -297,14 +300,21 @@ way to act on, and the count would silently fail to advance.
    `${agent}:${pid}:${agentStartedAt}`, and `windowFinder.ts` already documents
    `agentStartedAt` as jittering by about a second across a suspend — the boot
    time the `/proc` figure is derived from is re-derived after the clock jumps.
-   A lid close mid-conversation therefore re-keys the same live process: the
-   count restarts at 1, the conversation clock restarts, and the old entry
-   survives until the map fills, because its pid is still alive and so
-   `pruneLineages` will not collect it. Chosen deliberately over re-keying on a
-   boot-relative tick count, which would be stable across suspend but would put
-   a second time base into the store for a cosmetic gain. It self-corrects at
-   the next `/clear`, which mints a fresh lineage from the post-resume key and
-   counts forward from there.
+   A lid close mid-conversation therefore re-keys the same live process, but
+   the live record itself is untouched: `ensure` returns the existing session,
+   so `startedAt` and `conversationIndex` do not move, and the only visible
+   change at resume is the dim shell-total suffix jumping by the jitter, since
+   that reads `processStartedAt`, which is refreshed on every event. The
+   damage lands on the *next* conversation instead. The resume silently mints
+   a fresh lineage under the post-jitter key, orphaning the one the live
+   record was numbered from — count and all. The next `/clear` bumps that
+   fresh lineage up from 1, so the record it creates opens on a count that is
+   low by however many conversations preceded the suspend, and nothing ever
+   restores the difference: every conversation after the suspend is
+   undercounted by that same fixed amount for the life of the process. Chosen
+   deliberately over re-keying on a boot-relative tick count, which would be
+   stable across suspend but would put a second time base into the store for a
+   cosmetic gain.
 7. Automatic compaction resets the clock without the user typing anything.
    Compaction is treated as a new conversation, and Claude Code compacts on its
    own when the context window fills, so a row sitting at `2h` can drop to

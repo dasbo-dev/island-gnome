@@ -386,17 +386,20 @@ export class SessionStore {
    * refreshed on every event now, so staleness is no longer the reason — the
    * reason is that they are the *event's* values, under two independent guards
    * (a pid of 0 is not written, an undefined start time is not written), while
-   * a lineage stays filed under whatever the key was when it was minted. A
-   * lineage first seen on an event with no readable start time is filed under
-   * `<agent>:<pid>:0` for the rest of its life; once a later event supplies a
-   * real start time, the record's own two fields no longer rebuild that key at
-   * all, and the real lineage would leak until the map hit its cap. The stamp
-   * is written from the Lineage object itself, in apply, so it names the map
-   * entry exactly and cannot be reconstructed wrong.
+   * a lineage stays filed under whatever the key was when it was minted. The
+   * divergence that survives that refresh: an event with a resolved pid but an
+   * undefined start time keys the lineage on `<agent>:<pid>:0`, while
+   * s.processStartedAt keeps whatever real value an earlier event supplied —
+   * rebuilding from the record's own two fields would reach for
+   * `<agent>:<pid>:<that-earlier-value>` instead, miss the lineage actually
+   * referenced, and leak it until the map hit its cap. The stamp is written
+   * from the Lineage object itself, in apply, so it names the map entry
+   * exactly and cannot be reconstructed wrong.
    *
-   * It can still be *stale*, in one case: at the lineage cap lineageFor returns
-   * null, so apply refreshes s.pid without refreshing the stamp beside it. The
-   * record then keeps naming the lineage it has left, which holds that entry
+   * It can still be *stale*, in one case: at the lineage cap, and only when
+   * this process's lineage is not already in it, lineageFor returns null, so
+   * apply refreshes s.pid without refreshing the stamp beside it. The record
+   * then keeps naming the lineage it has left, which holds that entry
    * referenced — and therefore unprunable — even once its process is gone. It
    * frees itself when the referencing record is reaped, and reaching it at all
    * takes a peer minting three hundred processes, so it is left as is.
