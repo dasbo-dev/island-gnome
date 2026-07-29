@@ -167,6 +167,16 @@ export class SessionStore {
     }
     s.lastEventAt = e.ts
     if (e.pid) s.pid = e.pid
+    // Refreshed here rather than left at what ensure stamped, for exactly the
+    // reason the pid above is: a session id can outlive its process, because
+    // `claude --resume <id>` reuses the id under a brand new one. A record that
+    // survives that (it need only be within the reaper's window) would
+    // otherwise name the live process by pid while reporting the *dead*
+    // process's uptime as its shell total — a number too large by however long
+    // the old shell ran, and one that never resets for the life of the record.
+    // Guarded on undefined rather than assigned outright so a transient /proc
+    // failure can only fail to update a good value, never blank one.
+    if (e.agentStartedAt !== undefined) s.processStartedAt = e.agentStartedAt
     // Written here, alongside the pid it must agree with, rather than once at
     // creation: a session id can outlive its process (`claude --resume` reuses
     // the id under a new pid), and this is the only place pid is refreshed.
@@ -355,14 +365,24 @@ export class SessionStore {
    * nothing, so a dropped-only guard would leak the lineage for good.
    *
    * The referenced set is read from each Session's own lineageKey stamp rather
-   * than rebuilt from its current pid and processStartedAt. apply refreshes
-   * s.pid on every event but ensure stamps s.processStartedAt only once, when
-   * the record is created — so the two can come from different events and no
-   * longer form the pair a lineage was keyed on. Rebuilding the key from those
-   * two fields would then match no lineage, leaking the real one until the map
-   * hits its cap. The stamp is always written from the lineage itself, in
-   * apply, alongside the pid it must agree with — so it can never drift out
-   * of step with the map entry it names.
+   * than rebuilt from its current pid and processStartedAt. Both of those are
+   * refreshed on every event now, so staleness is no longer the reason — the
+   * reason is that they are the *event's* values, under two independent guards
+   * (a pid of 0 is not written, an undefined start time is not written), while
+   * a lineage stays filed under whatever the key was when it was minted. A
+   * lineage first seen on an event with no readable start time is filed under
+   * `<agent>:<pid>:0` for the rest of its life; once a later event supplies a
+   * real start time, the record's own two fields no longer rebuild that key at
+   * all, and the real lineage would leak until the map hit its cap. The stamp
+   * is written from the Lineage object itself, in apply, so it names the map
+   * entry exactly and cannot be reconstructed wrong.
+   *
+   * It can still be *stale*, in one case: at the lineage cap lineageFor returns
+   * null, so apply refreshes s.pid without refreshing the stamp beside it. The
+   * record then keeps naming the lineage it has left, which holds that entry
+   * referenced — and therefore unprunable — even once its process is gone. It
+   * frees itself when the referencing record is reaped, and reaching it at all
+   * takes a peer minting three hundred processes, so it is left as is.
    */
   private pruneLineages(pidAlive: (pid: number) => boolean): void {
     const referenced = new Set<string>()

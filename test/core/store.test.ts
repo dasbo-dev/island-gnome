@@ -599,6 +599,32 @@ describe('SessionStore', () => {
     ).toBe(2)
   })
 
+  it('follows processStartedAt to the new process when a session id is resumed under one', () => {
+    // `claude --resume <id>` reuses the session id under a brand new process.
+    // apply refreshes s.pid for that, so a record left holding the dead
+    // process's start time would report a shell total too large by however
+    // long the old shell ran, and never reset for the life of the record.
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'a', pid: 7, ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'a', kind: 'tool-start', tool: 'Edit', ts: 9000, pid: 9,
+      agentStartedAt: 8000 }))
+    expect(s.list()[0]!.pid).toBe(9)
+    expect(
+      s.list()[0]!.processStartedAt,
+      'the shell total must name the process the pid names'
+    ).toBe(8000)
+  })
+
+  it('keeps a good processStartedAt when a later event could not read /proc', () => {
+    const s = new SessionStore()
+    s.apply(ev({ sessionId: 'a', pid: 7, ts: 1000, agentStartedAt: 1000 }))
+    s.apply(ev({ sessionId: 'a', kind: 'tool-start', tool: 'Edit', ts: 2000, pid: 7 }))
+    expect(
+      s.list()[0]!.processStartedAt,
+      'a transient /proc failure must not blank a value that was good'
+    ).toBe(1000)
+  })
+
   it('LIMITATION: loses the bump for good when the clear is the event /proc failed on', () => {
     // Documents the limitation described on makeLineageKey, not a behaviour
     // anyone wants. The lineage is keyed on the pid *and* the process start
