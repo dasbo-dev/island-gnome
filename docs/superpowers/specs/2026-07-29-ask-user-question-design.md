@@ -261,8 +261,9 @@ invocation that escapes without one blocks the agent forever.
 
 ## Settings
 
-One new key, `question-timeout-seconds`, default `120`. A question needs
-reading, unlike a `Bash` command, so it does not share the permission timeout.
+One new key, `question-timeout`, default `120`. A question needs reading, unlike
+a `Bash` command, so it does not share the permission timeout. Named to match
+`permission-timeout` and `done-linger`, neither of which carries a unit suffix.
 Exposed in prefs beside the existing one.
 
 ## Testing
