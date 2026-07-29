@@ -18,6 +18,12 @@ export interface ServiceOptions {
   enabledAgents: () => string[]
   /** Called after a permission row appears, so the UI can pulse and auto-open. */
   onPermissionOpened: () => void
+  /**
+   * Called when a tool that maintains this agent's task list has finished, so
+   * the UI can re-read it. Only a hint that something moved — the service does
+   * no filesystem work itself, and never learns whether anyone was looking.
+   */
+  onTasksChanged: (key: string) => void
 }
 
 export class IslandService {
@@ -88,6 +94,22 @@ export class IslandService {
     })
     if (!e) return
     this.store.apply(e)
+
+    const key = sessionKey(e.agent, e.sessionId)
+    // Two shapes of plan, one store method. Codex ships the whole thing in the
+    // payload, so it is published here directly; Claude keeps it on disk, so
+    // all this can do is say that it moved.
+    const adapter = adapters[agent]
+    const tasks = adapter.parseTasks?.(raw) ?? null
+    if (tasks) {
+      this.store.setTasks(key, tasks)
+      return
+    }
+    // On tool-end, not tool-start: the pre-tool event fires before the write
+    // lands, so reading there would show the list as it was a moment ago.
+    if (e.kind === 'tool-end' && adapter.taskTools?.has(e.tool ?? '')) {
+      this.opts.onTasksChanged(key)
+    }
   }
 
   /**
