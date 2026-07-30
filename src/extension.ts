@@ -97,6 +97,7 @@ export default class DasboIslandExtension extends Extension {
       questionTimeoutSeconds: () => settings.get_int('question-timeout'),
       enabledAgents: () => settings.get_strv('enabled-agents'),
       onPermissionOpened: () => this._island?.notifyPermissionOpened(),
+      onNotification: (key) => this._island?.notifyNotification(key),
       onTasksChanged: (key) => this._island?.notifyTasksChanged(key),
     })
     this._service.export()

@@ -19,6 +19,12 @@ export interface ServiceOptions {
   /** Called after a permission row appears, so the UI can pulse and auto-open. */
   onPermissionOpened: () => void
   /**
+   * Called when an agent raised a notification, so the UI can show it. The
+   * store already holds the text by the time this fires; this only says that
+   * it is worth looking at.
+   */
+  onNotification: (key: string) => void
+  /**
    * Called when a tool that maintains this agent's task list has finished, so
    * the UI can re-read it. Only a hint that something moved — the service does
    * no filesystem work itself, and never learns whether anyone was looking.
@@ -96,6 +102,12 @@ export class IslandService {
     this.store.apply(e)
 
     const key = sessionKey(e.agent, e.sessionId)
+    // Before the task branches, which a notification can never satisfy: it
+    // carries no tool name and is not a tool-end.
+    if (e.kind === 'notification') {
+      this.opts.onNotification(key)
+      return
+    }
     // Two shapes of plan, one store method. Codex ships the whole thing in the
     // payload, so it is published here directly; Claude keeps it on disk, so
     // all this can do is say that it moved.

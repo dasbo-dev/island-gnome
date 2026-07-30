@@ -71,6 +71,14 @@ export const Island = GObject.registerClass(
     /** Keys with a read in flight, so a burst of TaskUpdates cannot stack reads. */
     private _readingTasks = new Set<string>()
     private _transientIds = new Set<number>()
+    /** GLib source that closes a popup this widget opened for a notice. */
+    private _noticeCloseId = 0
+    /**
+     * True only while a notice-close timer is armed *and* the popup it will
+     * close is one this widget opened for that notice. Everything that could
+     * make closing wrong clears it — see notifyNotification.
+     */
+    private _noticeOpened = false
     private _permHandlers: {
       resolve: (id: string, kind: 'allow' | 'deny') => void
       grantAllowAlways: (sessionKey: string, tool: string, id: string) => void
@@ -193,6 +201,10 @@ export const Island = GObject.registerClass(
           } else {
             this._unwatchKeyFocus()
             this._stopTimer()
+            // The user closed it. There is nothing left to close, and a timer
+            // left armed would fire into whatever the *next* open is.
+            this._noticeOpened = false
+            this._cancelNoticeClose()
           }
         }
       )
@@ -237,9 +249,58 @@ export const Island = GObject.registerClass(
 
     /** Called by the D-Bus service after a permission row has been registered. */
     notifyPermissionOpened(): void {
+      // Unconditionally, and before the guards below: the popup is now up for
+      // something that needs an answer. Shutting it under the user's cursor
+      // mid-click is the worst thing the notice timer could do — and that is
+      // true whether or not this call goes on to open anything itself.
+      this._noticeOpened = false
+      this._cancelNoticeClose()
       if (!this._settings.get_boolean('auto-open-on-permission')) return
       if (Main.layoutManager.primaryMonitor?.inFullscreen) return
       this.menu.open(true)
+    }
+
+    /**
+     * Called by the D-Bus service when an agent raised a notification. The
+     * store already holds the text; this decides whether to show the popup for
+     * it, and arranges to undo that.
+     */
+    notifyNotification(key: string): void {
+      if (!this._settings.get_boolean('notification-popup')) return
+      if (Main.layoutManager.primaryMonitor?.inFullscreen) return
+      // No text, no notice, nothing to show. Claude's Notification payload is
+      // inferred rather than captured (see the design doc), so a differently
+      // spelled message field must leave this feature silent rather than
+      // opening an empty popup on its own.
+      if (!this._store.get(key)?.notice) return
+
+      this._cancelNoticeClose()
+      const seconds = this._settings.get_int('notification-seconds')
+      const wasClosed = !(this.menu as PopupMenu.PopupMenu).isOpen
+      if (wasClosed) this.menu.open(true)
+
+      // The flag is set only when a timer is actually armed. With seconds = 0
+      // nothing would ever read it, and leaving it true would hand the *next*
+      // notification's timer permission to close a popup it did not open.
+      //
+      // Or-ed rather than assigned: a second notice arriving while the first
+      // one's popup is still up finds the menu already open, and clobbering
+      // the flag to false there would strand that popup with nothing left to
+      // close it.
+      if (seconds > 0) {
+        this._noticeOpened = this._noticeOpened || wasClosed
+        this._noticeCloseId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, seconds, () => {
+          this._noticeCloseId = 0
+          if (this._noticeOpened) {
+            this._noticeOpened = false
+            // Re-entrant: this fires open-state-changed, whose closed branch
+            // clears the flag and cancels the timer. Both are already done, so
+            // that pass is a no-op rather than a loop.
+            this.menu.close(true)
+          }
+          return GLib.SOURCE_REMOVE
+        })
+      }
     }
 
     /**
@@ -271,6 +332,12 @@ export const Island = GObject.registerClass(
       if (!this._timerId) return
       GLib.Source.remove(this._timerId)
       this._timerId = 0
+    }
+
+    private _cancelNoticeClose(): void {
+      if (!this._noticeCloseId) return
+      GLib.Source.remove(this._noticeCloseId)
+      this._noticeCloseId = 0
     }
 
     /**
@@ -381,6 +448,7 @@ export const Island = GObject.registerClass(
       this._unsubscribe = null
       for (const id of this._transientIds) GLib.Source.remove(id)
       this._transientIds.clear()
+      this._cancelNoticeClose()
       this._unwatchKeyFocus()
       this._stopTimer()
       // PopupMenuBase's constructor connects this._body to Main.sessionMode,
