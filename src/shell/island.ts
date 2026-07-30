@@ -81,10 +81,11 @@ export const Island = GObject.registerClass(
      * two notices with no intervening close leaves it true with no timer
      * ever armed for the second one — but the property that actually matters
      * holds regardless: it is set only in the branch of notifyNotification
-     * that itself opened the popup for a notice, and every path that could
-     * make closing wrong (the user closing it, a permission or question
-     * arriving, the popup already being open) clears it before anything
-     * could act on stale information. See notifyNotification.
+     * that itself opened the popup for a notice — the popup already being
+     * open is one of the cases where it is never set at all, not one that
+     * clears it — and every path that could make closing wrong afterward (the
+     * user closing it, a permission or question arriving) clears it before
+     * anything could act on stale information. See notifyNotification.
      */
     private _noticeOpened = false
     private _permHandlers: {
@@ -234,6 +235,15 @@ export const Island = GObject.registerClass(
       const until = Date.now() + 2000
       row.showTransient('no window', until)
       const id = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
+        // Explicit rather than relying on the deadline having passed:
+        // g_timeout_add_seconds rounds to a perturbed second boundary and can
+        // fire early, in which case now < until still holds and
+        // _syncActivity's guard would otherwise no-op this very update. Ending
+        // the transient here makes the timer authoritative regardless of when
+        // it actually fires, and also covers a backwards clock jump, which
+        // would otherwise freeze this row's activity label until `until` had
+        // passed for real.
+        row.clearTransient()
         const s = this._store.get(key)
         if (s) row.update(s, Date.now())
         this._transientIds.delete(id)
@@ -285,12 +295,15 @@ export const Island = GObject.registerClass(
       // arm a close timer that could shut the popup out from under the
       // permission's own buttons — the worst thing this feature could do.
       // noticeVisible is the single place that decides which case this is,
-      // shared with activityText's own notice branch, so the two can never
-      // disagree about what the row is showing. Claude's Notification payload
-      // is also inferred rather than captured (see the design doc), so a
-      // differently spelled message field must leave this feature silent
-      // rather than opening an empty popup on its own — noticeVisible covers
-      // that too, since no message means no notice at all.
+      // shared with activityText's own notice branch, so the two agree about
+      // what the session state says a notice should be doing — though a
+      // widget-local transient (showJumpFailure's "no window") can briefly sit
+      // on top of that on the row itself; see noticeVisible's own comment.
+      // Claude's Notification payload is also inferred rather than captured
+      // (see the design doc), so a differently spelled message field must
+      // leave this feature silent rather than opening an empty popup on its
+      // own — noticeVisible covers that too, since no message means no
+      // notice at all.
       const session = this._store.get(key)
       if (!session || !noticeVisible(session, Date.now())) return
 

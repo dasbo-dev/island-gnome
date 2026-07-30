@@ -13,14 +13,21 @@ export interface Activity {
 }
 
 /**
- * Whether `session.notice` is the thing actually on the row right now — the
- * single answer to "is the notice what is showing", shared by this file's own
- * notice branch below and by `Island.notifyNotification`'s decision to open
- * the popup for a notice at all. Without a shared answer, the two could
- * disagree: `notifyNotification` used to guard only on `notice` being set, so
- * it would open the popup for a notice a pending permission was already
- * hiding, showing nothing new and arming a close timer that could shut the
- * popup a permission needed answered.
+ * The single answer to whether the *session state* says a notice should be
+ * showing — shared by this file's own notice branch below and by
+ * `Island.notifyNotification`'s decision to open the popup for a notice at
+ * all. Without a shared answer, the two could disagree: `notifyNotification`
+ * used to guard only on `notice` being set, so it would open the popup for a
+ * notice a pending permission was already hiding, showing nothing new and
+ * arming a close timer that could shut the popup a permission needed
+ * answered.
+ *
+ * This is not quite "is the notice what is on the row right now": a
+ * widget-local transient (`SessionRow.showTransient`, e.g. `showJumpFailure`'s
+ * "no window") can briefly sit on top of whatever this function says, and
+ * `_syncActivity`'s guard skips recomputing the label while one is showing.
+ * That is a narrow, cosmetic gap — the row catches up at the transient's own
+ * deadline — not a case this function is trying to account for.
  *
  * False in three cases: no notice at all; a notice whose deadline has passed
  * (`until !== 0 && now >= until` — `until === 0` means no clock, so it never

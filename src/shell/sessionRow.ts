@@ -354,8 +354,13 @@ export const SessionRow = GObject.registerClass(
      * landing before its own GLib timer fires would otherwise overwrite it
      * with whatever the session actually says, turning a message meant to
      * last two seconds into one that lasts until the next arbitrary tick.
-     * showJumpFailure's timer is still what restores the real text afterward;
-     * this guard only keeps this method from racing it.
+     * showJumpFailure's timer calls clearTransient() before it calls
+     * update(), so it is still what restores the real text afterward; this
+     * guard only keeps this method from racing it in the meantime — including
+     * the case where the GLib timer itself fires early (`g_timeout_add_seconds`
+     * rounds to a perturbed second boundary and can land before its nominal
+     * delay), which would otherwise hit this guard and no-op, leaving "no
+     * window" on the row until whatever tick comes next.
      *
      * Once past that guard, the text write is checked against the current
      * value and the opacity write is not: assigning a ClutterText's contents
@@ -454,6 +459,17 @@ export const SessionRow = GObject.registerClass(
       this._transientUntil = until
       this._activity.opacity = 255
       this._activity.text = text
+    }
+
+    /**
+     * End a transient early, before its own deadline. showJumpFailure's timer
+     * calls this immediately before update(), so _syncActivity's guard above
+     * cannot no-op the very update meant to end the transient — which it
+     * otherwise would whenever the GLib timer fires early (see the guard's
+     * comment), since `now < this._transientUntil` would still hold.
+     */
+    clearTransient(): void {
+      this._transientUntil = 0
     }
   }
 )
