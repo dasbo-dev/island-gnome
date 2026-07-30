@@ -154,3 +154,66 @@ describe('sounding a permission and a question', () => {
     expect(extension).toMatch(/this\._sound = null/)
   })
 })
+
+describe('sounding a notification', () => {
+  const island = readFileSync('src/shell/island.ts', 'utf8')
+  const body = island.slice(
+    island.indexOf('notifyNotification('),
+    island.indexOf('notifyTasksChanged(')
+  )
+
+  it('asks whether there is anything to hear before it plays', () => {
+    // A notification arriving while a permission still holds the row shows
+    // nothing new, so it must sound nothing either — and Claude's
+    // notification payload is inferred rather than captured, so an
+    // unrecognised message field has to stay silent rather than beep at an
+    // empty popup.
+    expect(body.indexOf('noticeVisible')).toBeLessThan(body.indexOf("_sound.play('notification')"))
+  })
+
+  it('plays before the popup policy is read, not after', () => {
+    const play = body.indexOf("_sound.play('notification')")
+    expect(play).toBeGreaterThan(-1)
+    expect(play).toBeLessThan(body.indexOf("get_boolean('notification-popup')"))
+    expect(play).toBeLessThan(body.indexOf('inFullscreen'))
+  })
+
+  it('keeps noticeVisible ahead of the policy guards it was moved past', () => {
+    // Pinned so a later edit cannot quietly put policy back in front: with
+    // notification-popup off, an early return there would skip the sound too.
+    expect(body.indexOf('noticeVisible')).toBeLessThan(
+      body.indexOf("get_boolean('notification-popup')")
+    )
+  })
+})
+
+describe('sounding a finish', () => {
+  const island = readFileSync('src/shell/island.ts', 'utf8')
+  const refresh = island.slice(island.indexOf('refresh(): void'), island.indexOf('destroy(): void'))
+
+  it('diffs states rather than listening for an event', () => {
+    // No event carries "finished": store.apply reaches done through its state
+    // switch, and so does clearPending when a session ends while a permission
+    // is held. A diff catches both.
+    expect(refresh).toContain('newlyDone(')
+    expect(refresh).toContain('snapshotStates(')
+    expect(island).toMatch(/private _lastStates = new Map<string, SessionState>\(\)/)
+  })
+
+  it('cues and re-snapshots above the zero-session early return', () => {
+    // refresh() returns early when the pill is hidden. Below that return, the
+    // snapshot would go stale and the next visible refresh would replay old
+    // finishes.
+    const cue = refresh.indexOf("_sound.play('done')")
+    const snapshot = refresh.indexOf('_lastStates = snapshotStates(')
+    const earlyReturn = refresh.indexOf("get_boolean('always-show')")
+    expect(cue).toBeGreaterThan(-1)
+    expect(cue).toBeLessThan(earlyReturn)
+    expect(snapshot).toBeGreaterThan(cue)
+    expect(snapshot).toBeLessThan(earlyReturn)
+  })
+
+  it('imports the diff from core, where it is unit-tested', () => {
+    expect(island).toMatch(/from '\.\.\/core\/sound\.js'/)
+  })
+})

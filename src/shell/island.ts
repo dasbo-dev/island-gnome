@@ -17,6 +17,7 @@ import { taskDir, readTasks } from './taskReader.js'
 import { PopupHeader, EmptyRow } from './popupHeader.js'
 import { GridIcon } from './gridIcon.js'
 import { pillState } from '../core/pillState.js'
+import { newlyDone, snapshotStates } from '../core/sound.js'
 import { noticeVisible } from '../core/activity.js'
 import { bodyMaxHeight, scrollIntoView } from '../core/popupSize.js'
 import type { SoundPlayer } from './soundPlayer.js'
@@ -49,6 +50,11 @@ export const Island = GObject.registerClass(
     private _label!: St.Label
     private _unsubscribe: (() => void) | null = null
     private _rows = new Map<string, InstanceType<typeof SessionRow>>()
+    /**
+     * Session states as of the last refresh, so a move into 'done' can be
+     * spotted. Only this diff reads it; the rows rebuild from the store.
+     */
+    private _lastStates = new Map<string, SessionState>()
     private _header!: InstanceType<typeof PopupHeader>
     private _separator!: PopupMenu.PopupSeparatorMenuItem
     private _body!: PopupMenu.PopupMenuSection
@@ -301,8 +307,6 @@ export const Island = GObject.registerClass(
      * it, and arranges to undo that.
      */
     notifyNotification(key: string): void {
-      if (!this._settings.get_boolean('notification-popup')) return
-      if (Main.layoutManager.primaryMonitor?.inFullscreen) return
       // No text, no notice, or a pending permission/question is holding the
       // row instead of it — either way there is nothing new to show. The
       // second case matters in practice: a notification can arrive while a
@@ -320,8 +324,20 @@ export const Island = GObject.registerClass(
       // leave this feature silent rather than opening an empty popup on its
       // own — noticeVisible covers that too, since no message means no
       // notice at all.
+      //
+      // Now the first test in this method rather than the third, because it is
+      // the only one of the three that answers "is there anything here at
+      // all". The two policy guards below decide whether to *show* it; sound
+      // must not sit behind them, but must sit behind this — beeping for a
+      // message the row will not display is the audible form of the empty
+      // popup this check exists to prevent.
       const session = this._store.get(key)
       if (!session || !noticeVisible(session, Date.now())) return
+
+      this._sound.play('notification')
+
+      if (!this._settings.get_boolean('notification-popup')) return
+      if (Main.layoutManager.primaryMonitor?.inFullscreen) return
 
       this._cancelNoticeClose()
       const seconds = this._settings.get_int('notification-seconds')
@@ -753,6 +769,15 @@ export const Island = GObject.registerClass(
     refresh(): void {
       this._rebuildRows()
       const sessions = this._store.list()
+
+      // Above the early return below, deliberately: with the pill hidden and no
+      // sessions, that return would leave the snapshot stale and the next
+      // visible refresh would replay finishes already sounded. Silent when
+      // nothing moved, which is what makes the 1s tick, the always-show handler
+      // and the fullscreen handler all free.
+      if (newlyDone(this._lastStates, sessions).length > 0) this._sound.play('done')
+      this._lastStates = snapshotStates(sessions)
+
       const count = sessions.length
 
       if (count === 0 && !this._settings.get_boolean('always-show')) {
