@@ -145,7 +145,16 @@
    every top-level row container carries this class — pinning one alone leaves
    the others free to exceed it. Fixed here, the command wraps instead of
    widening the popup (see sessionRow.ts). */
-.dasbo-fixed-width { width: 26em; }
+/* Every consumer grows together: the header, the empty-state row, each session
+   row, and the question panel that wraps against it. Widened from 26em to
+   make room for the agent chip at the head of each row's title line — the 4em
+   covers most of a chip's cost, but not all of it. An Antigravity chip (the
+   widest of the three) still costs the project name a few characters: the
+   right-hand cluster (elapsed time, task count, Jump) is unshrinkable and
+   unchanged, and the chip itself is x_expand: false and never shrinks (see
+   agentChip.ts), so the ellipsizing project name is deliberately left as the
+   sole yielder. */
+.dasbo-fixed-width { width: 30em; }
 
 /* The pill's 2×2 grid. Its silhouette never moves; only per-block alpha and
    the fill colour change, which is what keeps it legible at panel size.
@@ -166,3 +175,24 @@
 .dasbo-grid.state-waiting { -dasbo-accent: #f5c211; }
 .dasbo-grid.state-error   { -dasbo-accent: #e01b24; }
 .dasbo-grid.state-done    { -dasbo-accent: #57e389; }
+
+/* The agent chip at the head of a session row's title line: mark plus short
+   name. Mid-grey at low alpha rather than a white or black wash, so it lifts
+   off the popup background under both the light and the dark theme.
+
+   No colour rule: `.dasbo-row:insensitive` already resolves to
+   `color: inherit` and colour inherits, so the label picks up the colour the
+   row has already reclaimed from the theme's disabled grey. */
+.dasbo-agent-chip {
+  background-color: rgba(127, 127, 127, 0.18);
+  border-radius: 99px;
+  padding: 1px 6px;
+  spacing: 4px;
+}
+
+/* Smaller and unbolded against .dasbo-row-project's bold: the chip is a tag on
+   the row, not the row's title. */
+.dasbo-agent-chip-label {
+  font-size: 0.85em;
+  font-weight: normal;
+}

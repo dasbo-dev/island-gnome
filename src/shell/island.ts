@@ -42,6 +42,7 @@ export const Island = GObject.registerClass(
   class Island extends PanelMenu.Button {
     private _store!: SessionStore
     private _settings!: Gio.Settings
+    private _iconBase!: string
     private _icon!: InstanceType<typeof GridIcon>
     private _label!: St.Label
     private _unsubscribe: (() => void) | null = null
@@ -97,10 +98,14 @@ export const Island = GObject.registerClass(
       handOff: (id: string) => void
     } | null = null
 
-    constructor(store: SessionStore, settings: Gio.Settings) {
+    constructor(store: SessionStore, settings: Gio.Settings, iconBase: string) {
       super(0.5, 'Dasbo Island')
       this._store = store
       this._settings = settings
+      // The extension's own directory, where the agent chips' SVGs live. Passed
+      // in rather than looked up here: a module that resolves its own install
+      // path is a module that silently resolves the wrong one after a reload.
+      this._iconBase = iconBase
 
       const box = new St.BoxLayout({ style_class: 'dasbo-pill' })
       this._icon = new GridIcon()
@@ -604,7 +609,7 @@ export const Island = GObject.registerClass(
               this._questions.get(s.key)?.panel.setExpanded(expanded)
               this._taskLists.get(s.key)?.list.setExpanded(expanded)
             },
-          }, now)
+          }, now, this._iconBase)
           this._rows.set(s.key, row)
           this._body.addMenuItem(row)
         }

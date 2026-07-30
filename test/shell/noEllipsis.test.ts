@@ -20,7 +20,7 @@ describe('the popup never truncates an option or a task', () => {
     // The negative assertions above pass just as well on a label that never
     // wraps at all — deleting line_wrap or line_wrap_mode leaves every
     // EllipsizeMode check green while producing a single unwrapped line that
-    // overhangs the popup's fixed 26em width. That is a different failure from
+    // overhangs the popup's fixed 30em width. That is a different failure from
     // an ellipsis, and just as bad, so the positive half of the invariant needs
     // its own guard.
     it(`${file} still wraps rather than growing one long line`, () => {

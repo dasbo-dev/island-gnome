@@ -39,7 +39,7 @@ export default class DasboIslandExtension extends Extension {
       })
     )
     this._permissions = new PermissionTable(this._store, glibTimers)
-    this._island = new Island(this._store, settings)
+    this._island = new Island(this._store, settings, this.path)
 
     Main.panel.addToStatusArea(
       this.uuid,

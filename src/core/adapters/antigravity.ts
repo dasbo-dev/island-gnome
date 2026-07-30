@@ -25,6 +25,7 @@ function detailFromToolCall(toolCall: unknown): string | undefined {
 export const antigravityAdapter: AgentAdapter = {
   id: 'antigravity',
   displayName: 'Antigravity CLI',
+  shortName: 'Antigravity',
   procNames: ['agy'],
 
   normalize(raw, ctx) {

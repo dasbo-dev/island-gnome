@@ -154,7 +154,7 @@ export class QuestionPanel {
   private optionButton(q: Question, label: string, description: string): St.Button {
     const text = new St.Label({ x_expand: true })
     // One label, not a bold one beside a dim one: the popup's width is fixed at
-    // 26em, and a description wrapped inside its own right-hand column would
+    // 30em, and a description wrapped inside its own right-hand column would
     // break every two or three words. The bold and the dimming come from Pango
     // markup instead — see optionMarkup, which also escapes both halves.
     text.clutter_text.set_markup(optionMarkup(label, description))

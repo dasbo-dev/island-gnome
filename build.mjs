@@ -23,6 +23,11 @@ if (existsSync('src/prefs.ts')) {
 
 for (const f of ['metadata.json', 'stylesheet.css']) await cp(f, `dist/${f}`)
 await cp('schemas', 'dist/schemas', { recursive: true })
+// The session row's agent chip loads these by absolute path at
+// <extension.path>/icons/<agent>.svg. A missing file is invisible at runtime —
+// the chip just drops its mark — so test/shell/iconAssets.test.ts guards this
+// line.
+await cp('src/icons', 'dist/icons', { recursive: true })
 if (existsSync('hooks')) {
   await cp('hooks', 'dist/hooks', { recursive: true })
 }

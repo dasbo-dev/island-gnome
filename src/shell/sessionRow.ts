@@ -6,6 +6,7 @@ import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 import { formatElapsed } from '../core/format.js'
 import { activityText } from '../core/activity.js'
 import { summarize } from '../core/tasks.js'
+import { AgentChip } from './agentChip.js'
 import type { Session, SessionState } from '../core/types.js'
 
 const STATE_CLASS: Record<SessionState, string> = {
@@ -58,7 +59,7 @@ export const SessionRow = GObject.registerClass(
      */
     private _transientUntil = 0
 
-    constructor(session: Session, cb: SessionRowCallbacks, now: number) {
+    constructor(session: Session, cb: SessionRowCallbacks, now: number, iconBase: string) {
       super({ reactive: false, can_focus: false, style_class: 'dasbo-row' })
       this._session = session
       this._cb = cb
@@ -152,7 +153,13 @@ export const SessionRow = GObject.registerClass(
         this._syncTaskBoxVisible()
         this._cb.onToggleExpanded(this._expanded)
       })
+      // The chip is built once and never updated: sessionKey is
+      // `${agent}:${sessionId}`, so this row's agent cannot change under it.
+      // It is not held on a field for the same reason — nothing ever needs to
+      // reach it again.
+      const chip = new AgentChip(session.agent, iconBase)
       titleRow.add_child(this._expander)
+      titleRow.add_child(chip)
       titleRow.add_child(this._project)
       titleRow.add_child(this._shellTotal)
       textCol.add_child(titleRow)

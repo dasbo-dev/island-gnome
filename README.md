@@ -34,6 +34,12 @@ with one slowly breathing at rest, a light travelling clockwise while an agent
 works, all four blocks blinking together when a permission needs your answer,
 a static diagonal pair on error, and a green stagger when a session finishes.
 
+Each session row is led by a chip naming the agent doing the work — its mark
+and a short name — so a popup holding a Claude Code session beside a Codex one
+says which is which at a glance. The marks are drawn for this extension rather
+than taken from each vendor, and they do not recolour with a light or dark
+theme.
+
 Each agent row shows whether its hooks are installed. If the extension
 directory moves, or a release adds a hook event the installed set is missing,
 the row offers **Update** — every installed hook command embeds an absolute

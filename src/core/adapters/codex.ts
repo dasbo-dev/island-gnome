@@ -39,6 +39,7 @@ const KIND_BY_EVENT: Record<string, EventKind> = {
 export const codexAdapter: AgentAdapter = {
   id: 'codex',
   displayName: 'Codex CLI',
+  shortName: 'Codex',
   procNames: ['codex'],
 
   normalize(raw, ctx) {
