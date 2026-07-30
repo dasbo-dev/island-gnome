@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { chipParts } from '../../src/core/chipDisplay.js'
 
 describe('chipParts', () => {
@@ -46,6 +47,37 @@ describe('chipParts', () => {
   it('never asks for an icon there is no file for', () => {
     for (const mode of ['logo', 'logo-name', 'name', 'nonsense']) {
       expect(chipParts(mode, false).icon, mode).toBe(false)
+    }
+  })
+
+  it('recognises every choice the gschema declares', () => {
+    // Nothing but this test ties core's mode list to the gschema's. A fourth
+    // <choice> added there (and to prefs' chipOrder) would pass every other
+    // test in this file while chipParts silently mapped it to 'logo-name' —
+    // this is the one place that would notice.
+    const gschema = readFileSync(
+      'schemas/org.gnome.shell.extensions.dasbo-island.gschema.xml',
+      'utf8'
+    )
+    const keyBlock = /<key name="agent-chip-display"[^>]*>([\s\S]*?)<\/key>/.exec(gschema)?.[1] ?? ''
+    expect(keyBlock, 'agent-chip-display key not found in the gschema').not.toBe('')
+    const choices = [...keyBlock.matchAll(/<choice value="([^"]+)"\s*\/>/g)].map((m) => m[1] ?? '')
+    expect(choices.length, 'no <choice> values found for agent-chip-display').toBeGreaterThan(0)
+
+    // A mode chipParts has certainly never heard of. Any gschema choice whose
+    // result is identical to this one, for both icon-present and icon-absent,
+    // is being silently folded into the 'logo-name' fallback rather than
+    // genuinely recognised.
+    const JUNK_MODE = 'a-mode-chipparts-does-not-recognise'
+    for (const choice of choices) {
+      if (choice === 'logo-name') continue
+      const recognised = [true, false].some(
+        (hasIcon) =>
+          JSON.stringify(chipParts(choice, hasIcon)) !== JSON.stringify(chipParts(JUNK_MODE, hasIcon))
+      )
+      expect(recognised, `chipParts does not distinguish gschema choice "${choice}" from junk`).toBe(
+        true
+      )
     }
   })
 })
