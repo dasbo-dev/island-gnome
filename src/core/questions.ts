@@ -101,7 +101,7 @@ export function escapeMarkup(s: string): string {
  * dimmed behind an em dash.
  *
  * One label rather than a bold one beside a dim one, because the popup's width is
- * fixed at 26em and a description wrapped inside its own right-hand column would
+ * fixed at 30em and a description wrapped inside its own right-hand column would
  * break every two or three words.
  *
  * `alpha` is a Pango span attribute rather than a hex colour, so the dimming

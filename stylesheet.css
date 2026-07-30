@@ -145,7 +145,11 @@
    every top-level row container carries this class — pinning one alone leaves
    the others free to exceed it. Fixed here, the command wraps instead of
    widening the popup (see sessionRow.ts). */
-.dasbo-fixed-width { width: 26em; }
+/* Every consumer grows together: the header, the empty-state row, each session
+   row, and the question panel that wraps against it. Widened from 26em to make
+   room for the agent chip at the head of each row's title line, so the project
+   name did not pay for the chip out of its own width. */
+.dasbo-fixed-width { width: 30em; }
 
 /* The pill's 2×2 grid. Its silhouette never moves; only per-block alpha and
    the fill colour change, which is what keeps it legible at panel size.
