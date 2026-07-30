@@ -44,3 +44,66 @@ describe('the notification-sounds setting', () => {
     expect(subtitle).toMatch(/system sounds/)
   })
 })
+
+describe('SoundPlayer', () => {
+  const src = readFileSync('src/shell/soundPlayer.ts', 'utf8')
+
+  it('is the only file in the tree that plays audio', () => {
+    // Grepped rather than imported: a second play site would mean a second
+    // place to forget the mute checks and the try/catch below.
+    const shell = readFileSync('src/shell/island.ts', 'utf8')
+    const extension = readFileSync('src/extension.ts', 'utf8')
+    expect(src).toContain('play_from_theme')
+    expect(shell).not.toContain('play_from_theme')
+    expect(extension).not.toContain('play_from_theme')
+  })
+
+  it('checks the extension’s own switch before playing anything', () => {
+    expect(src.indexOf("get_boolean('notification-sounds')")).toBeLessThan(
+      src.indexOf('play_from_theme')
+    )
+  })
+
+  it('checks the desktop’s event-sounds key before playing anything', () => {
+    // Ours, not inherited: mutter's player calls libcanberra directly and is
+    // not known to consult this key, and a beep on a desktop the user
+    // silenced is the worst thing this feature can do.
+    expect(src).toContain('org.gnome.desktop.sound')
+    expect(src.indexOf("get_boolean('event-sounds')")).toBeLessThan(
+      src.indexOf('play_from_theme')
+    )
+  })
+
+  it('looks the desktop schema up instead of constructing it blind', () => {
+    // new Gio.Settings on a missing schema_id aborts the process — it would
+    // take the whole shell down, not just the sound.
+    expect(src).toContain('SettingsSchemaSource')
+    expect(src).not.toMatch(/schema_id:\s*'org\.gnome\.desktop\.sound'/)
+  })
+
+  it('throttles per cue rather than globally', () => {
+    // Two sessions can reach one cue in a single tick; a permission and a
+    // notification arriving together must still both be heard.
+    expect(src).toMatch(/THROTTLE_MS\s*=\s*500/)
+    expect(src).toMatch(/_last\.get\(cue\)/)
+    expect(src).toMatch(/_last\.set\(cue/)
+  })
+
+  it('wraps the play call, because an exception here removes a GLib source', () => {
+    const play = src.slice(src.indexOf('play_from_theme'))
+    expect(src.slice(0, src.indexOf('play_from_theme'))).toMatch(/try\s*{/)
+    expect(play).toMatch(/catch/)
+  })
+
+  it('warns at most once, because this path runs from a 1s refresh', () => {
+    expect(src).toMatch(/_warned/)
+    expect(src).toMatch(/if\s*\(!this\._warned\)/)
+  })
+
+  it('has nothing timer-shaped to leak', () => {
+    // The throttle is a timestamp comparison. A timeout_add here would need
+    // removing in destroy(), and destroy() is reached from teardown paths that
+    // already swallow throws.
+    expect(src).not.toContain('timeout_add')
+  })
+})
