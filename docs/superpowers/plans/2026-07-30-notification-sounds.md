@@ -297,7 +297,10 @@ describe('the notification-sounds setting', () => {
   it('sits in the Notifications group, beside the other notification rows', () => {
     const group = prefs.indexOf("new Adw.PreferencesGroup({ title: 'Notifications' })")
     const row = prefs.indexOf("settings.bind('notification-sounds'")
-    const nextPage = prefs.indexOf('_agentsPage')
+    // 'private _agentsPage', not '_agentsPage': the call in
+    // fillPreferencesWindow comes first in the file and would put this bound
+    // before the group it is meant to follow.
+    const nextPage = prefs.indexOf('private _agentsPage')
     expect(group).toBeGreaterThan(-1)
     expect(row).toBeGreaterThan(group)
     expect(row).toBeLessThan(nextPage)
@@ -903,11 +906,11 @@ Then in `refresh()`, insert between `const sessions = this._store.list()` and `c
       // visible refresh would replay finishes already sounded. Silent when
       // nothing moved, which is what makes the 1s tick, the always-show handler
       // and the fullscreen handler all free.
-      for (const _key of newlyDone(this._lastStates, sessions)) this._sound.play('done')
+      if (newlyDone(this._lastStates, sessions).length > 0) this._sound.play('done')
       this._lastStates = snapshotStates(sessions)
 ```
 
-The loop body ignores its key: every finish plays the same cue, and the player's per-cue throttle collapses a batch of simultaneous finishes into one sound.
+Tested for emptiness rather than looped over: every finish plays the same cue, and the player's per-cue throttle would collapse a batch of simultaneous finishes into one sound anyway. A loop whose body ignores its key would only claim to do something the throttle undoes.
 
 - [ ] **Step 5: Run tests and typecheck**
 
@@ -915,7 +918,7 @@ Run: `npx vitest run test/shell/sound.test.ts`
 Expected: PASS, 25 tests.
 
 Run: `npm test && npm run typecheck`
-Expected: both pass. If typecheck reports `_key` as unused, rename the loop to `for (const key of ...)` and reference nothing — or use `newlyDone(...).length > 0` guarding a single `play`, which is equivalent under the throttle.
+Expected: both pass.
 
 - [ ] **Step 6: Commit**
 
