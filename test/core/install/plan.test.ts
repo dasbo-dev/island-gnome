@@ -17,14 +17,51 @@ function env(files: Record<string, string> = {}): InstallEnv {
 }
 
 describe('planInstall for claude', () => {
-  it('creates settings.json with all six hook events when the file is absent', () => {
+  it('creates settings.json with all seven hook events when the file is absent', () => {
     const edits = planInstall('claude', env())
     expect(edits).toHaveLength(1)
     expect(edits[0]!.path).toBe('/home/me/.claude/settings.json')
     expect(edits[0]!.backup).toBe(true)
     const parsed = JSON.parse(edits[0]!.content)
     expect(Object.keys(parsed.hooks).sort()).toEqual(
-      ['PostToolUse', 'PreToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'UserPromptSubmit']
+      ['Notification', 'PostToolUse', 'PreToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'UserPromptSubmit']
+    )
+  })
+
+  it('reports an install predating Notification as stale, so the row offers Update', () => {
+    const full = JSON.parse(planInstall('claude', env())[0]!.content)
+    delete full.hooks.Notification
+    const fs = { '/home/me/.claude/settings.json': JSON.stringify(full) }
+    expect(installState('claude', env(fs))).toBe('stale')
+  })
+
+  it('installs Notification in notify mode, never permission', () => {
+    const parsed = JSON.parse(planInstall('claude', env())[0]!.content)
+    const command = parsed.hooks.Notification[0].hooks[0].command
+    expect(command).toContain('claude notify Notification')
+    expect(command, 'a notification is not a gate').not.toContain('permission')
+  })
+
+  it('gives Notification no matcher, which only the tool events take', () => {
+    const parsed = JSON.parse(planInstall('claude', env())[0]!.content)
+    expect(parsed.hooks.Notification[0].matcher).toBeUndefined()
+  })
+
+  it('removes the Notification entry on uninstall', () => {
+    const installed = planInstall('claude', env())[0]!.content
+    const edits = planUninstall('claude', env({ '/home/me/.claude/settings.json': installed }))
+    const parsed = JSON.parse(edits[0]!.content)
+    expect(parsed.hooks.Notification).toBeUndefined()
+  })
+
+  it('leaves the plans for the other two agents alone', () => {
+    const codex = JSON.parse(planInstall('codex', env())[0]!.content)
+    expect(codex.hooks['dasbo-island'].events).toEqual(
+      ['session.start', 'session.end', 'tool.start', 'tool.end']
+    )
+    const antigravity = JSON.parse(planInstall('antigravity', env())[0]!.content)
+    expect(Object.keys(antigravity['dasbo-island']).sort()).toEqual(
+      ['PostInvocation', 'PostToolUse', 'PreInvocation', 'PreToolUse', 'Stop']
     )
   })
 
@@ -433,7 +470,7 @@ describe('installState', () => {
     expect(installState('claude', env(files))).toBe('installed')
   })
 
-  it('reports stale for claude when one of the six events lost its hook', () => {
+  it('reports stale for claude when one of the seven events lost its hook', () => {
     const doc = JSON.parse(planInstall('claude', env())[0]!.content)
     delete doc.hooks.Stop
     const files = { '/home/me/.claude/settings.json': JSON.stringify(doc) }
@@ -488,7 +525,7 @@ describe('installState', () => {
   })
 
   it('reports stale for claude when our commands sit under the wrong events', () => {
-    // Same swap as antigravity, between two of the six Claude events.
+    // Same swap as antigravity, between two of the seven Claude events.
     const doc = JSON.parse(planInstall('claude', env())[0]!.content)
     const preCommand = doc.hooks.PreToolUse[0].hooks[0].command
     doc.hooks.PreToolUse[0].hooks[0].command = doc.hooks.PostToolUse[0].hooks[0].command

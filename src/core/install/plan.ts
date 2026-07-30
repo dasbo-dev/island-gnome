@@ -22,6 +22,7 @@ const ANTIGRAVITY_KEY = 'dasbo-island'
 
 const CLAUDE_EVENTS = [
   'SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop', 'SessionEnd',
+  'Notification',
 ] as const
 const CODEX_EVENTS = ['session.start', 'session.end', 'tool.start', 'tool.end'] as const
 const ANTIGRAVITY_GROUPED = ['PreToolUse', 'PostToolUse'] as const
