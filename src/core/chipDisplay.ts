@@ -9,7 +9,8 @@
  */
 
 /** The values `agent-chip-display` is declared with in the gschema. */
-export type ChipDisplay = 'logo' | 'logo-name' | 'name'
+const MODES = ['logo', 'logo-name', 'name'] as const
+export type ChipDisplay = (typeof MODES)[number]
 
 export interface ChipParts {
   /** Show the agent's mark. Never true when the caller has no mark to draw. */
@@ -18,7 +19,7 @@ export interface ChipParts {
   label: boolean
 }
 
-const MODES = new Set<string>(['logo', 'logo-name', 'name'])
+const MODE_SET: ReadonlySet<string> = new Set(MODES)
 
 /**
  * Which parts of the chip to show.
@@ -40,7 +41,7 @@ const MODES = new Set<string>(['logo', 'logo-name', 'name'])
  * which agent it belongs to, over a decoration that failed to ship.
  */
 export function chipParts(mode: string, hasIcon: boolean): ChipParts {
-  const m = MODES.has(mode) ? mode : 'logo-name'
+  const m = MODE_SET.has(mode) ? mode : 'logo-name'
   return {
     icon: hasIcon && m !== 'name',
     label: m !== 'logo' || !hasIcon,

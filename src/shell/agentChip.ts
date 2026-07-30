@@ -18,8 +18,9 @@ import type { AgentId } from '../core/types.js'
  * identity is not.
  *
  * The mode arrives as an argument rather than being read from GSettings
- * directly: Island owns settings in src/shell/, and a chip that connected to
- * them itself would owe a disconnect for every row that ever existed.
+ * directly: Island is the only widget in src/shell/ that reads settings, and
+ * a chip that connected to them itself would owe a disconnect for every row
+ * that ever existed.
  */
 export const AgentChip = GObject.registerClass(
   class AgentChip extends St.BoxLayout {

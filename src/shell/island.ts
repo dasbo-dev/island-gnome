@@ -112,7 +112,17 @@ export const Island = GObject.registerClass(
       super(0.5, 'Dasbo Island')
       this._store = store
       this._settings = settings
-      this._chipMode = settings.get_string('agent-chip-display')
+      // Guarded the same way soundPlayer.ts guards 'notification-sounds':
+      // Gio.Settings.get_string on a key absent from the *compiled* schema is
+      // a g_error, which aborts the whole shell process. 'agent-chip-display'
+      // is new in this release, read here at enable() time, and a stale
+      // gschemas.compiled from a hand-copied upgrade would abort the session
+      // at login rather than merely leave the chip on its default. Silence
+      // (falling back to the key's own default) is a survivable degradation;
+      // aborting the compositor is not.
+      this._chipMode = settings.settings_schema.has_key('agent-chip-display')
+        ? settings.get_string('agent-chip-display')
+        : 'logo-name'
       // Owned by extension.ts, which also destroys it. Passed in for the same
       // reason iconBase is: a widget that reaches for its own dependencies is
       // a widget that reaches for the wrong one after a reload.
@@ -518,7 +528,18 @@ export const Island = GObject.registerClass(
     }
 
     private _releaseExternalRefs(): void {
-      for (const id of this._settingsChangedIds) this._settings.disconnect(id)
+      // Each disconnect isolated in its own try/catch, unlike extension.ts's
+      // _settingsIds teardown (which wraps the whole loop and accepts that a
+      // throw skips whatever ids follow it): here a bad id must not strand
+      // the remaining connections, since one of them is the chip-display
+      // handler that keeps live rows in sync with the setting.
+      for (const id of this._settingsChangedIds) {
+        try {
+          this._settings.disconnect(id)
+        } catch (e) {
+          console.warn(`dasbo-island: disconnecting a settings handler failed: ${e}`)
+        }
+      }
       this._settingsChangedIds = []
       if (this._fullscreenId) {
         global.display.disconnect(this._fullscreenId)

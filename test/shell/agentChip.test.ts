@@ -42,7 +42,7 @@ describe('AgentChip', () => {
   })
 
   it('is handed its mode and never reaches for settings', () => {
-    // Island owns settings in src/shell/; nothing below it reads them. A chip
+    // Island is the only widget in src/shell/ that reads settings. A chip
     // that connected to Gio.Settings would also owe a disconnect per row.
     expect(src).not.toContain('get_string')
     expect(src).not.toContain('Gio.Settings')
