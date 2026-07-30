@@ -13,6 +13,7 @@
 // antigravity shares no key names at all.
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
+import System from 'system'
 
 const BUS = 'org.dasbo.Island'
 const PATH = '/org/dasbo/Island'
@@ -35,15 +36,31 @@ const sessionByAgent = {
     },
   },
   codex: {
+    // event stays 'SessionStart' — that's the D-Bus event argument, unrelated
+    // to the payload shape. The payload itself uses the dotted `type` form,
+    // not `hook_event_name`: CODEX_EVENTS in src/core/install/plan.ts only
+    // ever installs 'session.start' and friends, so that's what a real Codex
+    // install actually sends. The adapter accepts both spellings, but this
+    // tool should be faithful to the real one, not just to what parses.
     event: 'SessionStart',
     payload: {
-      hook_event_name: 'SessionStart', session_id: sessionId, cwd: GLib.get_current_dir(),
+      type: 'session.start', session_id: sessionId, cwd: GLib.get_current_dir(),
     },
   },
   antigravity: {
     event: 'PreInvocation',
     payload: { conversationId: sessionId, workspacePaths: [GLib.get_current_dir()] },
   },
+}
+
+// The D-Bus side already drops an unrecognised agent id silently (see
+// isAgentId in src/core/adapters/index.ts) — this check exists for the human
+// running the tool, not for safety. Without it, AGENT=codx produces no row,
+// no message, no clue, which is indistinguishable from a broken chip on the
+// very tool someone reaches for to check the chip by hand.
+if (!(AGENT in sessionByAgent)) {
+  printerr(`fake-agent: unknown AGENT '${AGENT}'. Valid: ${Object.keys(sessionByAgent).join(', ')}`)
+  System.exit(1)
 }
 
 const events = {
