@@ -56,6 +56,28 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     group.add(alwaysShow)
 
     page.add(group)
+
+    // Its own group rather than an addition to "Panel": that group is entirely
+    // about where the pill sits in the top bar, and the chip is inside the
+    // popup. Filing it there would make the group's title a lie.
+    const rows = new Adw.PreferencesGroup({ title: 'Session rows' })
+
+    const chipDisplay = new Adw.ComboRow({
+      title: 'Agent chip',
+      subtitle: 'What the tag at the head of each row shows. A row whose mark is missing shows the name whatever this says.',
+      model: Gtk.StringList.new(['Logo only', 'Logo and name', 'Name only']),
+    })
+    // Written out both ways rather than bound: settings.bind has no
+    // string-to-index binding, so the mapping is code — the same shape
+    // panel-position above already uses.
+    const chipOrder = ['logo', 'logo-name', 'name']
+    chipDisplay.selected = Math.max(0, chipOrder.indexOf(settings.get_string('agent-chip-display')))
+    chipDisplay.connect('notify::selected', () => {
+      settings.set_string('agent-chip-display', chipOrder[chipDisplay.selected] ?? 'logo-name')
+    })
+    rows.add(chipDisplay)
+
+    page.add(rows)
     return page
   }
 
