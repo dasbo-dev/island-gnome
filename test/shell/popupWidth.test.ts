@@ -14,6 +14,7 @@ const SITES = [
   'src/core/questions.ts',
   'src/shell/questionPanel.ts',
   'test/shell/noEllipsis.test.ts',
+  'src/core/adapters/index.ts',
 ]
 
 describe('the popup width the code talks about', () => {
@@ -27,7 +28,10 @@ describe('the popup width the code talks about', () => {
   for (const site of SITES) {
     it(`${site} quotes that same number`, () => {
       const src = readFileSync(site, 'utf8')
-      const quoted = [...src.matchAll(/(\d+)em/g)].map((m) => m[1])
+      // Negative lookbehind so this doesn't match the "85" tail of a fractional
+      // em like agentChip's 0.85em label — a real popup width is never
+      // fractional, but the bare (\d+)em pattern can't tell the difference.
+      const quoted = [...src.matchAll(/(?<![\d.])(\d+)em/g)].map((m) => m[1])
       expect(
         quoted.length,
         `${site} no longer mentions a width — drop it from SITES`
