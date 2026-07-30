@@ -168,7 +168,10 @@ describe('sounding a notification', () => {
     // notification payload is inferred rather than captured, so an
     // unrecognised message field has to stay silent rather than beep at an
     // empty popup.
-    expect(body.indexOf('noticeVisible')).toBeLessThan(body.indexOf("_sound.play('notification')"))
+    // Match the executable guard, not the prose comment that mentions
+    // noticeVisible earlier in the method: the bare identifier would pass even
+    // if the actual if-check were moved below the sound call.
+    expect(body.indexOf('if (!session || !noticeVisible(')).toBeLessThan(body.indexOf("_sound.play('notification')"))
   })
 
   it('plays before the popup policy is read, not after', () => {
@@ -181,7 +184,10 @@ describe('sounding a notification', () => {
   it('keeps noticeVisible ahead of the policy guards it was moved past', () => {
     // Pinned so a later edit cannot quietly put policy back in front: with
     // notification-popup off, an early return there would skip the sound too.
-    expect(body.indexOf('noticeVisible')).toBeLessThan(
+    // Match the executable guard, not the prose comment that mentions
+    // noticeVisible earlier in the method: the bare identifier would pass even
+    // if the actual if-check were moved below the policy check.
+    expect(body.indexOf('if (!session || !noticeVisible(')).toBeLessThan(
       body.indexOf("get_boolean('notification-popup')")
     )
   })
