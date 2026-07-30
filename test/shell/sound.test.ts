@@ -104,9 +104,10 @@ describe('SoundPlayer', () => {
   it('still throttles per cue rather than globally', () => {
     // Two sessions can reach one cue in a single tick; a permission and a
     // notification arriving together must still both be heard. The window
-    // itself (THROTTLE_MS = 500, and the boundary at exactly it) is pinned in
-    // core/sound.test.ts now that shouldPlay owns the decision — this only
-    // pins that the player still keys its per-cue clock on `cue`.
+    // itself — the literal 500 ms and the boundary at exactly it — is pinned
+    // by dedicated assertions in core/sound.test.ts now that shouldPlay owns
+    // the decision; this only pins that the player still keys its per-cue
+    // clock on `cue`.
     expect(src).toMatch(/_last\.get\(cue\)/)
     expect(src).toMatch(/_last\.set\(cue/)
   })

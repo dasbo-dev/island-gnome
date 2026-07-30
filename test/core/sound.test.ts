@@ -64,6 +64,16 @@ describe('cue sounds', () => {
 })
 
 describe('shouldPlay', () => {
+  it('pins THROTTLE_MS at 500ms, not just symbolically', () => {
+    // Every other test in this file uses THROTTLE_MS symbolically (e.g.
+    // `now: last + THROTTLE_MS`), so it would still pass if the constant were
+    // changed to 5 or 50000 — none of them would notice. The spec commits to
+    // 500 ms specifically, and the owed live check ("two sessions finishing
+    // inside 500 ms plays one `complete`, not two") depends on that literal
+    // number, not on whatever THROTTLE_MS happens to equal.
+    expect(THROTTLE_MS).toBe(500)
+  })
+
   it('rule 1: the extension switch off silences everything, whatever else is true', () => {
     expect(
       shouldPlay({ enabled: false, eventSounds: true, last: 0, now: 100_000 })
