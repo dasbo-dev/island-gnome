@@ -447,7 +447,7 @@ import type { AgentId } from '../core/types.js'
 /**
  * The agent's mark and short name, as one tag at the head of a session row.
  *
- * Deliberately has no update() method: `sessionKey` is `${agent}:${sessionId}`
+ * Deliberately has no update method: `sessionKey` is `${agent}:${sessionId}`
  * (see core/types.ts), so a row's agent is fixed for the row's entire life. A
  * chip that could change its agent would model a transition that cannot occur,
  * and would invite the Island to call it on every refresh for no reason.

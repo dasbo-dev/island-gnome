@@ -14,7 +14,7 @@ name, then the project. `[◆ Claude] dasbo-island`.
 | Question | Decision |
 |---|---|
 | Where does the mark come from? | Bundled per-agent SVG in the extension |
-| Symbolic or full colour? | Full colour, hand-authored, brand fills baked in |
+| Symbolic or full colour? | Full colour, hand-authored, brand colours baked in |
 | When does the chip show? | Always, on every row |
 | Where on the line? | After the expander arrow, before the project name |
 | What text? | A new `shortName` field: `Claude`, `Codex`, `Antigravity` |
@@ -119,7 +119,8 @@ simply one more fixed item ahead of it.
 
 ### Assets
 
-`src/icons/`, three hand-authored 16×16-`viewBox` SVGs with fills baked in:
+`src/icons/`, three hand-authored 16×16-`viewBox` SVGs, `fill="none"` with the
+colour on `stroke`:
 
 | File | Mark |
 |---|---|
@@ -129,7 +130,9 @@ simply one more fixed item ahead of it.
 
 These are marks drawn for this extension — recognisable in silhouette, not
 pixel-faithful to any official brand file. Replacing them later with real ones
-is a file swap, no code change.
+is a file swap and a shell restart, no code change: the resolver's module
+cache holds the `Gio.FileIcon` and `StTextureCache` holds the loaded texture,
+so an in-place swap of the file on disk is not live.
 
 `build.mjs` gains `src/icons` to its copy step, beside the existing `schemas`
 and `hooks` copies, landing them at `dist/icons/`. `make install` already
