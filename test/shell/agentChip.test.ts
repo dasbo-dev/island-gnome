@@ -71,7 +71,10 @@ describe('the chip on the row', () => {
   // the handler's own body (as opposed to island.ts as a whole) shares this
   // one extraction, so there is exactly one place that defines what "the
   // handler" means.
-  const handler = /connect\('changed::agent-chip-display'[\s\S]*?\}\)/.exec(island)?.[0] ?? ''
+  // Anchor the close to the handler's own indentation level: a lazy close lets
+  // any nested callback inside the handler end the captured body early, hiding
+  // statements (like _rebuildRows() and refresh()) from every assertion below.
+  const handler = /connect\('changed::agent-chip-display'[\s\S]*?\n {8}\}\)/.exec(island)?.[0] ?? ''
 
   it('leads the title line: arrow, then chip, then project name', () => {
     // Order is the design decision, not an accident — the row is meant to read
