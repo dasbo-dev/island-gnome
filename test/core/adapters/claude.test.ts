@@ -132,6 +132,22 @@ describe('claudeAdapter.normalize', () => {
     expect(e?.startsNewConversation).toBeUndefined()
   })
 
+  it('flags a SessionEnd with reason clear, so /clear does not sound the done cue', () => {
+    const e = claudeAdapter.normalize(
+      { hook_event_name: 'SessionEnd', session_id: 's1', cwd: '/p', reason: 'clear' }, ctx
+    )
+    expect(e?.endedByClear).toBe(true)
+  })
+
+  it('leaves a real exit unflagged, so the done cue still plays for it', () => {
+    for (const reason of ['logout', 'prompt_input_exit', 'other']) {
+      const e = claudeAdapter.normalize(
+        { hook_event_name: 'SessionEnd', session_id: 's1', cwd: '/p', reason }, ctx
+      )
+      expect(e?.endedByClear, reason).toBeUndefined()
+    }
+  })
+
   it('ignores a source that arrives on any event other than SessionStart', () => {
     const e = claudeAdapter.normalize(
       { hook_event_name: 'Stop', session_id: 's1', cwd: '/p', source: 'clear' }, ctx

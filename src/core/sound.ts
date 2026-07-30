@@ -40,11 +40,21 @@ export function snapshotStates(sessions: Session[]): Map<string, SessionState> {
  * A key absent from `prev` never counts, even when it arrives already done: the
  * store is built fresh on every enable(), and treating unknown-as-new would
  * sound a cue for every session alive at that moment.
+ *
+ * A session carrying `endedByClear` is skipped too: today the only route to
+ * 'done' is a session-end event, and for Claude that includes `/clear`, which
+ * the user presses several times an hour. `endedByClear` is set only when the
+ * adapter could actually tell — Claude's SessionEnd payload is inferred
+ * rather than captured (see docs/agent-dialects.md), so if a real hook spells
+ * its `reason` differently than assumed, the flag simply stays unset and this
+ * cues exactly as it did before the fix: the failure direction is today's
+ * behaviour, not a new and unexpected silence.
  */
 export function newlyDone(prev: Map<string, SessionState>, next: Session[]): string[] {
   const keys: string[] = []
   for (const s of next) {
     if (s.state !== 'done') continue
+    if (s.endedByClear) continue
     const was = prev.get(s.key)
     if (was === undefined || was === 'done') continue
     keys.push(s.key)

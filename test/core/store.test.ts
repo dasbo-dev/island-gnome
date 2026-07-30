@@ -344,6 +344,49 @@ describe('SessionStore', () => {
     expect(s.list()).toHaveLength(1)
   })
 
+  it('stamps endedByClear on session-end when the event flags it', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    s.apply(ev({ kind: 'session-end', ts: 1000, endedByClear: true }))
+    expect(s.list()[0]!.state).toBe('done')
+    expect(s.list()[0]!.endedByClear).toBe(true)
+  })
+
+  it('leaves endedByClear undefined for a session-end that does not flag it', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    s.apply(ev({ kind: 'session-end', ts: 1000 }))
+    expect(s.list()[0]!.endedByClear).toBeUndefined()
+  })
+
+  it('does not let a later real exit inherit a stale endedByClear from an earlier clear', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    s.apply(ev({ kind: 'session-end', ts: 1000, endedByClear: true }))
+    expect(s.list()[0]!.endedByClear).toBe(true)
+    // The same record comes back to life (e.g. a resumed session) and then
+    // really exits — this session-end carries no endedByClear at all.
+    s.apply(ev({ kind: 'prompt-submit', ts: 2000 }))
+    s.apply(ev({ kind: 'session-end', ts: 3000 }))
+    expect(s.list()[0]!.endedByClear, 'a real exit must not read as a clear').toBeUndefined()
+  })
+
+  it('stamps endedByClear even while a permission defers the state, before clearPending settles it', () => {
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    s.setPending('claude:s1', { id: 'p1', tool: 'Bash', deadline: 30_000, queued: 0 })
+    s.apply(ev({ kind: 'session-end', ts: 2000, endedByClear: true }))
+    expect(s.list()[0]!.state, 'still waiting until the permission resolves').toBe('waiting')
+    expect(
+      s.list()[0]!.endedByClear,
+      'the flag must land immediately, not only once clearPending settles the state'
+    ).toBe(true)
+
+    s.clearPending('claude:s1')
+    expect(s.list()[0]!.state).toBe('done')
+    expect(s.list()[0]!.endedByClear).toBe(true)
+  })
+
   it('preserves an error that arrived while a permission was pending', () => {
     const s = new SessionStore()
     s.apply(ev({ ts: 0 }))

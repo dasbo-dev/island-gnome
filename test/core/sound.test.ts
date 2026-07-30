@@ -22,6 +22,7 @@ function sess(key: string, state: SessionState, over: Partial<Session> = {}): Se
     startedAt: 0,
     conversationIndex: 1,
     lastEventAt: 0,
+    ...over,
   }
 }
 
@@ -174,5 +175,19 @@ describe('newlyDone', () => {
       ['b', 'waiting'],
     ])
     expect(newlyDone(prev, [sess('a', 'done'), sess('b', 'done')])).toEqual(['a', 'b'])
+  })
+
+  it('skips a session that finished by /clear rather than a real exit', () => {
+    const prev = new Map<string, SessionState>([['a', 'running']])
+    expect(
+      newlyDone(prev, [sess('a', 'done', { endedByClear: true })])
+    ).toEqual([])
+  })
+
+  it('still cues a done session that carries no endedByClear flag', () => {
+    const prev = new Map<string, SessionState>([['a', 'running']])
+    expect(
+      newlyDone(prev, [sess('a', 'done', { endedByClear: undefined })])
+    ).toEqual(['a'])
   })
 })

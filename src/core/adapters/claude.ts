@@ -44,6 +44,17 @@ export function detailFromToolInput(input: unknown): string | undefined {
 const NEW_CONVERSATION_SOURCES = new Set(['clear'])
 
 /**
+ * `SessionEnd` `reason` value Claude uses for `/clear`. Like `SessionEnd`
+ * itself, this is inferred rather than captured — there is no fixture for it
+ * in test/fixtures/claude/ and docs/agent-dialects.md does not cover the
+ * hook at all, so this is written from the published shape (reason values
+ * `clear`, `logout`, `prompt_input_exit`, `other`), the way
+ * NEW_CONVERSATION_SOURCES was before SessionStart fixtures existed to check
+ * it against.
+ */
+const CLEAR_END_REASON = 'clear'
+
+/**
  * The tools that move the task directory. `TodoWrite` is the old spelling —
  * Claude replaced it with the incremental `TaskCreate` / `TaskUpdate` pair —
  * and is kept because an install still emitting it writes the same directory,
@@ -104,6 +115,10 @@ export const claudeAdapter: AgentAdapter = {
         str(raw['permission_mode']) === 'bypassPermissions' ? true : undefined,
       startsNewConversation:
         eventName === 'SessionStart' && NEW_CONVERSATION_SOURCES.has(str(raw['source']) ?? '')
+          ? true
+          : undefined,
+      endedByClear:
+        eventName === 'SessionEnd' && str(raw['reason']) === CLEAR_END_REASON
           ? true
           : undefined,
     }
