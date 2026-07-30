@@ -1,6 +1,6 @@
 #!/usr/bin/gjs -m
 // Drives the extension over D-Bus without running a real agent.
-// Usage: tools/fake-agent.js session|tool|perm|ask|tasks|sessionend [session-id]
+// Usage: tools/fake-agent.js session|tool|perm|ask|tasks|notify|sessionend [session-id]
 // The session id defaults to fake-1. Pass distinct ids to create distinct
 // sessions — the store keys on agent + session id, so reusing one id updates
 // the same row instead of adding another.
@@ -21,6 +21,7 @@ const events = {
   perm: 'PreToolUse',
   ask: 'PreToolUse',
   tasks: 'PostToolUse',
+  notify: 'Notification',
   sessionend: 'SessionEnd',
 }
 
@@ -64,6 +65,10 @@ const payloads = {
   tasks: {
     hook_event_name: 'PostToolUse', session_id: sessionId, cwd: GLib.get_current_dir(),
     tool_name: 'TaskUpdate', tool_input: { taskId: '1', status: 'completed' },
+  },
+  notify: {
+    hook_event_name: 'Notification', session_id: sessionId, cwd: GLib.get_current_dir(),
+    message: 'Claude is waiting for your input',
   },
   sessionend: { hook_event_name: 'SessionEnd', session_id: sessionId, cwd: GLib.get_current_dir() },
 }

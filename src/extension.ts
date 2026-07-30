@@ -24,9 +24,18 @@ export default class DasboIslandExtension extends Extension {
     this._settings = settings
     this._store = new SessionStore()
     this._store.doneLingerSeconds = settings.get_int('done-linger')
+    this._store.notificationSeconds = settings.get_int('notification-seconds')
     this._settingsIds.push(
       settings.connect('changed::done-linger', () => {
         if (this._store) this._store.doneLingerSeconds = settings.get_int('done-linger')
+      })
+    )
+    this._settingsIds.push(
+      // Read into the store rather than looked up per event: the store is pure
+      // and must not know GSettings exists, which is the same arrangement
+      // doneLingerSeconds already has.
+      settings.connect('changed::notification-seconds', () => {
+        if (this._store) this._store.notificationSeconds = settings.get_int('notification-seconds')
       })
     )
     this._permissions = new PermissionTable(this._store, glibTimers)
@@ -88,6 +97,7 @@ export default class DasboIslandExtension extends Extension {
       questionTimeoutSeconds: () => settings.get_int('question-timeout'),
       enabledAgents: () => settings.get_strv('enabled-agents'),
       onPermissionOpened: () => this._island?.notifyPermissionOpened(),
+      onNotification: (key) => this._island?.notifyNotification(key),
       onTasksChanged: (key) => this._island?.notifyTasksChanged(key),
     })
     this._service.export()

@@ -1,5 +1,5 @@
 import { basename, sessionKey } from './types.js'
-import type { AgentEvent, AgentId, PendingPermission, PendingQuestion, Session, SessionState } from './types.js'
+import type { AgentEvent, AgentId, PendingPermission, PendingQuestion, Session, SessionNotice, SessionState } from './types.js'
 import { sameTasks, sortTasks } from './tasks.js'
 import type { AgentTask } from './tasks.js'
 
@@ -88,6 +88,12 @@ export class SessionStore {
   private subscribers = new Set<() => void>()
   /** Seconds a done session lingers before reaping. Set from GSettings by the shell layer. */
   doneLingerSeconds = 10
+  /**
+   * Seconds a notice stays on a row before `activityText` stops returning it.
+   * Zero means it stays until the next event from that session replaces it.
+   * Set from GSettings by the shell layer, like doneLingerSeconds.
+   */
+  notificationSeconds = 5
 
   subscribe(fn: () => void): () => void {
     this.subscribers.add(fn)
@@ -240,6 +246,26 @@ export class SessionStore {
     if (lineage) s.lineageKey = makeLineageKey(e.agent, lineage.pid, lineage.processStartedAt)
     if (e.transcriptPath) s.transcriptPath = e.transcriptPath
 
+    // A notification changes nothing but this. It carries no state, so the
+    // switch below must not run for it — and returning here is also what keeps
+    // that switch exhaustive: TypeScript narrows `e.kind` past 'notification'
+    // at this return, so `kindState`'s definite assignment still holds without
+    // a `default` case being invented to satisfy it.
+    if (e.kind === 'notification') {
+      const notice: SessionNotice | undefined = e.detail
+        ? {
+            text: e.detail,
+            until: this.notificationSeconds ? e.ts + this.notificationSeconds * 1000 : 0,
+          }
+        : undefined
+      s.notice = notice
+      this.emit()
+      return
+    }
+    // Any other event is proof the silence the notice described is over, so it
+    // ends here regardless of what its own clock said.
+    s.notice = undefined
+
     let kindState: SessionState
     switch (e.kind) {
       case 'session-start':
@@ -317,6 +343,9 @@ export class SessionStore {
     // promoted after a permission (or the reverse) would otherwise leave both
     // fields set and the row would render two things at once.
     s.pendingQuestion = undefined
+    // A permission is the louder thing, and it arrives with buttons the user
+    // has to reach. Whatever the agent was merely saying is over.
+    s.notice = undefined
     s.state = 'waiting'
     this.emit()
   }
@@ -326,6 +355,9 @@ export class SessionStore {
     if (!s) return
     s.pendingQuestion = pending
     s.pendingPermission = undefined
+    // A permission is the louder thing, and it arrives with buttons the user
+    // has to reach. Whatever the agent was merely saying is over.
+    s.notice = undefined
     s.state = 'waiting'
     this.emit()
   }

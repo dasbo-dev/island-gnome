@@ -19,6 +19,12 @@ export interface ServiceOptions {
   /** Called after a permission row appears, so the UI can pulse and auto-open. */
   onPermissionOpened: () => void
   /**
+   * Called when an agent raised a notification, so the UI can show it. The
+   * store already holds the text by the time this fires; this only says that
+   * it is worth looking at.
+   */
+  onNotification: (key: string) => void
+  /**
    * Called when a tool that maintains this agent's task list has finished, so
    * the UI can re-read it. Only a hint that something moved — the service does
    * no filesystem work itself, and never learns whether anyone was looking.
@@ -96,6 +102,23 @@ export class IslandService {
     this.store.apply(e)
 
     const key = sessionKey(e.agent, e.sessionId)
+    // Before the task branches, which a notification can never satisfy: it
+    // carries no tool name and is not a tool-end. Wrapped for the same reason
+    // RequestPermissionAsync's whole body is: onNotification reads GSettings,
+    // touches Main.layoutManager, calls menu.open() and arms a GLib source —
+    // real ways to throw, and this is the first callback reachable from Notify
+    // that can. Notify has no reply to hold open the way RequestPermissionAsync
+    // does, so a throw here would already have become a D-Bus error reply and
+    // left the fail-open guarantee intact either way; this only keeps a UI
+    // failure from being reported as a hard error instead of a warning.
+    if (e.kind === 'notification') {
+      try {
+        this.opts.onNotification(key)
+      } catch (err) {
+        console.warn(`dasbo-island: onNotification failed: ${err}`)
+      }
+      return
+    }
     // Two shapes of plan, one store method. Codex ships the whole thing in the
     // payload, so it is published here directly; Claude keeps it on disk, so
     // all this can do is say that it moved.

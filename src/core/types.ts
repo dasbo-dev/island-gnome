@@ -36,6 +36,7 @@ export type EventKind =
   | 'tool-end'
   | 'turn-end'
   | 'session-end'
+  | 'notification'
   | 'error'
 
 /** An agent hook payload after dialect normalisation. */
@@ -117,6 +118,21 @@ export interface PendingQuestion {
   deadline: number
 }
 
+/**
+ * Something an agent said while nothing was happening — Claude's Notification
+ * hook. Not a state: `apply` sets this and returns without touching `state`,
+ * `currentTool` or `detail`, because a notification is the absence of activity
+ * rather than a kind of it.
+ *
+ * `until` is a deadline in ms since the epoch. Zero means no clock at all, in
+ * which case only the next event ends it — the same reading `permission-timeout`
+ * gives to zero.
+ */
+export interface SessionNotice {
+  text: string
+  until: number
+}
+
 export interface Session {
   key: string
   agent: AgentId
@@ -150,6 +166,13 @@ export interface Session {
   pendingPermission?: PendingPermission
   /** Mutually exclusive with pendingPermission: the store clears each when setting the other. */
   pendingQuestion?: PendingQuestion
+  /**
+   * Cleared by any event other than a notification, and by setPending /
+   * setPendingQuestion — a notice describes a silence, and all of those are
+   * proof the silence is over. Never restored by clearPending: an interrupted
+   * notice is spent.
+   */
+  notice?: SessionNotice
   /**
    * The agent's plan, as of the last time it was read. Undefined means "never
    * seen one", an empty array means "looked and found none"; the row draws both

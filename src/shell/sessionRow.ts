@@ -49,8 +49,16 @@ export const SessionRow = GObject.registerClass(
     // question *is* a demand.
     private _expanded = false
     private _questionBox!: St.BoxLayout
+    /**
+     * The deadline showTransient()'s caller passed, in ms since the epoch. 0
+     * means no transient is showing. `_syncActivity` checks this before
+     * touching the label at all, so a tick landing mid-transient does not
+     * recompute over it — see the two methods below for why that guard has
+     * to exist.
+     */
+    private _transientUntil = 0
 
-    constructor(session: Session, cb: SessionRowCallbacks) {
+    constructor(session: Session, cb: SessionRowCallbacks, now: number) {
       super({ reactive: false, can_focus: false, style_class: 'dasbo-row' })
       this._session = session
       this._cb = cb
@@ -249,7 +257,7 @@ export const SessionRow = GObject.registerClass(
       outer.add_child(this._taskBox)
       this.add_child(outer)
 
-      this.update(session)
+      this.update(session, now)
     }
 
     /** Where the Island attaches the Allow / Deny / Always controls. */
@@ -331,7 +339,46 @@ export const SessionRow = GObject.registerClass(
       return this._session
     }
 
-    update(session: Session): void {
+    /**
+     * Write the activity line for a given moment.
+     *
+     * Called from both update() and tick(), because both can be the first to
+     * learn the text has changed: update() runs on a store emit, tick() runs
+     * once a second and is the only thing that ever notices a notice has
+     * expired — the store schedules no timer for that, it is just two numbers
+     * compared here.
+     *
+     * Returns before touching the label at all while a transient is showing.
+     * tick() now calls this every second, and showTransient()'s "no window"
+     * has no representation in Session for activityText to recompute — a tick
+     * landing before its own GLib timer fires would otherwise overwrite it
+     * with whatever the session actually says, turning a message meant to
+     * last two seconds into one that lasts until the next arbitrary tick.
+     * showJumpFailure's timer calls clearTransient() before it calls
+     * update(), so it is still what restores the real text afterward; this
+     * guard only keeps this method from racing it in the meantime — including
+     * the case where the GLib timer itself fires early (`g_timeout_add_seconds`
+     * rounds to a perturbed second boundary and can land before its nominal
+     * delay), which would otherwise hit this guard and no-op, leaving "no
+     * window" on the row until whatever tick comes next.
+     *
+     * Once past that guard, the text write is checked against the current
+     * value and the opacity write is not: assigning a ClutterText's contents
+     * relayouts the row, and this now runs every second, so the difference
+     * check earns its keep; assigning an actor's opacity is a cheap property
+     * set that costs nothing to repeat.
+     */
+    private _syncActivity(now: number): void {
+      if (now < this._transientUntil) return
+      const { text, hint } = activityText(this._session, now)
+      if (text !== this._activity.text) this._activity.text = text
+      // St's CSS engine does not reliably honour `opacity` — the same finding
+      // that made PopupHeader's empty label set it on the actor — so the
+      // .dasbo-row-activity rule cannot carry this.
+      this._activity.opacity = hint ? 178 : 255
+    }
+
+    update(session: Session, now: number): void {
       this._session = session
       this._project.text = session.project
       this._dot.style_class = `dasbo-dot ${STATE_CLASS[session.state]}`.trim()
@@ -350,13 +397,7 @@ export const SessionRow = GObject.registerClass(
         this._shellTotal.visible = false
       }
 
-      const { text, hint } = activityText(session)
-      this._activity.text = text
-      // St's CSS engine does not reliably honour `opacity` — the same finding
-      // that made PopupHeader's empty label set it on the actor — so the
-      // .dasbo-row-activity rule cannot carry this. Set on every call, not just
-      // the hint branches: one label is reused across every state.
-      this._activity.opacity = hint ? 178 : 255
+      this._syncActivity(now)
 
       // Derived here rather than pushed in by the Island, so the row stays a
       // pure function of its Session — update(s) is already called on every
@@ -376,6 +417,9 @@ export const SessionRow = GObject.registerClass(
 
     /** Called once per second by the Island while the popup is open. */
     tick(now: number): void {
+      // The only thing that ever retires an expired notice. Nothing else runs
+      // on a clock, and the store deliberately schedules no timer for it.
+      this._syncActivity(now)
       const elapsed = formatElapsed(now - this._session.startedAt)
       // The number rides on the clock rather than getting a label of its own:
       // one string means tnum covers both halves, and the pair reads as "third
@@ -405,9 +449,27 @@ export const SessionRow = GObject.registerClass(
       }
     }
 
-    showTransient(text: string): void {
+    /**
+     * Write text straight onto the label, bypassing activityText entirely,
+     * and hold it there until `until` (ms since the epoch). The caller owns
+     * restoring the real text afterward — see Island.showJumpFailure's GLib
+     * timer — this only stops _syncActivity from undoing the write early.
+     */
+    showTransient(text: string, until: number): void {
+      this._transientUntil = until
       this._activity.opacity = 255
       this._activity.text = text
+    }
+
+    /**
+     * End a transient early, before its own deadline. showJumpFailure's timer
+     * calls this immediately before update(), so _syncActivity's guard above
+     * cannot no-op the very update meant to end the transient — which it
+     * otherwise would whenever the GLib timer fires early (see the guard's
+     * comment), since `now < this._transientUntil` would still hold.
+     */
+    clearTransient(): void {
+      this._transientUntil = 0
     }
   }
 )

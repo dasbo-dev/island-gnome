@@ -17,6 +17,7 @@ import { taskDir, readTasks } from './taskReader.js'
 import { PopupHeader, EmptyRow } from './popupHeader.js'
 import { GridIcon } from './gridIcon.js'
 import { pillState } from '../core/pillState.js'
+import { noticeVisible } from '../core/activity.js'
 import { bodyMaxHeight, scrollIntoView } from '../core/popupSize.js'
 
 /**
@@ -71,6 +72,22 @@ export const Island = GObject.registerClass(
     /** Keys with a read in flight, so a burst of TaskUpdates cannot stack reads. */
     private _readingTasks = new Set<string>()
     private _transientIds = new Set<number>()
+    /** GLib source that closes a popup this widget opened for a notice. */
+    private _noticeCloseId = 0
+    /**
+     * True once a notice has opened the popup, until something closes it or
+     * decides it must not. This is not an instant-by-instant "a close timer
+     * is armed right now" flag — changing notification-seconds to 0 between
+     * two notices with no intervening close leaves it true with no timer
+     * ever armed for the second one — but the property that actually matters
+     * holds regardless: it is set only in the branch of notifyNotification
+     * that itself opened the popup for a notice — the popup already being
+     * open is one of the cases where it is never set at all, not one that
+     * clears it — and every path that could make closing wrong afterward (the
+     * user closing it, a permission or question arriving) clears it before
+     * anything could act on stale information. See notifyNotification.
+     */
+    private _noticeOpened = false
     private _permHandlers: {
       resolve: (id: string, kind: 'allow' | 'deny') => void
       grantAllowAlways: (sessionKey: string, tool: string, id: string) => void
@@ -193,6 +210,10 @@ export const Island = GObject.registerClass(
           } else {
             this._unwatchKeyFocus()
             this._stopTimer()
+            // The user closed it. There is nothing left to close, and a timer
+            // left armed would fire into whatever the *next* open is.
+            this._noticeOpened = false
+            this._cancelNoticeClose()
           }
         }
       )
@@ -211,10 +232,20 @@ export const Island = GObject.registerClass(
     showJumpFailure(key: string): void {
       const row = this._rows.get(key)
       if (!row) return
-      row.showTransient('no window')
+      const until = Date.now() + 2000
+      row.showTransient('no window', until)
       const id = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
+        // Explicit rather than relying on the deadline having passed:
+        // g_timeout_add_seconds rounds to a perturbed second boundary and can
+        // fire early, in which case now < until still holds and
+        // _syncActivity's guard would otherwise no-op this very update. Ending
+        // the transient here makes the timer authoritative regardless of when
+        // it actually fires, and also covers a backwards clock jump, which
+        // would otherwise freeze this row's activity label until `until` had
+        // passed for real.
+        row.clearTransient()
         const s = this._store.get(key)
-        if (s) row.update(s)
+        if (s) row.update(s, Date.now())
         this._transientIds.delete(id)
         return GLib.SOURCE_REMOVE
       })
@@ -237,9 +268,72 @@ export const Island = GObject.registerClass(
 
     /** Called by the D-Bus service after a permission row has been registered. */
     notifyPermissionOpened(): void {
+      // Unconditionally, and before the guards below: the popup is now up for
+      // something that needs an answer. Shutting it under the user's cursor
+      // mid-click is the worst thing the notice timer could do — and that is
+      // true whether or not this call goes on to open anything itself.
+      this._noticeOpened = false
+      this._cancelNoticeClose()
       if (!this._settings.get_boolean('auto-open-on-permission')) return
       if (Main.layoutManager.primaryMonitor?.inFullscreen) return
       this.menu.open(true)
+    }
+
+    /**
+     * Called by the D-Bus service when an agent raised a notification. The
+     * store already holds the text; this decides whether to show the popup for
+     * it, and arranges to undo that.
+     */
+    notifyNotification(key: string): void {
+      if (!this._settings.get_boolean('notification-popup')) return
+      if (Main.layoutManager.primaryMonitor?.inFullscreen) return
+      // No text, no notice, or a pending permission/question is holding the
+      // row instead of it — either way there is nothing new to show. The
+      // second case matters in practice: a notification can arrive while a
+      // permission this popup already answered (or the user already glanced
+      // at) is still pending, and opening for it would show nothing new and
+      // arm a close timer that could shut the popup out from under the
+      // permission's own buttons — the worst thing this feature could do.
+      // noticeVisible is the single place that decides which case this is,
+      // shared with activityText's own notice branch, so the two agree about
+      // what the session state says a notice should be doing — though a
+      // widget-local transient (showJumpFailure's "no window") can briefly sit
+      // on top of that on the row itself; see noticeVisible's own comment.
+      // Claude's Notification payload is also inferred rather than captured
+      // (see the design doc), so a differently spelled message field must
+      // leave this feature silent rather than opening an empty popup on its
+      // own — noticeVisible covers that too, since no message means no
+      // notice at all.
+      const session = this._store.get(key)
+      if (!session || !noticeVisible(session, Date.now())) return
+
+      this._cancelNoticeClose()
+      const seconds = this._settings.get_int('notification-seconds')
+      const wasClosed = !(this.menu as PopupMenu.PopupMenu).isOpen
+      if (wasClosed) this.menu.open(true)
+
+      // The flag is set only when a timer is actually armed. With seconds = 0
+      // nothing would ever read it, and leaving it true would hand the *next*
+      // notification's timer permission to close a popup it did not open.
+      //
+      // Or-ed rather than assigned: a second notice arriving while the first
+      // one's popup is still up finds the menu already open, and clobbering
+      // the flag to false there would strand that popup with nothing left to
+      // close it.
+      if (seconds > 0) {
+        this._noticeOpened = this._noticeOpened || wasClosed
+        this._noticeCloseId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, seconds, () => {
+          this._noticeCloseId = 0
+          if (this._noticeOpened) {
+            this._noticeOpened = false
+            // Re-entrant: this fires open-state-changed, whose closed branch
+            // clears the flag and cancels the timer. Both are already done, so
+            // that pass is a no-op rather than a loop.
+            this.menu.close(true)
+          }
+          return GLib.SOURCE_REMOVE
+        })
+      }
     }
 
     /**
@@ -271,6 +365,12 @@ export const Island = GObject.registerClass(
       if (!this._timerId) return
       GLib.Source.remove(this._timerId)
       this._timerId = 0
+    }
+
+    private _cancelNoticeClose(): void {
+      if (!this._noticeCloseId) return
+      GLib.Source.remove(this._noticeCloseId)
+      this._noticeCloseId = 0
     }
 
     /**
@@ -381,6 +481,7 @@ export const Island = GObject.registerClass(
       this._unsubscribe = null
       for (const id of this._transientIds) GLib.Source.remove(id)
       this._transientIds.clear()
+      this._cancelNoticeClose()
       this._unwatchKeyFocus()
       this._stopTimer()
       // PopupMenuBase's constructor connects this._body to Main.sessionMode,
@@ -460,6 +561,9 @@ export const Island = GObject.registerClass(
     private _rebuildRows(): void {
       const sessions = this._store.list()
       const live = new Set(sessions.map((s) => s.key))
+      // One clock for the whole rebuild, so every row in a single pass agrees
+      // about whether a notice has expired.
+      const now = Date.now()
 
       for (const [key, row] of [...this._rows]) {
         if (!live.has(key)) {
@@ -492,7 +596,7 @@ export const Island = GObject.registerClass(
       for (const s of sessions) {
         const existing = this._rows.get(s.key)
         if (existing) {
-          existing.update(s)
+          existing.update(s, now)
         } else {
           const row = new SessionRow(s, {
             onJump: (sess) => this._onJump(sess),
@@ -500,7 +604,7 @@ export const Island = GObject.registerClass(
               this._questions.get(s.key)?.panel.setExpanded(expanded)
               this._taskLists.get(s.key)?.list.setExpanded(expanded)
             },
-          })
+          }, now)
           this._rows.set(s.key, row)
           this._body.addMenuItem(row)
         }

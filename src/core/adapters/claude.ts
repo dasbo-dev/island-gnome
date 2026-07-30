@@ -10,6 +10,7 @@ const KIND_BY_EVENT: Record<string, EventKind> = {
   PostToolUse: 'tool-end',
   Stop: 'turn-end',
   SessionEnd: 'session-end',
+  Notification: 'notification',
 }
 
 /** Pick the most useful human-readable detail out of a Claude tool_input blob. */
@@ -84,7 +85,13 @@ export const claudeAdapter: AgentAdapter = {
       sessionId,
       cwd,
       tool: str(raw['tool_name']),
-      detail: detailFromToolInput(raw['tool_input']),
+      // A Notification carries its text in `message` and has no tool_input; a
+      // tool event has tool_input and no message. The two can never contend
+      // for this field, so the notice needs no field of its own on AgentEvent.
+      detail:
+        kind === 'notification'
+          ? str(raw['message'])
+          : detailFromToolInput(raw['tool_input']),
       transcriptPath: str(raw['transcript_path']),
       pid: ctx.pid,
       agentStartedAt: ctx.agentStartedAt,

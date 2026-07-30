@@ -95,6 +95,26 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     group.add(linger)
 
     page.add(group)
+
+    const notifications = new Adw.PreferencesGroup({ title: 'Notifications' })
+
+    const notificationPopup = new Adw.SwitchRow({
+      title: 'Open the popup on a notification',
+      subtitle: 'Suppressed while a fullscreen window is on the primary monitor',
+    })
+    settings.bind('notification-popup', notificationPopup, 'active', 0)
+    notifications.add(notificationPopup)
+
+    const notificationSeconds = new Adw.SpinRow({
+      title: 'Keep a notification visible',
+      subtitle: 'Seconds the message stays on the row. Zero keeps it until the agent does something else.',
+      adjustment: new Gtk.Adjustment({ lower: 0, upper: 300, step_increment: 1 }),
+    })
+    settings.bind('notification-seconds', notificationSeconds, 'value', 0)
+    notifications.add(notificationSeconds)
+
+    page.add(notifications)
+
     return page
   }
 
