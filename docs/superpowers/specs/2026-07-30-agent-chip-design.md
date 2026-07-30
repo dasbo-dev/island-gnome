@@ -124,7 +124,7 @@ simply one more fixed item ahead of it.
 | File | Mark |
 |---|---|
 | `claude.svg` | Terracotta (`#d97757`) radial burst |
-| `codex.svg` | Near-black (`#0d0d0d`) rounded hex outline |
+| `codex.svg` | Mid-grey (`#9e9e9e`) rounded hex outline. Codex's own mark is black, which is invisible against GNOME's dark popup; this is the grey `.dasbo-dot` already uses, known to read under both themes |
 | `antigravity.svg` | Blue (`#4285f4`) arrow inside an orbit arc |
 
 These are marks drawn for this extension — recognisable in silhouette, not
