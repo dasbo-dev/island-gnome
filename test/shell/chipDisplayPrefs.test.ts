@@ -36,7 +36,10 @@ describe('the agent-chip-display combo', () => {
     expect(values).toEqual(choices)
   })
 
-  it('offers exactly one label per value', () => {
+  it('offers the labels in the same order as the values', () => {
+    // Content, not just count: permuting the StringList alone would leave a
+    // length check green while every row in the combo named the wrong value.
+    expect(labels).toEqual(['Logo only', 'Logo and name', 'Name only'])
     expect(labels.length, 'the StringList and chipOrder disagree').toBe(values.length)
   })
 })
