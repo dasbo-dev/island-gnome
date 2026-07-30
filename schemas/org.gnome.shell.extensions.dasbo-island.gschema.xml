@@ -58,5 +58,10 @@
       <summary>Seconds a finished session stays visible</summary>
       <description>How long a session in the done state remains in the popup before it is dropped.</description>
     </key>
+    <key name="notification-sounds" type="b">
+      <default>true</default>
+      <summary>Play a sound for events that need you</summary>
+      <description>A permission request, an agent's question, a notification, and a session finishing. Sounds come from the desktop's sound theme, and stay silent when the system's own event sounds are off.</description>
+    </key>
   </schema>
 </schemalist>
