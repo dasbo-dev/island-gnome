@@ -46,9 +46,10 @@ const NEW_CONVERSATION_SOURCES = new Set(['clear'])
 /**
  * `SessionEnd` `reason` value Claude uses for `/clear`. Like `SessionEnd`
  * itself, this is inferred rather than captured — there is no fixture for it
- * in test/fixtures/claude/ and docs/agent-dialects.md does not cover the
- * hook at all, so this is written from the published shape (reason values
- * `clear`, `logout`, `prompt_input_exit`, `other`), the way
+ * in test/fixtures/claude/, and docs/agent-dialects.md, while it does discuss
+ * the hook, records it as uncaptured and documents no `reason` field (or any
+ * other key name) for it. So this is written from the published shape (reason
+ * values `clear`, `logout`, `prompt_input_exit`, `other`), the way
  * NEW_CONVERSATION_SOURCES was before SessionStart fixtures existed to check
  * it against.
  */
