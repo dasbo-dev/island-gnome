@@ -24,11 +24,34 @@ describe('AgentChip', () => {
     expect(src).toMatch(/\.opacity\s*=\s*255/)
   })
 
-  it('has no update method, because a row never changes agent', () => {
-    // sessionKey is `${agent}:${sessionId}` (core/types.ts): a row's agent is
-    // fixed for the row's whole life. An update path here would model a
-    // transition that cannot happen, and invite a caller to rely on it.
-    expect(src).not.toMatch(/\bupdate\s*\(/)
+  it('never re-agents itself: presentation changes, identity does not', () => {
+    // sessionKey is `${agent}:${sessionId}` (core/types.ts), so a row's agent
+    // is fixed for the row's whole life, and setMode is not a hole in that:
+    // it changes what the chip shows, never which agent it names. No method
+    // may take an AgentId or a Session — the constructor, which does take an
+    // AgentId, has no return-type annotation and so does not match.
+    expect(src).not.toMatch(/\b(update|setAgent)\s*\(/)
+    expect(src).not.toMatch(/^\s*\w+\s*\([^)]*\b(AgentId|Session)\b[^)]*\)\s*:/m)
+  })
+
+  it('asks core which parts to show, rather than reading the mode itself', () => {
+    // One decision site, testable under Node. A branch on the mode string
+    // here would be a second one, untestable and free to disagree.
+    expect(src).toContain('chipParts')
+    expect(src).not.toMatch(/'logo'|'logo-name'|'name'/)
+  })
+
+  it('is handed its mode and never reaches for settings', () => {
+    // Island owns settings in src/shell/; nothing below it reads them. A chip
+    // that connected to Gio.Settings would also owe a disconnect per row.
+    expect(src).not.toContain('get_string')
+    expect(src).not.toContain('Gio.Settings')
+  })
+
+  it('keeps both children so a mode change is a visibility toggle', () => {
+    expect(src).toMatch(/setMode\s*\(/)
+    expect(src).toMatch(/\.visible\s*=\s*parts\.icon/)
+    expect(src).toMatch(/\.visible\s*=\s*parts\.label/)
   })
 })
 
@@ -42,8 +65,24 @@ describe('the chip on the row', () => {
     // Order is the design decision, not an accident — the row is meant to read
     // as one phrase ("Claude, on dasbo-island"), which is also why the project
     // names no longer align down the popup's left edge.
-    const order = /titleRow\.add_child\(this\._expander\)\s*\n\s*titleRow\.add_child\(chip\)\s*\n\s*titleRow\.add_child\(this\._project\)/
+    const order = /titleRow\.add_child\(this\._expander\)\s*\n\s*titleRow\.add_child\(this\._chip\)\s*\n\s*titleRow\.add_child\(this\._project\)/
     expect(row).toMatch(order)
+  })
+
+  it('takes a new display mode straight to the live rows', () => {
+    expect(row).toMatch(/setChipMode\s*\(/)
+    expect(island).toMatch(/changed::agent-chip-display/)
+    expect(island).toMatch(/row\.setChipMode\(/)
+  })
+
+  it('does not rebuild the rows to change the chip', () => {
+    // Rows are reused across rebuilds so that permission controls, question
+    // panels and task lists survive a refresh. Tearing one down mid-decision
+    // would destroy the PermissionControls whose closures are the only path to
+    // resolving a pending request.
+    const handler = /connect\('changed::agent-chip-display'[\s\S]*?\}\)/.exec(island)?.[0] ?? ''
+    expect(handler, 'no changed::agent-chip-display handler in island.ts').not.toBe('')
+    expect(handler).not.toContain('_rebuildRows')
   })
 
   it('gets the icon directory from the extension, not from a guess', () => {

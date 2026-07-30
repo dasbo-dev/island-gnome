@@ -2,20 +2,32 @@ import St from 'gi://St'
 import Clutter from 'gi://Clutter'
 import GObject from 'gi://GObject'
 import { adapters } from '../core/adapters/index.js'
+import { chipParts } from '../core/chipDisplay.js'
 import { agentGicon } from './agentIcon.js'
 import type { AgentId } from '../core/types.js'
 
 /**
  * The agent's mark and short name, as one tag at the head of a session row.
  *
- * Deliberately has no update method: `sessionKey` is `${agent}:${sessionId}`
- * (see core/types.ts), so a row's agent is fixed for the row's entire life. A
- * chip that could change its agent would model a transition that cannot occur,
- * and would invite the Island to call it on every refresh for no reason.
+ * Which of the two it shows is the user's choice (`agent-chip-display`), and
+ * can change while the chip is on screen — so both children are built once and
+ * `setMode` toggles their visibility. What cannot change is *which* agent the
+ * chip names: `sessionKey` is `${agent}:${sessionId}` (see core/types.ts), so a
+ * row's agent is fixed for the row's entire life, and this class deliberately
+ * offers no way to re-point it at another. Presentation is mutable here;
+ * identity is not.
+ *
+ * The mode arrives as an argument rather than being read from GSettings
+ * directly: Island owns settings in src/shell/, and a chip that connected to
+ * them itself would owe a disconnect for every row that ever existed.
  */
 export const AgentChip = GObject.registerClass(
   class AgentChip extends St.BoxLayout {
-    constructor(agent: AgentId, iconBase: string) {
+    private _icon: St.Icon | null = null
+    private _label!: St.Label
+    private _hasIcon = false
+
+    constructor(agent: AgentId, iconBase: string, mode: string) {
       super({
         style_class: 'dasbo-agent-chip',
         // Never absorbs the row's slack, and never shrinks: the project label
@@ -27,7 +39,7 @@ export const AgentChip = GObject.registerClass(
 
       const gicon = agentGicon(iconBase, agent)
       if (gicon) {
-        const icon = new St.Icon({
+        this._icon = new St.Icon({
           gicon,
           // All three marks are 1.5-1.6-unit strokes in a 16-unit viewBox, so
           // at 14px they render at roughly 1.3 unhinted device pixels — just
@@ -48,19 +60,30 @@ export const AgentChip = GObject.registerClass(
         // the row's `:insensitive` state actually changes, cannot touch it
         // either way. 255 is simply the correct full-opacity value, held here
         // in case anything ever does need to dim it.
-        icon.opacity = 255
-        this.add_child(icon)
+        this._icon.opacity = 255
+        this._hasIcon = true
+        this.add_child(this._icon)
       }
 
       // Added whether or not the icon was: a chip whose mark failed to ship
-      // still has to say which agent the row belongs to.
-      this.add_child(
-        new St.Label({
-          text: adapters[agent].shortName,
-          style_class: 'dasbo-agent-chip-label',
-          y_align: Clutter.ActorAlign.CENTER,
-        })
-      )
+      // still has to say which agent the row belongs to. chipParts is what
+      // makes that true even in logo-only mode.
+      this._label = new St.Label({
+        text: adapters[agent].shortName,
+        style_class: 'dasbo-agent-chip-label',
+        y_align: Clutter.ActorAlign.CENTER,
+      })
+      this.add_child(this._label)
+
+      // Applied here rather than left to the caller, so the chip's first paint
+      // is already the right shape instead of flashing the default.
+      this.setMode(mode)
+    }
+
+    setMode(mode: string): void {
+      const parts = chipParts(mode, this._hasIcon)
+      if (this._icon) this._icon.visible = parts.icon
+      this._label.visible = parts.label
     }
   }
 )

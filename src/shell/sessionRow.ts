@@ -44,6 +44,7 @@ export const SessionRow = GObject.registerClass(
     private _actionBox!: St.BoxLayout
     private _permissionBox!: St.BoxLayout
     private _expander!: St.Button
+    private _chip!: InstanceType<typeof AgentChip>
     // Collapsed is the resting state: a plan is reference material, not a
     // demand, and a row that opened itself for one would push every other
     // session down the popup. setHasQuestion(true) overrides this, because a
@@ -59,7 +60,7 @@ export const SessionRow = GObject.registerClass(
      */
     private _transientUntil = 0
 
-    constructor(session: Session, cb: SessionRowCallbacks, now: number, iconBase: string) {
+    constructor(session: Session, cb: SessionRowCallbacks, now: number, iconBase: string, chipMode: string) {
       super({ reactive: false, can_focus: false, style_class: 'dasbo-row' })
       this._session = session
       this._cb = cb
@@ -153,13 +154,13 @@ export const SessionRow = GObject.registerClass(
         this._syncTaskBoxVisible()
         this._cb.onToggleExpanded(this._expanded)
       })
-      // The chip is built once and never updated: sessionKey is
-      // `${agent}:${sessionId}`, so this row's agent cannot change under it.
-      // It is not held on a field for the same reason — nothing ever needs to
-      // reach it again.
-      const chip = new AgentChip(session.agent, iconBase)
+      // Held on a field, unlike the row's other one-shot children: the display
+      // mode is a setting, and Island pushes a change into every live row
+      // rather than rebuilding them. The chip's *agent* still cannot change —
+      // sessionKey is `${agent}:${sessionId}` — so there is still no update().
+      this._chip = new AgentChip(session.agent, iconBase, chipMode)
       titleRow.add_child(this._expander)
-      titleRow.add_child(chip)
+      titleRow.add_child(this._chip)
       titleRow.add_child(this._project)
       titleRow.add_child(this._shellTotal)
       textCol.add_child(titleRow)
@@ -270,6 +271,10 @@ export const SessionRow = GObject.registerClass(
       this.add_child(outer)
 
       this.update(session, now)
+    }
+
+    setChipMode(mode: string): void {
+      this._chip.setMode(mode)
     }
 
     /** Where the Island attaches the Allow / Deny / Always controls. */
