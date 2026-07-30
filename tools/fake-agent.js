@@ -4,6 +4,13 @@
 // The session id defaults to fake-1. Pass distinct ids to create distinct
 // sessions — the store keys on agent + session id, so reusing one id updates
 // the same row instead of adding another.
+//
+// AGENT=claude|codex|antigravity picks which agent to impersonate; it defaults
+// to claude. Only the `session` mode is written in all three dialects, which is
+// enough to get one row per agent on screen — what the row's agent chip needs
+// eyes on. Every other mode stays Claude-shaped: codex reads the same
+// session_id/cwd keys (see KIND_BY_EVENT in src/core/adapters/codex.ts), while
+// antigravity shares no key names at all.
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 
@@ -14,6 +21,30 @@ const IFACE = 'org.dasbo.Island'
 const mode = ARGV[0] ?? 'session'
 const sessionId = ARGV[1] ?? 'fake-1'
 const FAKE_PID = 4242
+
+const AGENT = GLib.getenv('AGENT') ?? 'claude'
+
+// Session start, per dialect. Antigravity names no event in its payload (argv
+// is the only source) and reports its workspace as a list, so it needs both a
+// different event and a different shape.
+const sessionByAgent = {
+  claude: {
+    event: 'SessionStart',
+    payload: {
+      hook_event_name: 'SessionStart', session_id: sessionId, cwd: GLib.get_current_dir(),
+    },
+  },
+  codex: {
+    event: 'SessionStart',
+    payload: {
+      hook_event_name: 'SessionStart', session_id: sessionId, cwd: GLib.get_current_dir(),
+    },
+  },
+  antigravity: {
+    event: 'PreInvocation',
+    payload: { conversationId: sessionId, workspacePaths: [GLib.get_current_dir()] },
+  },
+}
 
 const events = {
   session: 'SessionStart',
@@ -73,11 +104,12 @@ const payloads = {
   sessionend: { hook_event_name: 'SessionEnd', session_id: sessionId, cwd: GLib.get_current_dir() },
 }
 
-const EVENT = events[mode] ?? events.session
-const payload = JSON.stringify(payloads[mode] ?? payloads.session)
+const dialect = mode === 'session' ? sessionByAgent[AGENT] : null
+const EVENT = dialect?.event ?? events[mode] ?? events.session
+const payload = JSON.stringify(dialect?.payload ?? payloads[mode] ?? payloads.session)
 const blocking = mode === 'perm' || mode === 'ask'
 const method = blocking ? 'RequestPermission' : 'Notify'
-const args = new GLib.Variant('(sssis)', ['claude', EVENT, GLib.get_current_dir(), FAKE_PID, payload])
+const args = new GLib.Variant('(sssis)', [AGENT, EVENT, GLib.get_current_dir(), FAKE_PID, payload])
 const replyType = blocking ? new GLib.VariantType('(s)') : null
 
 const res = Gio.DBus.session.call_sync(
