@@ -67,6 +67,18 @@ five. It is reasonable to expect it shares the `hook_event_name`/`session_id`/
 an observation — the captured-vs-inferred distinction this document otherwise
 draws throughout applies to `SessionEnd` too.
 
+A seventh hook, `Notification`, was wired in later still (again see
+`CLAUDE_EVENTS` in `src/core/install/plan.ts`) and is **uncaptured** for the
+same reason: no fixture exists in `test/fixtures/claude/`, and the field the
+adapter reads — `message`, carrying the text shown to the user — was taken from
+the published shape rather than off a verbatim payload. `session_id` and `cwd`
+are the only fields `normalize` requires, and both are common to every captured
+Claude payload, so the event normalises even if `message` is spelled
+differently; the adapter then leaves `detail` undefined and the feature is
+silent rather than wrong. Capturing one is a matter of registering
+`tools/capture-hook claude` under `Notification` and leaving a session idle for
+a minute.
+
 **Tools observed:** `Read`, `Edit` (file-edit tool), `Bash` (shell tool) —
 `Edit` has both a denied-`PreToolUse`-only fixture and a successful
 Pre+Post pair.

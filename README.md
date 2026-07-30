@@ -45,6 +45,14 @@ task: `✓` done, `▸` in progress, `○` still to do. Claude Code's list is re
 from `~/.claude/tasks/<session-id>/`, so it appears without any extra hook.
 `/clear` starts a fresh list, because it starts a fresh session id.
 
+When an agent says it is waiting on you — Claude raises this after its prompt
+has sat idle, and for any permission the island did not answer itself — the
+message appears on that session's row and the popup opens to show it. Both
+revert a few seconds later, and a popup you opened yourself is never closed
+for you. The delay, and whether the popup opens at all, are in the
+preferences; set the delay to zero to keep the message until the agent does
+something else.
+
 Panel box and position changes apply immediately,
 with no reload; note that extensions replacing the top bar, such as Dash to
 Panel, decide where each box ends up on screen.
