@@ -63,7 +63,9 @@ export const Island = GObject.registerClass(
     private _keyFocusId = 0
     private _emptyRow: InstanceType<typeof EmptyRow> | null = null
     private _timerId = 0
-    private _settingsChangedId = 0
+    private _settingsChangedIds: number[] = []
+    /** Last read of `agent-chip-display`, handed to every row that is built. */
+    private _chipMode = 'logo-name'
     private _fullscreenId = 0
     private _menuStateId = 0
     private _onJump: (s: Session) => void = () => {}
@@ -110,6 +112,17 @@ export const Island = GObject.registerClass(
       super(0.5, 'Dasbo Island')
       this._store = store
       this._settings = settings
+      // Guarded the same way soundPlayer.ts guards 'notification-sounds':
+      // Gio.Settings.get_string on a key absent from the *compiled* schema is
+      // a g_error, which aborts the whole shell process. 'agent-chip-display'
+      // is new in this release, read here at enable() time, and a stale
+      // gschemas.compiled from a hand-copied upgrade would abort the session
+      // at login rather than merely leave the chip on its default. Silence
+      // (falling back to the key's own default) is a survivable degradation;
+      // aborting the compositor is not.
+      this._chipMode = settings.settings_schema.has_key('agent-chip-display')
+        ? settings.get_string('agent-chip-display')
+        : 'logo-name'
       // Owned by extension.ts, which also destroys it. Passed in for the same
       // reason iconBase is: a widget that reaches for its own dependencies is
       // a widget that reaches for the wrong one after a reload.
@@ -194,8 +207,22 @@ export const Island = GObject.registerClass(
 
       this._unsubscribe = this._store.subscribe(() => this.refresh())
 
-      this._settingsChangedId = this._settings.connect('changed::always-show', () =>
-        this.refresh()
+      this._settingsChangedIds.push(
+        this._settings.connect('changed::always-show', () => this.refresh())
+      )
+
+      // Pushed into the live rows rather than rebuilt into new ones. Rows are
+      // reused across rebuilds precisely so that permission controls, question
+      // panels and task lists survive a refresh; tearing one down here would
+      // destroy the PermissionControls whose closures are the only path to
+      // resolving a request the user is in the middle of. Toggling `visible`
+      // relayouts on its own, and the popup's width is fixed, so nothing but
+      // the project label's share of the title row moves.
+      this._settingsChangedIds.push(
+        this._settings.connect('changed::agent-chip-display', () => {
+          this._chipMode = this._settings.get_string('agent-chip-display')
+          for (const row of this._rows.values()) row.setChipMode(this._chipMode)
+        })
       )
 
       // Fullscreen is not a store event, so refresh() never runs for it. The
@@ -501,10 +528,19 @@ export const Island = GObject.registerClass(
     }
 
     private _releaseExternalRefs(): void {
-      if (this._settingsChangedId) {
-        this._settings.disconnect(this._settingsChangedId)
-        this._settingsChangedId = 0
+      // Each disconnect isolated in its own try/catch, unlike extension.ts's
+      // _settingsIds teardown (which wraps the whole loop and accepts that a
+      // throw skips whatever ids follow it): here a bad id must not strand
+      // the remaining connections, since one of them is the chip-display
+      // handler that keeps live rows in sync with the setting.
+      for (const id of this._settingsChangedIds) {
+        try {
+          this._settings.disconnect(id)
+        } catch (e) {
+          console.warn(`dasbo-island: disconnecting a settings handler failed: ${e}`)
+        }
       }
+      this._settingsChangedIds = []
       if (this._fullscreenId) {
         global.display.disconnect(this._fullscreenId)
         this._fullscreenId = 0
@@ -636,7 +672,7 @@ export const Island = GObject.registerClass(
               this._questions.get(s.key)?.panel.setExpanded(expanded)
               this._taskLists.get(s.key)?.list.setExpanded(expanded)
             },
-          }, now, this._iconBase)
+          }, now, this._iconBase, this._chipMode)
           this._rows.set(s.key, row)
           this._body.addMenuItem(row)
         }
