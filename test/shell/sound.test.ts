@@ -92,6 +92,15 @@ describe('SoundPlayer', () => {
     expect(src).not.toMatch(/schema_id:\s*'org\.gnome\.desktop\.sound'/)
   })
 
+  it('checks event-sounds is on the desktop schema before reading it, same hazard as our own key', () => {
+    // get_boolean on a key absent from a compiled schema is g_error whether or
+    // not we own that schema — true of org.gnome.desktop.sound's event-sounds
+    // just as much as our own notification-sounds, checked a few lines above.
+    expect(src.indexOf("has_key('event-sounds')")).toBeLessThan(
+      src.indexOf("get_boolean('event-sounds')")
+    )
+  })
+
   it('still throttles per cue rather than globally', () => {
     // Two sessions can reach one cue in a single tick; a permission and a
     // notification arriving together must still both be heard. The window

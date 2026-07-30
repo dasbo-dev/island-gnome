@@ -7,13 +7,24 @@ import { CUE_DESCRIPTIONS, CUE_SOUNDS, shouldPlay, type SoundCue } from '../core
  * installed. Looked up rather than constructed by id: `new Gio.Settings` on an
  * unknown schema_id calls g_error, which aborts the whole shell process — a
  * price far past anything a missing beep is worth.
+ *
+ * The same hazard applies one level down: `get_boolean` on a key absent from
+ * a *compiled* schema is also `g_error`, which is exactly why the constructor
+ * below checks `has_key('notification-sounds')` before ever reading it. That
+ * guard is for our own schema; this one is for a schema we do not own, so the
+ * check belongs here instead. `event-sounds` has shipped on
+ * org.gnome.desktop.sound since GNOME 3.0, so this is unlikely to ever trip —
+ * but there is no new behaviour to reason about either way: a missing key
+ * lands on the same permissive `null` path as a missing schema entirely.
  */
 function desktopSoundSettings(): Gio.Settings | null {
   const schema = Gio.SettingsSchemaSource.get_default()?.lookup(
     'org.gnome.desktop.sound',
     true
   )
-  return schema ? new Gio.Settings({ settings_schema: schema }) : null
+  if (!schema) return null
+  const settings = new Gio.Settings({ settings_schema: schema })
+  return settings.settings_schema.has_key('event-sounds') ? settings : null
 }
 
 /**
