@@ -29,13 +29,25 @@ export const AgentChip = GObject.registerClass(
       if (gicon) {
         const icon = new St.Icon({
           gicon,
+          // All three marks are 1.5-1.6-unit strokes in a 16-unit viewBox, so
+          // at 14px they render at roughly 1.3 unhinted device pixels — just
+          // above the 0.85em label's cap height, without making the chip the
+          // tallest thing on the title line. If the marks ever read as
+          // smudges rather than marks, try 16 (or heavier strokes) first.
           icon_size: 14,
           y_align: Clutter.ActorAlign.CENTER,
         })
-        // On the actor, not in CSS: St's CSS engine does not reliably honour
-        // `opacity` (the finding recorded on popupHeader.ts's empty label and
-        // sessionRow.ts's _shellTotal), and this sits inside a row built
-        // reactive: false, which the shell theme paints as disabled.
+        // Pinned defensively, not because anything currently dims this icon:
+        // St's CSS engine does not reliably honour `opacity`, so it is never
+        // expressed in the stylesheet, only ever set here. Genuine precedents
+        // for this pattern — sessionRow.ts's _shellTotal, taskList.ts — pin a
+        // value other than 255 because they need a dimming CSS won't deliver.
+        // This icon needs no such thing: it's a Gio.FileIcon over a
+        // non-symbolic file with baked-in stroke colours, so StTextureCache
+        // loads it full-colour and never tints it — `color`, which is what
+        // the row's `:insensitive` state actually changes, cannot touch it
+        // either way. 255 is simply the correct full-opacity value, held here
+        // in case anything ever does need to dim it.
         icon.opacity = 255
         this.add_child(icon)
       }
