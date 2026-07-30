@@ -300,6 +300,69 @@ describe('claudeAdapter.encodeDecision for an answer', () => {
   })
 })
 
+/**
+ * INFERRED, NOT CAPTURED. There is no Notification fixture in
+ * test/fixtures/claude/ and docs/agent-dialects.md does not cover the event —
+ * it sits where SessionEnd sits in that document. These payloads are written
+ * from the published shape, the way codex.test.ts writes its own.
+ */
+describe('claudeAdapter.normalize for a Notification', () => {
+  it('maps Notification to the notification kind', () => {
+    const e = claudeAdapter.normalize(
+      { hook_event_name: 'Notification', session_id: 's1', cwd: '/p/app',
+        message: 'Claude is waiting for your input' },
+      ctx
+    )
+    expect(e?.kind).toBe('notification')
+  })
+
+  it('carries the message through as the detail', () => {
+    const e = claudeAdapter.normalize(
+      { hook_event_name: 'Notification', session_id: 's1', cwd: '/p/app',
+        message: 'Claude needs your permission to use Bash' },
+      ctx
+    )
+    expect(e?.detail).toBe('Claude needs your permission to use Bash')
+  })
+
+  it('leaves the detail undefined when the message is missing or not a string', () => {
+    const missing = claudeAdapter.normalize(
+      { hook_event_name: 'Notification', session_id: 's1', cwd: '/p/app' }, ctx
+    )
+    expect(missing?.detail, 'no text means no notice, which means silence').toBeUndefined()
+
+    const wrongType = claudeAdapter.normalize(
+      { hook_event_name: 'Notification', session_id: 's1', cwd: '/p/app', message: { a: 1 } }, ctx
+    )
+    expect(wrongType?.detail).toBeUndefined()
+  })
+
+  it('returns null without a session id, like every other event', () => {
+    const e = claudeAdapter.normalize(
+      { hook_event_name: 'Notification', cwd: '/p/app', message: 'waiting' }, ctx
+    )
+    expect(e).toBeNull()
+  })
+
+  it('falls back to the argv event name, so the install plan carries the meaning', () => {
+    const e = claudeAdapter.normalize(
+      { session_id: 's1', cwd: '/p', message: 'waiting' },
+      { ...ctx, event: 'Notification' }
+    )
+    expect(e?.kind).toBe('notification')
+    expect(e?.detail).toBe('waiting')
+  })
+
+  it('does not let a stray message field hijack a tool event', () => {
+    const e = claudeAdapter.normalize(
+      { hook_event_name: 'PreToolUse', session_id: 's1', cwd: '/p/app',
+        tool_name: 'Bash', tool_input: { command: 'ls' }, message: 'ignore me' },
+      ctx
+    )
+    expect(e?.detail).toBe('ls')
+  })
+})
+
 describe('claude taskTools', () => {
   it('names every tool whose completion can move the task directory', () => {
     expect([...(claudeAdapter.taskTools ?? [])].sort()).toEqual([
