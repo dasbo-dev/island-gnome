@@ -29,9 +29,11 @@ describe('AgentChip', () => {
     // is fixed for the row's whole life, and setMode is not a hole in that:
     // it changes what the chip shows, never which agent it names. No method
     // may take an AgentId or a Session — the constructor, which does take an
-    // AgentId, has no return-type annotation and so does not match.
+    // AgentId, is excluded explicitly rather than by the absence of a
+    // return-type annotation, which a method could simply omit and still
+    // slip past.
     expect(src).not.toMatch(/\b(update|setAgent)\s*\(/)
-    expect(src).not.toMatch(/^\s*\w+\s*\([^)]*\b(AgentId|Session)\b[^)]*\)\s*:/m)
+    expect(src).not.toMatch(/^\s*(?!constructor)\w+\s*\([^)]*\b(AgentId|Session)\b/m)
   })
 
   it('asks core which parts to show, rather than reading the mode itself', () => {
@@ -49,9 +51,14 @@ describe('AgentChip', () => {
   })
 
   it('keeps both children so a mode change is a visibility toggle', () => {
-    expect(src).toMatch(/setMode\s*\(/)
-    expect(src).toMatch(/\.visible\s*=\s*parts\.icon/)
-    expect(src).toMatch(/\.visible\s*=\s*parts\.label/)
+    // Anchored to setMode's own body, and to each field by name, so that
+    // swapping the two assignments (or moving them into the constructor,
+    // where a mode change could never reach them again) fails here instead
+    // of passing on a looser "these substrings appear somewhere" check.
+    const setModeBody = /setMode\s*\([^)]*\)\s*:\s*void\s*\{([\s\S]*?)\n {4}\}/.exec(src)?.[1] ?? ''
+    expect(setModeBody, 'no setMode body found in agentChip.ts').not.toBe('')
+    expect(setModeBody).toMatch(/_icon\.visible\s*=\s*parts\.icon/)
+    expect(setModeBody).toMatch(/_label\.visible\s*=\s*parts\.label/)
   })
 })
 
@@ -60,6 +67,11 @@ describe('the chip on the row', () => {
   const island = readFileSync('src/shell/island.ts', 'utf8')
   const extension = readFileSync('src/extension.ts', 'utf8')
   const css = readFileSync('stylesheet.css', 'utf8')
+  // Hoisted rather than re-extracted per test: every test below that needs
+  // the handler's own body (as opposed to island.ts as a whole) shares this
+  // one extraction, so there is exactly one place that defines what "the
+  // handler" means.
+  const handler = /connect\('changed::agent-chip-display'[\s\S]*?\}\)/.exec(island)?.[0] ?? ''
 
   it('leads the title line: arrow, then chip, then project name', () => {
     // Order is the design decision, not an accident — the row is meant to read
@@ -70,9 +82,16 @@ describe('the chip on the row', () => {
   })
 
   it('takes a new display mode straight to the live rows', () => {
+    // Checks the handler's own body, not merely that the two strings appear
+    // somewhere in island.ts — a rebuild that dropped both key reads (the
+    // constructor's and the handler's) but kept the surrounding scaffolding
+    // would otherwise still satisfy a looser version of this test while
+    // leaving _chipMode pinned at its initialiser forever.
     expect(row).toMatch(/setChipMode\s*\(/)
-    expect(island).toMatch(/changed::agent-chip-display/)
-    expect(island).toMatch(/row\.setChipMode\(/)
+    expect(handler, 'no changed::agent-chip-display handler in island.ts').not.toBe('')
+    expect(handler).toContain("get_string('agent-chip-display')")
+    expect(handler).toMatch(/for \(const row of this\._rows\.values\(\)\) row\.setChipMode\(/)
+    expect(island).toMatch(/_chipMode = settings\.settings_schema\.has_key\('agent-chip-display'\)/)
   })
 
   it('does not rebuild the rows to change the chip', () => {
@@ -80,9 +99,12 @@ describe('the chip on the row', () => {
     // panels and task lists survive a refresh. Tearing one down mid-decision
     // would destroy the PermissionControls whose closures are the only path to
     // resolving a pending request.
-    const handler = /connect\('changed::agent-chip-display'[\s\S]*?\}\)/.exec(island)?.[0] ?? ''
     expect(handler, 'no changed::agent-chip-display handler in island.ts').not.toBe('')
     expect(handler).not.toContain('_rebuildRows')
+    // refresh() calls _rebuildRows() on its first line, so a handler that
+    // called refresh() instead would rebuild just as destructively while
+    // still passing the check above.
+    expect(handler).not.toMatch(/\brefresh\(/)
   })
 
   it('gets the icon directory from the extension, not from a guess', () => {
