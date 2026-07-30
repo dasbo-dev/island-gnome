@@ -47,7 +47,7 @@ describe('the chip on the row', () => {
   })
 
   it('gets the icon directory from the extension, not from a guess', () => {
-    expect(extension).toMatch(/new Island\(this\._store,\s*settings,\s*this\.path\)/)
+    expect(extension).toMatch(/new Island\(this\._store,\s*settings,\s*this\.path,\s*this\._sound\)/)
     expect(island).toMatch(/iconBase/)
     expect(row).toMatch(/iconBase/)
   })

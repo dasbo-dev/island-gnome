@@ -107,3 +107,50 @@ describe('SoundPlayer', () => {
     expect(src).not.toContain('timeout_add')
   })
 })
+
+describe('sounding a permission and a question', () => {
+  const service = readFileSync('src/dbus/service.ts', 'utf8')
+  const island = readFileSync('src/shell/island.ts', 'utf8')
+  const extension = readFileSync('src/extension.ts', 'utf8')
+
+  it('tells the island which of the two arrived', () => {
+    // One handler, two call sites that already exist separately in service.ts —
+    // they only ever discarded which one they were.
+    expect(service).toContain("onPermissionOpened('question')")
+    expect(service).toContain("onPermissionOpened('permission')")
+    expect(service).toMatch(/onPermissionOpened:\s*\(kind:\s*'permission'\s*\|\s*'question'\)/)
+  })
+
+  it('never calls the handler without a kind', () => {
+    expect(service).not.toMatch(/onPermissionOpened\(\)/)
+    expect(extension).not.toMatch(/notifyPermissionOpened\(\)/)
+  })
+
+  it('plays before the auto-open switch is even read', () => {
+    // "Independent of the popup's rules" by construction rather than by
+    // comment: in fullscreen the pill is invisible, so sound is the only
+    // channel left, and it covers nothing on screen.
+    const body = island.slice(island.indexOf('notifyPermissionOpened('))
+    const play = body.indexOf('_sound.play(kind)')
+    expect(play).toBeGreaterThan(-1)
+    expect(play).toBeLessThan(body.indexOf("get_boolean('auto-open-on-permission')"))
+    expect(play).toBeLessThan(body.indexOf('inFullscreen'))
+  })
+
+  it('plays before the notice timer is even touched', () => {
+    const body = island.slice(island.indexOf('notifyPermissionOpened('))
+    expect(body.indexOf('_sound.play(kind)')).toBeLessThan(body.indexOf('_noticeOpened = false'))
+  })
+
+  it('is handed a player it does not own', () => {
+    expect(island).toMatch(/private _sound!: SoundPlayer/)
+    expect(island).not.toMatch(/new SoundPlayer/)
+    expect(extension).toMatch(/new SoundPlayer\(settings\)/)
+  })
+
+  it('destroys the player during teardown, inside the safely wrapper', () => {
+    // Every other teardown step is wrapped so one throw cannot skip the rest.
+    expect(extension).toMatch(/safely\('sound player',[\s\S]*?_sound\?\.destroy\(\)/)
+    expect(extension).toMatch(/this\._sound = null/)
+  })
+})

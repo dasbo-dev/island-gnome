@@ -9,6 +9,7 @@ import { IslandService } from './dbus/service.js'
 import { Island } from './shell/island.js'
 import { activateForPid, pidAlive } from './shell/windowFinder.js'
 import { placeInPanelBox } from './shell/panelPlacement.js'
+import { SoundPlayer } from './shell/soundPlayer.js'
 
 export default class DasboIslandExtension extends Extension {
   private _island: InstanceType<typeof Island> | null = null
@@ -18,6 +19,7 @@ export default class DasboIslandExtension extends Extension {
   private _reaperId = 0
   private _settingsIds: number[] = []
   private _settings: Gio.Settings | null = null
+  private _sound: SoundPlayer | null = null
 
   enable() {
     const settings = this.getSettings()
@@ -39,7 +41,8 @@ export default class DasboIslandExtension extends Extension {
       })
     )
     this._permissions = new PermissionTable(this._store, glibTimers)
-    this._island = new Island(this._store, settings, this.path)
+    this._sound = new SoundPlayer(settings)
+    this._island = new Island(this._store, settings, this.path, this._sound)
 
     Main.panel.addToStatusArea(
       this.uuid,
@@ -96,7 +99,7 @@ export default class DasboIslandExtension extends Extension {
       timeoutSeconds: () => settings.get_int('permission-timeout'),
       questionTimeoutSeconds: () => settings.get_int('question-timeout'),
       enabledAgents: () => settings.get_strv('enabled-agents'),
-      onPermissionOpened: () => this._island?.notifyPermissionOpened(),
+      onPermissionOpened: (kind) => this._island?.notifyPermissionOpened(kind),
       onNotification: (key) => this._island?.notifyNotification(key),
       onTasksChanged: (key) => this._island?.notifyTasksChanged(key),
     })
@@ -150,6 +153,12 @@ export default class DasboIslandExtension extends Extension {
     safely('island', () => {
       this._island?.destroy()
       this._island = null
+    })
+
+    safely('sound player', () => {
+      // After the island, which is the only thing that calls play().
+      this._sound?.destroy()
+      this._sound = null
     })
 
     this._store = null

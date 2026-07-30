@@ -19,6 +19,7 @@ import { GridIcon } from './gridIcon.js'
 import { pillState } from '../core/pillState.js'
 import { noticeVisible } from '../core/activity.js'
 import { bodyMaxHeight, scrollIntoView } from '../core/popupSize.js'
+import type { SoundPlayer } from './soundPlayer.js'
 
 /**
  * `PanelMenu.Button#menu` is typed as `PopupMenu | PopupDummyMenu` because a
@@ -43,6 +44,7 @@ export const Island = GObject.registerClass(
     private _store!: SessionStore
     private _settings!: Gio.Settings
     private _iconBase!: string
+    private _sound!: SoundPlayer
     private _icon!: InstanceType<typeof GridIcon>
     private _label!: St.Label
     private _unsubscribe: (() => void) | null = null
@@ -98,10 +100,14 @@ export const Island = GObject.registerClass(
       handOff: (id: string) => void
     } | null = null
 
-    constructor(store: SessionStore, settings: Gio.Settings, iconBase: string) {
+    constructor(store: SessionStore, settings: Gio.Settings, iconBase: string, sound: SoundPlayer) {
       super(0.5, 'Dasbo Island')
       this._store = store
       this._settings = settings
+      // Owned by extension.ts, which also destroys it. Passed in for the same
+      // reason iconBase is: a widget that reaches for its own dependencies is
+      // a widget that reaches for the wrong one after a reload.
+      this._sound = sound
       // The extension's own directory, where the agent chips' SVGs live. Passed
       // in rather than looked up here: a module that resolves its own install
       // path is a module that silently resolves the wrong one after a reload.
@@ -272,7 +278,12 @@ export const Island = GObject.registerClass(
     }
 
     /** Called by the D-Bus service after a permission row has been registered. */
-    notifyPermissionOpened(): void {
+    notifyPermissionOpened(kind: 'permission' | 'question'): void {
+      // First, above even the notice-timer reset: sound is deliberately
+      // independent of every popup rule below it. In fullscreen the pill is
+      // invisible and the popup is suppressed, which is exactly when the sound
+      // is the only signal left — and unlike the popup, it covers nothing.
+      this._sound.play(kind)
       // Unconditionally, and before the guards below: the popup is now up for
       // something that needs an answer. Shutting it under the user's cursor
       // mid-click is the worst thing the notice timer could do — and that is
