@@ -60,6 +60,14 @@ preferences; set the delay to zero to keep the message on the row until the
 agent does something else, and to keep a popup it opened staying open until
 you close it yourself.
 
+Each of those moments also makes a sound: a permission request, an agent's
+question, a notification, and a session finishing, each with its own cue. The
+sounds come from your desktop's sound theme rather than from this extension, so
+they match everything else on the system, and they stay silent when GNOME's own
+event sounds are off. Unlike the popup, sound is not suppressed by a fullscreen
+window — that is when the pill is least visible and the sound is most useful.
+One switch in the preferences turns all four off.
+
 Panel box and position changes apply immediately,
 with no reload; note that extensions replacing the top bar, such as Dash to
 Panel, decide where each box ends up on screen.
@@ -104,6 +112,10 @@ stdout shape, clicking Deny reports the tool as denied while it executes
 anyway — a security control failing open, silently. Treat the Antigravity
 permission gate as best-effort and unverified until someone confirms it
 against a real payload.
+
+Whether GNOME's own `event-sounds` setting is honoured by mutter's sound player
+has not been verified; this extension checks the key itself before playing, so
+the setting is respected either way.
 
 ## Fail-open guarantee
 
