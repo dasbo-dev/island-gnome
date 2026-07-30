@@ -66,7 +66,9 @@ sounds come from your desktop's sound theme rather than from this extension, so
 they match everything else on the system, and they stay silent when GNOME's own
 event sounds are off. Unlike the popup, sound is not suppressed by a fullscreen
 window — that is when the pill is least visible and the sound is most useful.
-One switch in the preferences turns all four off.
+One switch in the preferences turns all four off. GNOME's Do Not Disturb
+silences GNOME's own notification sounds, not these cues — the island is not a
+notification service, and a blocked agent is waiting on you either way.
 
 Panel box and position changes apply immediately,
 with no reload; note that extensions replacing the top bar, such as Dash to
@@ -112,6 +114,12 @@ stdout shape, clicking Deny reports the tool as denied while it executes
 anyway — a security control failing open, silently. Treat the Antigravity
 permission gate as best-effort and unverified until someone confirms it
 against a real payload.
+
+Two of the four sounds above can never play for Antigravity. Its adapter maps
+no `session-end` and no `notification` event, so an `agy` session can never
+reach the `done` state through an event and never carries a notice — the
+`complete` and `message-new-instant` cues are structurally dead for this
+agent, not merely unverified.
 
 Whether GNOME's own `event-sounds` setting is honoured by mutter's sound player
 has not been verified; this extension checks the key itself before playing, so
