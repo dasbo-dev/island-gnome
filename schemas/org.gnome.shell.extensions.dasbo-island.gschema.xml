@@ -37,6 +37,16 @@
       <summary>Auto-expand the popup on a permission request</summary>
       <description>Suppressed while a fullscreen window is on the primary monitor.</description>
     </key>
+    <key name="notification-popup" type="b">
+      <default>true</default>
+      <summary>Open the popup when an agent raises a notification</summary>
+      <description>Suppressed while a fullscreen window is on the primary monitor.</description>
+    </key>
+    <key name="notification-seconds" type="i">
+      <default>5</default>
+      <summary>Seconds a notification stays on the row</summary>
+      <description>How long the message replaces the row's activity line, and how long a popup opened for it stays open. Zero keeps the message until the next event from that session, and never closes the popup.</description>
+    </key>
     <key name="enabled-agents" type="as">
       <default>['claude','codex','antigravity']</default>
       <summary>Agent adapters that accept events</summary>
