@@ -103,9 +103,20 @@ export class IslandService {
 
     const key = sessionKey(e.agent, e.sessionId)
     // Before the task branches, which a notification can never satisfy: it
-    // carries no tool name and is not a tool-end.
+    // carries no tool name and is not a tool-end. Wrapped for the same reason
+    // RequestPermissionAsync's whole body is: onNotification reads GSettings,
+    // touches Main.layoutManager, calls menu.open() and arms a GLib source —
+    // real ways to throw, and this is the first callback reachable from Notify
+    // that can. Notify has no reply to hold open the way RequestPermissionAsync
+    // does, so a throw here would already have become a D-Bus error reply and
+    // left the fail-open guarantee intact either way; this only keeps a UI
+    // failure from being reported as a hard error instead of a warning.
     if (e.kind === 'notification') {
-      this.opts.onNotification(key)
+      try {
+        this.opts.onNotification(key)
+      } catch (err) {
+        console.warn(`dasbo-island: onNotification failed: ${err}`)
+      }
       return
     }
     // Two shapes of plan, one store method. Codex ships the whole thing in the
