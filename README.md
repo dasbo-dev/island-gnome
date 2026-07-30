@@ -70,6 +70,12 @@ One switch in the preferences turns all four off. GNOME's Do Not Disturb
 silences GNOME's own notification sounds, not these cues — the island is not a
 notification service, and a blocked agent is waiting on you either way.
 
+Whether GNOME's own `event-sounds` setting is honoured by mutter's sound player
+has not been verified; this extension checks the key itself before playing, so
+the setting is respected either way. Nor has anyone confirmed that any of the
+four cues is actually audible on a live desktop — the test suite can pin the
+decision logic and the wiring, but nothing in it can listen.
+
 Panel box and position changes apply immediately,
 with no reload; note that extensions replacing the top bar, such as Dash to
 Panel, decide where each box ends up on screen.
@@ -120,10 +126,6 @@ no `session-end` and no `notification` event, so an `agy` session can never
 reach the `done` state through an event and never carries a notice — the
 `complete` and `message-new-instant` cues are structurally dead for this
 agent, not merely unverified.
-
-Whether GNOME's own `event-sounds` setting is honoured by mutter's sound player
-has not been verified; this extension checks the key itself before playing, so
-the setting is respected either way.
 
 ## Fail-open guarantee
 
