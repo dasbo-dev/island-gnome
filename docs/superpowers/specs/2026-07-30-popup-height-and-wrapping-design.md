@@ -234,10 +234,25 @@ this touches.
 - No rule is added for the scroll view. Its one property is the computed
   `max-height`, which has to be an inline style because it depends on the monitor.
 
-The scrollbar is not an overlay bar. When it appears, the popup widens by the bar
-rather than the bar painting over the last glyph of a wrapped line. Content width
-stays 26em, and because the header carries `.dasbo-fixed-width` too, the header
-and the rows stay aligned with each other; only the bar sits outside them both.
+The scrollbar is not an overlay bar: it takes its own width rather than painting
+over the last glyph of a wrapped line. That width is not conditional. An
+`St.ScrollView` in `AUTOMATIC` mode always requests room for a possible vertical
+bar — `popupMenu.js` records the same limitation where `PopupSubMenu` works
+around it by defaulting to `NEVER` and flipping to `AUTOMATIC` in `open()` — so
+the popup is 8px wider (`StScrollView StScrollBar { min-width: 8px }` in the
+shell theme) for every user, with an empty gutter whenever there is nothing to
+scroll.
+
+That reservation is accepted rather than worked around. Flipping the policy per
+open would reclaim the 8px only until a row is expanded inside an already-open
+popup, and `popupMenu.js`'s own comment warns that dynamic changes to the policy
+are not handled properly — which is the clipping this design exists to remove.
+
+Content width stays 26em on both sides of the gutter: the rows and the header
+both carry `.dasbo-fixed-width`, and St's `width` fixes an actor's request, so
+neither stretches into the reserved 8px and the gear stays flush with the Jump
+column. If a live check shows the gear drifting right of the rows regardless,
+the remedy is 8px of right padding on `.dasbo-header` — one rule, no behaviour.
 
 ## Failure behaviour
 
