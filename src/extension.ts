@@ -145,6 +145,18 @@ export default class DasboIslandExtension extends Extension {
       this._service = null
     })
 
+    safely('mute sound player', () => {
+      // Ahead of 'pending permissions', deliberately: the fallthrough resolve
+      // just below can settle a session held on a permission straight through
+      // to 'done' (via clearPending), which reaches Island.refresh() ->
+      // play('done') while the island is still alive — its own teardown step
+      // has not run yet. Left alone, a disable() or a shell reload can chime
+      // on the way out. Marking the player destroyed here closes that off
+      // without touching the release order itself, which stays exactly as it
+      // was: reordering it would need verification this change does not do.
+      this._sound?.markDestroyed()
+    })
+
     safely('pending permissions', () => {
       this._permissions?.resolveAllFallthrough()
       this._permissions = null

@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+
+function walk(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const p = join(dir, name)
+    return statSync(p).isDirectory() ? walk(p) : [p]
+  })
+}
 
 describe('the notification-sounds setting', () => {
   const schema = readFileSync(
@@ -49,13 +57,16 @@ describe('SoundPlayer', () => {
   const src = readFileSync('src/shell/soundPlayer.ts', 'utf8')
 
   it('is the only file in the tree that plays audio', () => {
-    // Grepped rather than imported: a second play site would mean a second
-    // place to forget the mute checks and the try/catch below.
-    const shell = readFileSync('src/shell/island.ts', 'utf8')
-    const extension = readFileSync('src/extension.ts', 'utf8')
+    // Walked rather than named one by one — the way test/core/purity.test.ts
+    // walks src/core — so a second play site added anywhere is caught, not
+    // just one added to the two files this test used to name explicitly. A
+    // second play site would mean a second place to forget the mute checks
+    // and the try/catch below.
+    const offenders = walk('src').filter(
+      (f) => f !== 'src/shell/soundPlayer.ts' && readFileSync(f, 'utf8').includes('play_from_theme')
+    )
     expect(src).toContain('play_from_theme')
-    expect(shell).not.toContain('play_from_theme')
-    expect(extension).not.toContain('play_from_theme')
+    expect(offenders).toEqual([])
   })
 
   it('checks the extension’s own switch before playing anything', () => {
@@ -81,12 +92,24 @@ describe('SoundPlayer', () => {
     expect(src).not.toMatch(/schema_id:\s*'org\.gnome\.desktop\.sound'/)
   })
 
-  it('throttles per cue rather than globally', () => {
+  it('still throttles per cue rather than globally', () => {
     // Two sessions can reach one cue in a single tick; a permission and a
-    // notification arriving together must still both be heard.
-    expect(src).toMatch(/THROTTLE_MS\s*=\s*500/)
+    // notification arriving together must still both be heard. The window
+    // itself (THROTTLE_MS = 500, and the boundary at exactly it) is pinned in
+    // core/sound.test.ts now that shouldPlay owns the decision — this only
+    // pins that the player still keys its per-cue clock on `cue`.
     expect(src).toMatch(/_last\.get\(cue\)/)
     expect(src).toMatch(/_last\.set\(cue/)
+  })
+
+  it('delegates the play decision to core/sound.ts rather than re-implementing it', () => {
+    // Was: a literal `THROTTLE_MS = 500` and the mute checks lived here,
+    // greppable but not unit-testable. Now the rules live in shouldPlay,
+    // tested directly in core/sound.test.ts; this pins that the player calls
+    // it instead of growing a second copy of the same decision.
+    expect(src).toMatch(/from '\.\.\/core\/sound\.js'/)
+    expect(src).toMatch(/shouldPlay\(/)
+    expect(src).not.toMatch(/THROTTLE_MS\s*=\s*500/)
   })
 
   it('wraps the play call, because an exception here removes a GLib source', () => {
@@ -105,6 +128,37 @@ describe('SoundPlayer', () => {
     // removing in destroy(), and destroy() is reached from teardown paths that
     // already swallow throws.
     expect(src).not.toContain('timeout_add')
+  })
+
+  it('reads a monotonic clock, not the wall clock, for the throttle', () => {
+    // Date.now() is not monotonic: an NTP step backwards by N would leave
+    // every cue's stamp N in the future and silence it for the whole of N.
+    expect(src).toContain('GLib.get_monotonic_time()')
+    expect(src).not.toContain('Date.now()')
+  })
+
+  it('checks destroyed as the very first thing play() does', () => {
+    const play = src.slice(src.indexOf('play(cue: SoundCue): void {'))
+    const firstStatement = play.slice(play.indexOf('{') + 1).trimStart()
+    expect(firstStatement.startsWith('if (this._destroyed) return')).toBe(true)
+  })
+
+  it('checks the compiled schema for notification-sounds once, in the constructor', () => {
+    // get_boolean on a key absent from the *compiled* schema is g_error,
+    // which aborts the whole shell — a price a skipped schema recompile must
+    // not be able to charge on the user's first permission request.
+    const ctor = src.slice(src.indexOf('constructor('), src.indexOf('markDestroyed'))
+    expect(ctor).toMatch(/settings_schema\.has_key\('notification-sounds'\)/)
+    expect(src).toMatch(/if\s*\(!this\._hasNotificationSoundsKey\)\s*return/)
+  })
+
+  it('destroy() cannot un-skip a post-destroy play() by nulling the desktop settings', () => {
+    // Minor finding from the review: destroy() sets _desktop = null, which
+    // used to make a post-destroy play() *skip* the event-sounds check and
+    // still try to play. The _destroyed early return closes that regardless
+    // of what destroy() does to _desktop afterwards.
+    const destroy = src.slice(src.indexOf('destroy(): void'))
+    expect(destroy.indexOf('_destroyed = true')).toBeLessThan(destroy.indexOf('_desktop = null'))
   })
 })
 
@@ -152,6 +206,16 @@ describe('sounding a permission and a question', () => {
     // Every other teardown step is wrapped so one throw cannot skip the rest.
     expect(extension).toMatch(/safely\('sound player',[\s\S]*?_sound\?\.destroy\(\)/)
     expect(extension).toMatch(/this\._sound = null/)
+  })
+
+  it('marks the player destroyed before resolveAllFallthrough can settle a held permission to done', () => {
+    // resolveAllFallthrough() can reach Island.refresh() -> play('done')
+    // through clearPending while the island is still alive — its own
+    // teardown step has not run yet — so disable() must silence the player
+    // before that call, not only destroy it afterward alongside the island.
+    expect(extension.indexOf('_sound?.markDestroyed()')).toBeLessThan(
+      extension.indexOf('resolveAllFallthrough()')
+    )
   })
 })
 

@@ -51,3 +51,42 @@ export function newlyDone(prev: Map<string, SessionState>, next: Session[]): str
   }
   return keys
 }
+
+/** Minimum gap between two plays of the same cue — see `shouldPlay`. */
+export const THROTTLE_MS = 500
+
+/**
+ * Whether a cue should actually sound, decided in one pure place so the rules
+ * are unit-testable rather than only greppable out of soundPlayer.ts's source.
+ * `soundPlayer.ts` gathers the inputs (its own switch, the desktop's, the
+ * per-cue clock) and calls this; it must not re-implement any of the order
+ * below itself.
+ *
+ * The order below is behaviour, not narrative:
+ *
+ * 1. The extension's own `notification-sounds` switch is the final authority.
+ *    Off means off, regardless of anything else.
+ * 2. The desktop's `event-sounds` key silences a cue only when it is
+ *    *explicitly* false. `null` means the schema is not installed at all — a
+ *    desktop with no way to say it wants silence must not be read as saying
+ *    so, so rule 1 alone keeps governing.
+ * 3. Two sessions can reach one cue inside a single store emit, and two
+ *    overlapping copies of the same theme sound read as a glitch rather than
+ *    two events — so a cue played inside the last `THROTTLE_MS` stays silent.
+ * 4. Otherwise, play.
+ */
+export function shouldPlay(input: {
+  /** The extension's own notification-sounds key. */
+  enabled: boolean
+  /** org.gnome.desktop.sound event-sounds; null when that schema is not installed. */
+  eventSounds: boolean | null
+  /** When this cue last played, in the same clock as `now`. 0 if never. */
+  last: number
+  /** The current time, in the same clock as `last`. Never read from a clock in here. */
+  now: number
+}): boolean {
+  if (!input.enabled) return false
+  if (input.eventSounds === false) return false
+  if (input.now - input.last < THROTTLE_MS) return false
+  return true
+}
