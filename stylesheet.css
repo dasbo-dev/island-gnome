@@ -166,3 +166,24 @@
 .dasbo-grid.state-waiting { -dasbo-accent: #f5c211; }
 .dasbo-grid.state-error   { -dasbo-accent: #e01b24; }
 .dasbo-grid.state-done    { -dasbo-accent: #57e389; }
+
+/* The agent chip at the head of a session row's title line: mark plus short
+   name. Mid-grey at low alpha rather than a white or black wash, so it lifts
+   off the popup background under both the light and the dark theme.
+
+   No colour rule: `.dasbo-row:insensitive` already resolves to
+   `color: inherit` and colour inherits, so the label picks up the colour the
+   row has already reclaimed from the theme's disabled grey. */
+.dasbo-agent-chip {
+  background-color: rgba(127, 127, 127, 0.18);
+  border-radius: 99px;
+  padding: 1px 6px;
+  spacing: 4px;
+}
+
+/* Smaller and unbolded against .dasbo-row-project's bold: the chip is a tag on
+   the row, not the row's title. */
+.dasbo-agent-chip-label {
+  font-size: 0.85em;
+  font-weight: normal;
+}
