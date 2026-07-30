@@ -14,9 +14,13 @@ describe('AgentChip', () => {
   })
 
   it('sets the icon opacity on the actor, not in CSS', () => {
-    // St's CSS engine does not reliably honour `opacity`, and the row is built
-    // reactive: false, so the theme paints its descendants disabled-grey. The
-    // same workaround popupHeader.ts and sessionRow.ts's _shellTotal carry.
+    // Pinned defensively, not as a fix for anything known to dim this icon:
+    // St's CSS engine does not reliably honour `opacity`, so the value is
+    // never expressed there. It is *not* the row's `:insensitive` state this
+    // guards — that is a `color` problem, and `color` cannot tint a
+    // full-colour Gio.FileIcon anyway. See agentChip.ts's own comment, and
+    // sessionRow.ts's _shellTotal / taskList.ts for the cases that pin a
+    // value other than full because they want dimming CSS will not deliver.
     expect(src).toMatch(/\.opacity\s*=\s*255/)
   })
 

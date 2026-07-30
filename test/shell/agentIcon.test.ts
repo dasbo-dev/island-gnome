@@ -10,6 +10,13 @@ describe('agentIcon', () => {
   // means these checks fail if the words move out of comments alone and stop
   // being true of the code, rather than passing forever because the phrase
   // survives in a docblock.
+  //
+  // Not comment-aware, and it does not need to be for the assertions below —
+  // but know what it costs: a `//` inside a string is treated as a comment
+  // start, so line 1's `'gi://Gio'` is truncated to `'gi:` in `code`. `.` does
+  // not cross newlines, so the damage stops at that line. An assertion added
+  // against a line holding a URL or any other `//` in a string would be
+  // checking corrupted text, with nothing to flag it.
   const code = src.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '')
 
   it('builds the path from the AgentId, with no name table to drift', () => {
