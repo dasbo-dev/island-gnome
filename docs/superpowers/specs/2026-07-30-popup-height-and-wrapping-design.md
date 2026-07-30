@@ -95,10 +95,17 @@ oversized font or a future second pinned row could otherwise produce a cap of
 zero, which St would honour by drawing nothing. A `scaleFactor` of 0 or `NaN` is
 treated as 1: a slightly generous cap beats a division by zero.
 
-The scale division is not cosmetic. St multiplies CSS lengths by the theme
-context's scale factor, while Meta reports the work area in logical pixels.
-Writing an unscaled `max-height` would let the body grow to twice the intended
-cap on a 2× monitor — precisely the clipping this design exists to remove.
+The scale division is not cosmetic. The work area — and the measured chrome,
+which is read in the same stage coordinate space — is in physical pixels,
+while St multiplies CSS lengths, including this `max-height`, by the theme
+context's scale factor. Writing an unscaled `max-height` would let the body
+grow to twice the intended cap on a 2× monitor — precisely the clipping this
+design exists to remove. The two platforms this matters on land on opposite
+sides of a no-op: on Wayland, mutter forces the scale factor to 1 and the work
+area is already logical, so the division changes nothing; on X11 the work area
+is physical and the scale factor is N, so the division is what keeps the cap
+honest. The arithmetic is the same expression either way — only which side of
+it is a no-op changes.
 
 `scrollIntoView` clamps rather than centres: a child above the viewport scrolls to
 its top, a child below scrolls so its bottom is flush, and a child already fully
@@ -139,7 +146,10 @@ hierarchy, not of information.
 - New fields `_body: PopupMenu.PopupMenuSection` and `_scroll: St.ScrollView`,
   built in the constructor after the header and separator are added, with
   `hscrollbar_policy: NEVER` (nothing wraps sideways any more, and a horizontal
-  bar would only steal height) and `vscrollbar_policy: AUTOMATIC`.
+  bar would only steal height), `vscrollbar_policy: AUTOMATIC`, and
+  `clip_to_allocation: true` — the same property GNOME 46's own `PopupSubMenu`
+  sets on its `St.ScrollView` (`js/ui/popupMenu.js`), without which rows could
+  paint outside the capped viewport during the popup's open animation.
   `_scroll.set_child(_body.actor)`, then `menu.box.add_child(_scroll)`.
 - Every `(this.menu as PopupMenu.PopupMenu).addMenuItem(row)` and the `EmptyRow`
   equivalent in `_rebuildRows` becomes `this._body.addMenuItem(…)`. The header and
@@ -163,6 +173,15 @@ hierarchy, not of information.
   behind a private resource path which has already moved once between releases,
   and the arithmetic it saves is the part worth testing.
 - `destroy()` destroys `_body` and `_scroll` alongside `_header` and `_separator`.
+- New `Main.sessionMode.disconnectObject(this._body)` in `_releaseExternalRefs`.
+  `PopupMenuBase`'s constructor connects `_body` to `Main.sessionMode`, and only
+  `PopupMenuBase.destroy()` releases it — but Clutter can tear this button down
+  through `clutter_actor_destroy()`, which reaches `_releaseExternalRefs()` (via
+  the `'destroy'` signal) and never `destroy()`. `menu.removeAll()` cannot
+  substitute: it filters `menu.box`'s children by `_delegate`, and the scroll
+  view has none, so it skips both the scroll view and the section inside it.
+  Left alone, that path leaves a permanent `Main.sessionMode` handler pointing
+  at a section whose actor is gone.
 
 ### `src/shell/questionPanel.ts`
 
@@ -215,10 +234,25 @@ this touches.
 - No rule is added for the scroll view. Its one property is the computed
   `max-height`, which has to be an inline style because it depends on the monitor.
 
-The scrollbar is not an overlay bar. When it appears, the popup widens by the bar
-rather than the bar painting over the last glyph of a wrapped line. Content width
-stays 26em, and because the header carries `.dasbo-fixed-width` too, the header
-and the rows stay aligned with each other; only the bar sits outside them both.
+The scrollbar is not an overlay bar: it takes its own width rather than painting
+over the last glyph of a wrapped line. That width is not conditional. An
+`St.ScrollView` in `AUTOMATIC` mode always requests room for a possible vertical
+bar — `popupMenu.js` records the same limitation where `PopupSubMenu` works
+around it by defaulting to `NEVER` and flipping to `AUTOMATIC` in `open()` — so
+the popup is 8px wider (`StScrollView StScrollBar { min-width: 8px }` in the
+shell theme) for every user, with an empty gutter whenever there is nothing to
+scroll.
+
+That reservation is accepted rather than worked around. Flipping the policy per
+open would reclaim the 8px only until a row is expanded inside an already-open
+popup, and `popupMenu.js`'s own comment warns that dynamic changes to the policy
+are not handled properly — which is the clipping this design exists to remove.
+
+Content width stays 26em on both sides of the gutter: the rows and the header
+both carry `.dasbo-fixed-width`, and St's `width` fixes an actor's request, so
+neither stretches into the reserved 8px and the gear stays flush with the Jump
+column. If a live check shows the gear drifting right of the rows regardless,
+the remedy is 8px of right padding on `.dasbo-header` — one rule, no behaviour.
 
 ## Failure behaviour
 

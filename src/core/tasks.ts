@@ -71,8 +71,9 @@ export function summarize(tasks: AgentTask[]): { completed: number; total: numbe
 /**
  * Whether two lists would draw identically. Used twice, and load-bearing both
  * times: the store skips its emit when nothing moved, and TaskList skips its
- * rebuild — which would otherwise throw the reader's scroll position back to
- * the top while they were reading it.
+ * rebuild — an unconditional one would churn actors under the popup's own
+ * scroll position and can change the body's height, throwing a reader
+ * part-way down a long plan somewhere else entirely.
  */
 export function sameTasks(a: AgentTask[] | undefined, b: AgentTask[] | undefined): boolean {
   const x = a ?? []
