@@ -3,7 +3,7 @@ import GLib from 'gi://GLib'
 import { BUS_NAME, IFACE_XML, OBJECT_PATH } from './iface.js'
 import { adapters, isAgentId, normalizeFor } from '../core/adapters/index.js'
 import { sessionKey } from '../core/types.js'
-import { resolveAgent } from '../shell/windowFinder.js'
+import { rememberSessionWindow, resolveAgent } from '../shell/windowFinder.js'
 import type { SessionStore } from '../core/store.js'
 import type { PermissionTable } from '../core/permissions.js'
 
@@ -104,6 +104,11 @@ export class IslandService {
     })
     if (!e) return
     this.store.apply(e)
+
+    // While the user is still in the window they typed the agent's name into.
+    // Only on session-start: see rememberSessionWindow for why a later event's
+    // focus is not evidence of anything.
+    if (e.kind === 'session-start') rememberSessionWindow(e.pid)
 
     const key = sessionKey(e.agent, e.sessionId)
     // Before the task branches, which a notification can never satisfy: it

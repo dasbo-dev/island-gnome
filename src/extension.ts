@@ -7,7 +7,12 @@ import { PermissionTable } from './core/permissions.js'
 import { glibTimers } from './shell/glibTimers.js'
 import { IslandService } from './dbus/service.js'
 import { Island } from './shell/island.js'
-import { activateForPid, pidAlive } from './shell/windowFinder.js'
+import {
+  activateForPid,
+  forgetSessionWindows,
+  pidAlive,
+  pruneSessionWindows,
+} from './shell/windowFinder.js'
 import { placeInPanelBox } from './shell/panelPlacement.js'
 import { SoundPlayer } from './shell/soundPlayer.js'
 
@@ -113,6 +118,9 @@ export default class DasboIslandExtension extends Extension {
       try {
         const dropped = this._store?.reap(Date.now(), pidAlive) ?? []
         for (const key of dropped) this._permissions?.releaseSession(key)
+        // The jump targets outlive their sessions otherwise: a session that
+        // ends holds its window here until some later session start prunes.
+        pruneSessionWindows()
       } catch (e) {
         console.warn(`dasbo-island: reaper sweep failed: ${e}`)
       }
@@ -143,6 +151,13 @@ export default class DasboIslandExtension extends Extension {
     safely('dbus service', () => {
       this._service?.unexport()
       this._service = null
+    })
+
+    safely('remembered jump windows', () => {
+      // Module state, not the extension object's: it would otherwise survive
+      // a disable() holding Meta.Window references for a shell that has since
+      // torn them down.
+      forgetSessionWindows()
     })
 
     safely('mute sound player', () => {
