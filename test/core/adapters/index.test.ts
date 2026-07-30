@@ -49,3 +49,20 @@ describe('adapter process signatures', () => {
     }
   })
 })
+
+describe('adapter chip names', () => {
+  it('gives every adapter a non-empty short name for the row chip', () => {
+    for (const id of ['claude', 'codex', 'antigravity'] as const) {
+      expect(adapters[id].shortName.trim(), id).not.toBe('')
+    }
+  })
+
+  // The chip exists because the row is width-starved. A shortName longer than
+  // the displayName it replaces would mean someone forgot what it is for.
+  it('keeps each short name no longer than the display name it stands in for', () => {
+    for (const id of ['claude', 'codex', 'antigravity'] as const) {
+      expect(adapters[id].shortName.length, id)
+        .toBeLessThanOrEqual(adapters[id].displayName.length)
+    }
+  })
+})

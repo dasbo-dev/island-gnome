@@ -9,6 +9,12 @@ export interface AgentAdapter {
   id: AgentId
   displayName: string
   /**
+   * The name the session row's chip carries. Deliberately shorter than
+   * displayName: the chip leads a 30em row, where "Code" and "CLI"
+   * distinguish nothing and every character is width the project name loses.
+   */
+  shortName: string
+  /**
    * `comm` values (/proc field 2) identifying this agent's own process, used to
    * pick it out of a hook's ancestor chain. Max 15 characters: the kernel
    * truncates `comm` there.

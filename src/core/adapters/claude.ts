@@ -62,6 +62,7 @@ const TASK_TOOLS: ReadonlySet<string> = new Set([
 export const claudeAdapter: AgentAdapter = {
   id: 'claude',
   displayName: 'Claude Code',
+  shortName: 'Claude',
   procNames: ['claude'],
   taskTools: TASK_TOOLS,
 
