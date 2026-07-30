@@ -800,6 +800,110 @@ describe('SessionStore', () => {
   })
 })
 
+describe('SessionStore notices', () => {
+  it('records a notification as a notice with a deadline', () => {
+    const s = new SessionStore()
+    s.apply(ev())
+    s.apply(ev({ kind: 'notification', detail: 'Claude is waiting for your input', ts: 2000 }))
+    expect(s.list()[0]!.notice).toEqual({
+      text: 'Claude is waiting for your input',
+      until: 7000,
+    })
+  })
+
+  it('leaves state, tool and detail exactly as the previous event set them', () => {
+    const s = new SessionStore()
+    s.apply(ev({ kind: 'tool-start', tool: 'Bash', detail: 'npm test', ts: 1000 }))
+    s.apply(ev({ kind: 'notification', detail: 'Claude needs your permission', ts: 2000 }))
+    const session = s.list()[0]!
+    expect(session.state, 'a notification is not activity').toBe('running')
+    expect(session.currentTool).toBe('Bash')
+    expect(session.detail).toBe('npm test')
+  })
+
+  it('still refreshes lastEventAt, so the reaper does not treat the agent as gone', () => {
+    const s = new SessionStore()
+    s.apply(ev())
+    s.apply(ev({ kind: 'notification', detail: 'waiting', ts: 9000 }))
+    expect(s.list()[0]!.lastEventAt).toBe(9000)
+  })
+
+  it('takes no deadline at all when notificationSeconds is zero', () => {
+    const s = new SessionStore()
+    s.notificationSeconds = 0
+    s.apply(ev())
+    s.apply(ev({ kind: 'notification', detail: 'waiting', ts: 2000 }))
+    expect(s.list()[0]!.notice).toEqual({ text: 'waiting', until: 0 })
+  })
+
+  it('sets no notice when the payload carried no message', () => {
+    const s = new SessionStore()
+    s.apply(ev())
+    s.apply(ev({ kind: 'notification', ts: 2000 }))
+    expect(s.list()[0]!.notice, 'silent beats an empty popup').toBeUndefined()
+  })
+
+  it('clears a standing notice when a later notification carries no message', () => {
+    const s = new SessionStore()
+    s.apply(ev({ kind: 'notification', detail: 'waiting', ts: 2000 }))
+    s.apply(ev({ kind: 'notification', ts: 3000 }))
+    expect(s.list()[0]!.notice).toBeUndefined()
+  })
+
+  it('ends the notice on any other event, whatever its clock said', () => {
+    const s = new SessionStore()
+    s.apply(ev({ kind: 'notification', detail: 'waiting', ts: 2000 }))
+    s.apply(ev({ kind: 'tool-start', tool: 'Read', ts: 2100 }))
+    expect(s.list()[0]!.notice, 'the next event is proof the silence is over').toBeUndefined()
+  })
+
+  it('ends the notice when a permission takes the row', () => {
+    const s = new SessionStore()
+    s.apply(ev({ kind: 'notification', detail: 'waiting', ts: 2000 }))
+    s.setPending('claude:s1', { id: 'p1', tool: 'Bash', deadline: 0, queued: 0 })
+    expect(s.list()[0]!.notice).toBeUndefined()
+  })
+
+  it('ends the notice when a question takes the row', () => {
+    const s = new SessionStore()
+    s.apply(ev({ kind: 'notification', detail: 'waiting', ts: 2000 }))
+    const pending: PendingQuestion = {
+      id: 'q1',
+      deadline: 0,
+      questions: [
+        { question: 'Which?', header: 'Pick', options: [{ label: 'a', description: '' }], multiSelect: false },
+      ],
+    }
+    s.setPendingQuestion('claude:s1', pending)
+    expect(s.list()[0]!.notice).toBeUndefined()
+  })
+
+  it('does not bring the notice back when the permission resolves', () => {
+    const s = new SessionStore()
+    s.apply(ev({ kind: 'notification', detail: 'waiting', ts: 2000 }))
+    s.setPending('claude:s1', { id: 'p1', tool: 'Bash', deadline: 0, queued: 0 })
+    s.clearPending('claude:s1')
+    expect(s.list()[0]!.notice, 'an interrupted notice is spent').toBeUndefined()
+  })
+
+  it('creates the session when a notification is the first thing it ever hears', () => {
+    const s = new SessionStore()
+    s.apply(ev({ kind: 'notification', detail: 'waiting', ts: 2000 }))
+    expect(s.list()).toHaveLength(1)
+    expect(s.list()[0]!.state).toBe('idle')
+    expect(s.list()[0]!.notice?.text).toBe('waiting')
+  })
+
+  it('notifies subscribers, so the row redraws', () => {
+    const s = new SessionStore()
+    s.apply(ev())
+    let calls = 0
+    s.subscribe(() => { calls += 1 })
+    s.apply(ev({ kind: 'notification', detail: 'waiting', ts: 2000 }))
+    expect(calls).toBe(1)
+  })
+})
+
 const question: PendingQuestion = {
   id: 'perm-1',
   deadline: 0,
