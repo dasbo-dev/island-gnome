@@ -10,6 +10,12 @@
 
 **Spec:** `docs/superpowers/specs/2026-07-30-notification-popup-design.md`
 
+> **Note:** This plan has been reconciled with two post-review fix rounds since
+> it was first executed. Where a step below quotes a comment or a guard that
+> the review rounds went on to correct or replace, the step has been updated
+> to match what actually shipped. Treat this document as a record of what was
+> built, not a forecast of what will be.
+
 ## Global Constraints
 
 - `src/core/` must never import `gi://` or `resource://`. `test/core/purity.test.ts` enforces this — anything touching GNOME APIs goes in `src/shell/`, `src/dbus/`, `src/prefs.ts` or `src/extension.ts`.
@@ -577,11 +583,26 @@ export function activityText(session: Session, now: number): Activity {
 Extend the function's doc comment with a sentence recording the new ordering:
 
 ```
- * The notice branch sits between the pending pair and the tool pair. It cannot
- * co-exist with either pending field in practice — `setPending` and
- * `setPendingQuestion` both clear the notice — so the ordering only decides an
- * out-of-order payload, where the thing with buttons must win.
+ * The notice branch sits between the pending pair and the tool pair, and the
+ * pending branches winning is not a defensive ordering against something
+ * that cannot happen — the two fields coexist on a real, reachable session.
+ * `store.apply`'s notification branch sets `s.notice` without touching
+ * `pendingPermission` or `pendingQuestion`; only `setPending` and
+ * `setPendingQuestion` clear the notice, and neither runs when a notification
+ * arrives. So the ordinary sequence — a permission is requested, then Claude
+ * raises `Notification` because the same prompt has also sat idle — leaves a
+ * session holding both at once (`test/core/activity.test.ts`'s "yields to a
+ * pending permission" test constructs exactly that state). `noticeVisible`
+ * below is where the winner is decided, once, so this function and
+ * `Island.notifyNotification`'s decision to open the popup at all agree about
+ * which of the two the row is showing.
 ```
+
+(A review round after this step first landed found the sentence originally
+written here claimed the opposite of the above — that the notice "cannot
+co-exist with either pending field in practice" — which is false, for the
+reason spelled out above. Corrected here rather than left contradicting
+`src/core/activity.ts`.)
 
 - [ ] **Step 4: Run the core test to verify it passes**
 
@@ -619,9 +640,8 @@ Add this private method just above `update`:
      *
      * The text write is guarded and the opacity is not. Assigning a
      * ClutterText's contents relayouts the row, and this now runs every
-     * second; assigning an actor's opacity is a cheap property set, and
-     * guarding it too would strand the label at whatever weight
-     * showTransient() last left it.
+     * second, so the difference check earns its keep; assigning an actor's
+     * opacity is a cheap property set that costs nothing to repeat.
      */
     private _syncActivity(now: number): void {
       const { text, hint } = activityText(this._session, now)
@@ -632,6 +652,14 @@ Add this private method just above `update`:
       this._activity.opacity = hint ? 178 : 255
     }
 ```
+
+(A review round after this step first landed corrected the paragraph above:
+it originally justified the unguarded opacity write by claiming a guard "would
+strand the label at whatever weight showTransient() last left it." That
+reasoning does not survive `showTransient`'s later guard — see the transient
+early-return added to this same method by a subsequent fix round — and the
+opacity write needs no such justification: it is unguarded simply because it
+is cheap to repeat, not because guarding it would break something.)
 
 Change `update`'s signature and replace its activity block:
 
@@ -1105,11 +1133,22 @@ Add the method directly below `notifyPermissionOpened`:
     notifyNotification(key: string): void {
       if (!this._settings.get_boolean('notification-popup')) return
       if (Main.layoutManager.primaryMonitor?.inFullscreen) return
-      // No text, no notice, nothing to show. Claude's Notification payload is
-      // inferred rather than captured (see the design doc), so a differently
-      // spelled message field must leave this feature silent rather than
-      // opening an empty popup on its own.
-      if (!this._store.get(key)?.notice) return
+      // No text, no notice, or a pending permission/question is holding the
+      // row instead of it — either way there is nothing new to show. The
+      // second case matters in practice: a notification can arrive while a
+      // permission this popup already answered (or the user already glanced
+      // at) is still pending, and opening for it would show nothing new and
+      // arm a close timer that could shut the popup out from under the
+      // permission's own buttons — the worst thing this feature could do.
+      // noticeVisible is the single place that decides which case this is,
+      // shared with activityText's own notice branch, so the two agree about
+      // what the session state says a notice should be doing. Claude's
+      // Notification payload is also inferred rather than captured (see the
+      // design doc), so a differently spelled message field must leave this
+      // feature silent rather than opening an empty popup on its own —
+      // noticeVisible covers that too, since no message means no notice at all.
+      const session = this._store.get(key)
+      if (!session || !noticeVisible(session, Date.now())) return
 
       this._cancelNoticeClose()
       const seconds = this._settings.get_int('notification-seconds')
@@ -1140,6 +1179,18 @@ Add the method directly below `notifyPermissionOpened`:
       }
     }
 ```
+
+Import `noticeVisible` from `../core/activity.js` alongside the other core
+imports at the top of the file.
+
+(A review round after this step first landed found the guard here — a plain
+`if (!this._store.get(key)?.notice) return` — opened the popup for a notice a
+pending permission or question was already holding, showing nothing new and
+arming a close timer that could shut the popup out from under the pending
+control's own buttons. Corrected to the `noticeVisible` guard above, matching
+the same rule `activityText`'s notice branch uses (see the `docs:` fix to
+`src/core/activity.ts` and this file's own Task 3), so the row and the
+popup-open decision agree about what the session state says.)
 
 - [ ] **Step 5a: Run the suite and the typechecker**
 

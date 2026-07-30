@@ -86,14 +86,21 @@ the 1s tick      ──▶ now >= until  ──▶ activityText stops returning 
 The notice lives on the `Session`, not on the widget. That is the whole
 architectural decision here, and the reason is mechanical: `Island._rebuildRows`
 calls `row.update(s)` on **every** store emit, and `update()` rewrites
-`_activity.text` from `activityText(session)`. A string written straight onto the
-label — which is what `showTransient` does today — is wiped by the next event
-from any session in the popup. `showJumpFailure` survives only because nothing
-usually emits during its two seconds.
+`_activity.text` from `activityText(session)`. Anything written straight onto
+the label instead — a widget-local string with no representation in
+`Session` — is wiped by the next event from any session in the popup, because
+`update()` has no way to know a plain string is meant to survive it. That is
+what `showTransient` still does, and it is why `_syncActivity` needs an
+explicit `_transientUntil` guard on the widget to keep a rebuild from
+clobbering it mid-transient — a narrow exception for a message that lives on
+the row for two seconds and nowhere else, not a second mechanism for what this
+feature needs.
 
-Putting the notice on the record means it renders through the one path everything
-else renders through, so no rebuild can clobber it, and it means the branch is a
-pure function in `src/core/` that a test can prove.
+Putting a *durable* notice on the record instead means it renders through the
+one path everything else renders through, so no rebuild can clobber it without
+a guard, and it means the branch is a pure function in `src/core/` that a test
+can prove — neither of which a value sitting only on the widget could ever
+offer, guard or no guard.
 
 ## Components
 
@@ -320,15 +327,21 @@ change rather than left to contradict the code beneath it.
 difference:
 
 ```ts
-const { text, hint } = activityText(this._session, now)
-if (text !== this._activity.text) {
-  this._activity.text = text
+private _syncActivity(now: number): void {
+  if (now < this._transientUntil) return
+  const { text, hint } = activityText(this._session, now)
+  if (text !== this._activity.text) this._activity.text = text
   this._activity.opacity = hint ? 178 : 255
 }
 ```
 
-The write-if-changed guard is what makes a once-per-second recompute acceptable,
-and it is the discipline `_shellTotal` already follows in the same method.
+The early return guards the transient (see the `showTransient`/`showJumpFailure`
+discussion below). Past that, the text write is checked against the current
+value and the opacity write is not: assigning a ClutterText's contents relayouts
+the row, so the once-per-second recompute this section adds earns the
+difference check; assigning an actor's opacity is a cheap property set that
+costs nothing to repeat, and it is the discipline `_shellTotal` already
+follows in the same method.
 
 This tick is the only thing that retires an expired notice. The store holds no
 timer: expiry is a rendering fact, decided by comparing two numbers, not a store
@@ -337,11 +350,23 @@ open, a notice that expires behind a closed popup is simply never seen —
 `_startTimer` ticks once immediately on open, so a stale one cannot be shown
 either.
 
-`showTransient` and `showJumpFailure` are left alone. They now sit beside a
-mechanism that does the same job properly, and folding "no window" into
-`Session.notice` is worth doing — but it puts a UI failure into the session model,
-which is a different decision than this one and not one this feature needs. Noted
-as follow-up, not done here.
+`showTransient` and `showJumpFailure` are not folded into `Session.notice`. That
+decision is unchanged — folding "no window" into the record is worth doing, but
+it puts a UI failure into the session model, which is a different decision than
+this one and not one this feature needs. Noted as follow-up, not done here.
+
+They are not left alone, though: the tick this section adds recomputes the
+activity line once a second, and without a guard it would overwrite
+`showTransient`'s "no window" before `showJumpFailure`'s own two-second timer
+gets a chance to restore the real text — turning a message meant to last two
+seconds into one that lasts until whatever tick happens to land next.
+`_syncActivity` gains an early return while `_transientUntil` is in the
+future, so the tick added here leaves a transient alone rather than clobbering
+it. And because `g_timeout_add_seconds` rounds to a perturbed second boundary
+and can fire a little early, `showJumpFailure`'s own timer cannot simply rely
+on its deadline having passed by the time it runs: it calls a new
+`clearTransient()` immediately before its own `update()` call, so the timer —
+not the guard's deadline — is what ends the transient.
 
 ### `schemas/…gschema.xml`
 
@@ -352,6 +377,7 @@ as follow-up, not done here.
   <description>Suppressed while a fullscreen window is on the primary monitor.</description>
 </key>
 <key name="notification-seconds" type="i">
+  <range min="0" max="300"/>
   <default>5</default>
   <summary>Seconds a notification stays on the row</summary>
   <description>How long the message replaces the row's activity line, and how long a popup opened for it stays open. Zero keeps it until the next event from that session, and never closes the popup.</description>
