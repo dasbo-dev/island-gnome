@@ -74,9 +74,16 @@ export const Island = GObject.registerClass(
     /** GLib source that closes a popup this widget opened for a notice. */
     private _noticeCloseId = 0
     /**
-     * True only while a notice-close timer is armed *and* the popup it will
-     * close is one this widget opened for that notice. Everything that could
-     * make closing wrong clears it — see notifyNotification.
+     * True once a notice has opened the popup, until something closes it or
+     * decides it must not. This is not an instant-by-instant "a close timer
+     * is armed right now" flag — changing notification-seconds to 0 between
+     * two notices with no intervening close leaves it true with no timer
+     * ever armed for the second one — but the property that actually matters
+     * holds regardless: it is set only in the branch of notifyNotification
+     * that itself opened the popup for a notice, and every path that could
+     * make closing wrong (the user closing it, a permission or question
+     * arriving, the popup already being open) clears it before anything
+     * could act on stale information. See notifyNotification.
      */
     private _noticeOpened = false
     private _permHandlers: {
@@ -223,7 +230,8 @@ export const Island = GObject.registerClass(
     showJumpFailure(key: string): void {
       const row = this._rows.get(key)
       if (!row) return
-      row.showTransient('no window')
+      const until = Date.now() + 2000
+      row.showTransient('no window', until)
       const id = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
         const s = this._store.get(key)
         if (s) row.update(s, Date.now())
