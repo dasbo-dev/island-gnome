@@ -115,7 +115,12 @@ export const SessionRow = GObject.registerClass(
       // comes from .dasbo-row-outer's fixed width in the stylesheet.
       const activityRow = new St.BoxLayout({ style_class: 'dasbo-pill', x_expand: true })
       // START, not CENTER: over three wrapped lines a centred dot floats beside
-      // the middle line instead of beside the status it belongs to.
+      // the middle line instead of beside the status it belongs to. START alone
+      // is not enough, though — it aligns the dot to the top of the whole
+      // label, about a line's ascent above the first line's ink — so it is paired
+      // with a margin-top on .dasbo-dot that drops it onto that first line.
+      // Neither half means anything without the other; test/shell/dotAlignment
+      // fails if one is removed.
       this._dot = new St.Widget({ style_class: 'dasbo-dot', y_align: Clutter.ActorAlign.START })
       this._activity = new St.Label({ text: '', style_class: 'dasbo-row-activity',
         x_expand: true })

@@ -2,11 +2,24 @@
   spacing: 6px;
 }
 
+/* Only the popup's per-session rows draw this now — the panel pill moved to
+   .dasbo-grid — so the offset below is the row's business alone.
+
+   margin-top is what makes ActorAlign.START readable. The dot is pinned to the
+   top of the activity row because that text wraps (see sessionRow.ts), but
+   START aligns it to the top of the whole label, roughly a line's ascent above
+   where the eye wants it. Measured on a rendered row, the 8px dot occupied
+   y 23..30 while its `idle` ran ascender-top 28 to baseline 35 — 5px high.
+   0.85em text gives an 8px ascender-to-baseline span, the dot's own height, so
+   at +5px the dot's top and bottom land exactly on the first line's ascender
+   and baseline. Retune this if .dasbo-row-activity's font-size changes; nothing
+   derives it. */
 .dasbo-dot {
   width: 8px;
   height: 8px;
   border-radius: 4px;
   background-color: #9e9e9e;
+  margin-top: 5px;
 }
 
 .dasbo-dot.state-running { background-color: #62a0ea; }
