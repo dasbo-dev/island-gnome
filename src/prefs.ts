@@ -115,8 +115,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
 
     const notificationSounds = new Adw.SwitchRow({
       title: 'Play a sound',
-      subtitle:
-        "When an agent needs an answer, raises a notification, or finishes. Uses your desktop's sound theme, and stays silent when system sounds are off.",
+      subtitle: 'When an agent needs an answer, raises a notification, or finishes. Uses your desktop’s sound theme, and stays silent when system sounds are off.',
     })
     settings.bind('notification-sounds', notificationSounds, 'active', 0)
     notifications.add(notificationSounds)
