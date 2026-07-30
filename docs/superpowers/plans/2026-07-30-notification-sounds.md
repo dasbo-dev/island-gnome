@@ -365,6 +365,39 @@ git commit -m "feat(prefs): add one switch for notification sounds"
 
 ### Task 3: The player — the only file that touches audio
 
+> **Superseded during review.** The code snippet in Step 3 below is left
+> exactly as originally planned — this is a record of what was planned, not a
+> plan retro-fitted to its outcome — but it is no longer what ships. Treat
+> `src/shell/soundPlayer.ts` and the spec's Architecture section
+> (`docs/superpowers/specs/2026-07-30-notification-sounds-design.md`) as
+> authoritative. Four ways the snippet below is now out of date:
+>
+> 1. It declares a local `const THROTTLE_MS = 500` inside the player. The
+>    constant, and the whole play/mute decision (`shouldPlay`), moved to
+>    `src/core/sound.ts` so the rules are unit-testable rather than only
+>    greppable out of this file's source — see `4205354`.
+> 2. It reads the clock with `Date.now()`. The real file reads
+>    `GLib.get_monotonic_time() / 1000`: the wall clock is not monotonic, and a
+>    backwards NTP step would leave every cue's stamp in the future and
+>    silence it for the whole of the step.
+> 3. It has no `markDestroyed()` method or `_destroyed` flag. The real file
+>    needs both so `disable()` can silence the player before
+>    `resolveAllFallthrough()` runs — that call can settle a held permission to
+>    `done` and reach `play('done')` while the island is still alive, ahead of
+>    the player's own teardown step.
+> 4. Its constructor has no `settings_schema.has_key('notification-sounds')`
+>    guard before the first `get_boolean` call. Without it, a skipped schema
+>    recompile means `get_boolean` on a key absent from the *compiled* schema
+>    is `g_error`, which aborts the whole shell process on the user's first
+>    permission request — not merely a missing beep.
+>
+> The test snippet in Step 1 is stale the same way: it names `island.ts` and
+> `extension.ts` by hand to check they contain no second `play_from_theme`
+> call, where the real `test/shell/sound.test.ts` walks all of `src/` instead,
+> so a third file added later is caught too. Anyone executing this task fresh
+> from the snippet below would rebuild the compositor-abort hazard item 4
+> removed; don't.
+
 **Files:**
 - Create: `src/shell/soundPlayer.ts`
 - Test: `test/shell/sound.test.ts` (append a describe block)
@@ -375,6 +408,7 @@ git commit -m "feat(prefs): add one switch for notification sounds"
   - `class SoundPlayer`
   - `new SoundPlayer(settings: Gio.Settings)` — the extension's own settings object
   - `play(cue: SoundCue): void`
+  - `markDestroyed(): void`
   - `destroy(): void`
 
 `SoundPlayer` cannot be imported under vitest — it imports `gi://Gio` and reads the GJS global `global`. Its guarantees are pinned as source assertions, which is how `test/shell/` already covers `agentChip.ts` and `agentIcon.ts`.
@@ -536,7 +570,11 @@ export class SoundPlayer {
 - [x] **Step 4: Run tests and typecheck**
 
 Run: `npx vitest run test/shell/sound.test.ts`
-Expected: PASS, 13 tests.
+Expected: PASS, 13 tests. (True at this task's own commit, `379913f`. The
+supersession note above the task explains why: review reshaped the player and
+added more source assertions, so `test/shell/sound.test.ts` as it exists in
+the repo today — the same file this step names — has 31, not 13. Running this
+exact command against the current tree will not reproduce 13.)
 
 Run: `npm test && npm run typecheck`
 Expected: both pass. If `typecheck` objects to `get_sound_player()`'s return type, do not cast to `any` — report it; `Meta-14.typelib` declares the method and `@girs/gnome-shell` 46.0.2 should carry it.
@@ -921,7 +959,10 @@ Tested for emptiness rather than looped over: every finish plays the same cue, a
 - [x] **Step 5: Run tests and typecheck**
 
 Run: `npx vitest run test/shell/sound.test.ts`
-Expected: PASS, 25 tests.
+Expected: PASS, 25 tests. (True at this task's own commit, `d4681e2`. As with
+Task 3's step 4, `test/shell/sound.test.ts` in the repo today has 31 — six
+more, added by the review commits described in Task 3's supersession note,
+none of which is its own Task in this plan.)
 
 Run: `npm test && npm run typecheck`
 Expected: both pass.
@@ -1043,8 +1084,8 @@ git commit -m "docs: say what the island sounds like, and what stays unverified"
 | `newlyDone` / `snapshotStates` | 1 |
 | Schema key, default on | 2 |
 | Preferences switch, copy, placement | 2 |
-| Three mute checks in order | 3 |
-| 500 ms per-cue throttle | 3 |
+| Three mute checks in order | 3 as planned; moved to `shouldPlay` in `src/core/sound.ts` during review (`4205354`) — see Task 3's supersession note |
+| 500 ms per-cue throttle | 3 as planned; `THROTTLE_MS` moved to `src/core/sound.ts` alongside `shouldPlay` in the same review commit — see Task 3's supersession note |
 | `try`/`catch`, warn once, null cancellable | 3 |
 | `destroy()` clears throttle, no timers | 3 |
 | Permission and question cues, kind argument | 4 |
