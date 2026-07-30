@@ -17,6 +17,7 @@ import { taskDir, readTasks } from './taskReader.js'
 import { PopupHeader, EmptyRow } from './popupHeader.js'
 import { GridIcon } from './gridIcon.js'
 import { pillState } from '../core/pillState.js'
+import { noticeVisible } from '../core/activity.js'
 import { bodyMaxHeight, scrollIntoView } from '../core/popupSize.js'
 
 /**
@@ -276,11 +277,22 @@ export const Island = GObject.registerClass(
     notifyNotification(key: string): void {
       if (!this._settings.get_boolean('notification-popup')) return
       if (Main.layoutManager.primaryMonitor?.inFullscreen) return
-      // No text, no notice, nothing to show. Claude's Notification payload is
-      // inferred rather than captured (see the design doc), so a differently
-      // spelled message field must leave this feature silent rather than
-      // opening an empty popup on its own.
-      if (!this._store.get(key)?.notice) return
+      // No text, no notice, or a pending permission/question is holding the
+      // row instead of it — either way there is nothing new to show. The
+      // second case matters in practice: a notification can arrive while a
+      // permission this popup already answered (or the user already glanced
+      // at) is still pending, and opening for it would show nothing new and
+      // arm a close timer that could shut the popup out from under the
+      // permission's own buttons — the worst thing this feature could do.
+      // noticeVisible is the single place that decides which case this is,
+      // shared with activityText's own notice branch, so the two can never
+      // disagree about what the row is showing. Claude's Notification payload
+      // is also inferred rather than captured (see the design doc), so a
+      // differently spelled message field must leave this feature silent
+      // rather than opening an empty popup on its own — noticeVisible covers
+      // that too, since no message means no notice at all.
+      const session = this._store.get(key)
+      if (!session || !noticeVisible(session, Date.now())) return
 
       this._cancelNoticeClose()
       const seconds = this._settings.get_int('notification-seconds')

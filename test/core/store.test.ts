@@ -902,6 +902,27 @@ describe('SessionStore notices', () => {
     s.apply(ev({ kind: 'notification', detail: 'waiting', ts: 2000 }))
     expect(calls).toBe(1)
   })
+
+  it('sets the notice while a permission is pending, and leaves the permission untouched', () => {
+    // The notification branch in apply() only ever clears itself — it does
+    // not check pendingPermission the way setPending checks (and clears) the
+    // notice. So a permission requested first, followed by an ordinary
+    // Notification hook firing because the same prompt has also sat idle,
+    // leaves the session holding both at once. That is existing, intended
+    // behaviour: the fix this state motivated is in Island.notifyNotification
+    // (it must not open the popup for a notice a permission is already
+    // holding), not here in the store.
+    const s = new SessionStore()
+    s.apply(ev({ ts: 0 }))
+    s.setPending('claude:s1', { id: 'p1', tool: 'Bash', deadline: 30_000, queued: 0 })
+    expect(s.list()[0]!.state).toBe('waiting')
+
+    s.apply(ev({ kind: 'notification', detail: 'Claude is waiting for your input', ts: 2000 }))
+    const session = s.list()[0]!
+    expect(session.notice).toEqual({ text: 'Claude is waiting for your input', until: 7000 })
+    expect(session.pendingPermission?.id, 'the notification must not clear the permission').toBe('p1')
+    expect(session.state, 'still waiting on the permission').toBe('waiting')
+  })
 })
 
 const question: PendingQuestion = {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { activityText } from '../../src/core/activity.js'
+import { activityText, noticeVisible } from '../../src/core/activity.js'
 import type { Session } from '../../src/core/types.js'
 
 function session(over: Partial<Session> = {}): Session {
@@ -191,5 +191,61 @@ describe('activityText for a notice', () => {
   it('flattens a multi-line message onto the one label', () => {
     const multi = { text: 'line one\n\n  line two', until: 0 }
     expect(activityText(session({ state: 'idle', notice: multi }), NOW).text).toBe('line one line two')
+  })
+})
+
+describe('noticeVisible', () => {
+  const notice = { text: 'Claude is waiting for your input', until: 20_000 }
+
+  it('is false with no notice at all', () => {
+    expect(noticeVisible(session({}), NOW)).toBe(false)
+  })
+
+  it('is true for a live notice with nothing else holding the row', () => {
+    expect(noticeVisible(session({ state: 'idle', notice }), NOW)).toBe(true)
+  })
+
+  it('is false once the deadline has passed', () => {
+    expect(noticeVisible(session({ state: 'idle', notice }), 20_001)).toBe(false)
+  })
+
+  it('is false exactly at the deadline, not one tick after it', () => {
+    expect(noticeVisible(session({ state: 'idle', notice }), 20_000)).toBe(false)
+  })
+
+  it('is true one millisecond before the deadline', () => {
+    expect(noticeVisible(session({ state: 'idle', notice }), 19_999)).toBe(true)
+  })
+
+  it('never expires when the deadline is zero', () => {
+    const forever = { text: 'waiting', until: 0 }
+    expect(noticeVisible(session({ state: 'idle', notice: forever }), 9_999_999)).toBe(true)
+  })
+
+  it('is false while a permission is pending, even with a live notice', () => {
+    const s = session({
+      state: 'waiting',
+      notice,
+      pendingPermission: { id: 'p1', tool: 'Bash', deadline: 0, queued: 0 },
+    })
+    expect(
+      noticeVisible(s, NOW),
+      'a permission holds the row, so the notice is not what is showing'
+    ).toBe(false)
+  })
+
+  it('is false while a question is pending, even with a live notice', () => {
+    const s = session({
+      state: 'waiting',
+      notice,
+      pendingQuestion: {
+        id: 'q1',
+        deadline: 0,
+        questions: [
+          { question: 'Which?', header: 'Pick', options: [{ label: 'a', description: '' }], multiSelect: false },
+        ],
+      },
+    })
+    expect(noticeVisible(s, NOW)).toBe(false)
   })
 })

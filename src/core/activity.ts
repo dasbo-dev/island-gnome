@@ -13,6 +13,30 @@ export interface Activity {
 }
 
 /**
+ * Whether `session.notice` is the thing actually on the row right now — the
+ * single answer to "is the notice what is showing", shared by this file's own
+ * notice branch below and by `Island.notifyNotification`'s decision to open
+ * the popup for a notice at all. Without a shared answer, the two could
+ * disagree: `notifyNotification` used to guard only on `notice` being set, so
+ * it would open the popup for a notice a pending permission was already
+ * hiding, showing nothing new and arming a close timer that could shut the
+ * popup a permission needed answered.
+ *
+ * False in three cases: no notice at all; a notice whose deadline has passed
+ * (`until !== 0 && now >= until` — `until === 0` means no clock, so it never
+ * expires this way); and a notice held by a pending permission or question.
+ * That third case is reachable in the ordinary run of events, not merely a
+ * defensive check — see the comment above `activityText` for how.
+ */
+export function noticeVisible(session: Session, now: number): boolean {
+  const notice = session.notice
+  if (!notice) return false
+  if (notice.until !== 0 && now >= notice.until) return false
+  if (session.pendingPermission || session.pendingQuestion) return false
+  return true
+}
+
+/**
  * The row's activity text, decided in one place so the branches are testable —
  * `src/shell` needs a running GNOME Shell and cannot be unit-tested here.
  *
@@ -33,10 +57,19 @@ export interface Activity {
  * that keeps `waiting` honest for questions). This function is pure and does
  * not re-check that invariant itself.
  *
- * The notice branch sits between the pending pair and the tool pair. It cannot
- * co-exist with either pending field in practice — `setPending` and
- * `setPendingQuestion` both clear the notice — so the ordering only decides an
- * out-of-order payload, where the thing with buttons must win.
+ * The notice branch sits between the pending pair and the tool pair, and the
+ * pending branches winning is not a defensive ordering against something
+ * that cannot happen — the two fields coexist on a real, reachable session.
+ * `store.apply`'s notification branch sets `s.notice` without touching
+ * `pendingPermission` or `pendingQuestion`; only `setPending` and
+ * `setPendingQuestion` clear the notice, and neither runs when a notification
+ * arrives. So the ordinary sequence — a permission is requested, then Claude
+ * raises `Notification` because the same prompt has also sat idle — leaves a
+ * session holding both at once (`test/core/activity.test.ts`'s "yields to a
+ * pending permission" test constructs exactly that state). `noticeVisible`
+ * below is where the winner is decided, once, so this function and
+ * `Island.notifyNotification`'s decision to open the popup at all agree about
+ * which of the two the row is showing.
  */
 export function activityText(session: Session, now: number): Activity {
   const question = session.pendingQuestion
@@ -62,11 +95,10 @@ export function activityText(session: Session, now: number): Activity {
   // tool/detail because a notification arrives when nothing is running, so in
   // practice those are already clear — and where they are not, the notice is
   // the fresher fact.
-  const notice = session.notice
-  if (notice && (notice.until === 0 || now < notice.until)) {
+  if (noticeVisible(session, now)) {
     // Bounded for the same reason the tool name above is: `message` comes
     // straight off the payload and nothing else caps it.
-    return { text: truncateDetail(notice.text), hint: false }
+    return { text: truncateDetail(session.notice!.text), hint: false }
   }
 
   const tool = session.currentTool
