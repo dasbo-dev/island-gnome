@@ -17,8 +17,10 @@ import { taskDir, readTasks } from './taskReader.js'
 import { PopupHeader, EmptyRow } from './popupHeader.js'
 import { GridIcon } from './gridIcon.js'
 import { pillState } from '../core/pillState.js'
+import { newlyDone, snapshotStates } from '../core/sound.js'
 import { noticeVisible } from '../core/activity.js'
 import { bodyMaxHeight, scrollIntoView } from '../core/popupSize.js'
+import type { SoundPlayer } from './soundPlayer.js'
 
 /**
  * `PanelMenu.Button#menu` is typed as `PopupMenu | PopupDummyMenu` because a
@@ -43,10 +45,16 @@ export const Island = GObject.registerClass(
     private _store!: SessionStore
     private _settings!: Gio.Settings
     private _iconBase!: string
+    private _sound!: SoundPlayer
     private _icon!: InstanceType<typeof GridIcon>
     private _label!: St.Label
     private _unsubscribe: (() => void) | null = null
     private _rows = new Map<string, InstanceType<typeof SessionRow>>()
+    /**
+     * Session states as of the last refresh, so a move into 'done' can be
+     * spotted. Only this diff reads it; the rows rebuild from the store.
+     */
+    private _lastStates = new Map<string, SessionState>()
     private _header!: InstanceType<typeof PopupHeader>
     private _separator!: PopupMenu.PopupSeparatorMenuItem
     private _body!: PopupMenu.PopupMenuSection
@@ -98,10 +106,14 @@ export const Island = GObject.registerClass(
       handOff: (id: string) => void
     } | null = null
 
-    constructor(store: SessionStore, settings: Gio.Settings, iconBase: string) {
+    constructor(store: SessionStore, settings: Gio.Settings, iconBase: string, sound: SoundPlayer) {
       super(0.5, 'Dasbo Island')
       this._store = store
       this._settings = settings
+      // Owned by extension.ts, which also destroys it. Passed in for the same
+      // reason iconBase is: a widget that reaches for its own dependencies is
+      // a widget that reaches for the wrong one after a reload.
+      this._sound = sound
       // The extension's own directory, where the agent chips' SVGs live. Passed
       // in rather than looked up here: a module that resolves its own install
       // path is a module that silently resolves the wrong one after a reload.
@@ -272,7 +284,12 @@ export const Island = GObject.registerClass(
     }
 
     /** Called by the D-Bus service after a permission row has been registered. */
-    notifyPermissionOpened(): void {
+    notifyPermissionOpened(kind: 'permission' | 'question'): void {
+      // First, above even the notice-timer reset: sound is deliberately
+      // independent of every popup rule below it. In fullscreen the pill is
+      // invisible and the popup is suppressed, which is exactly when the sound
+      // is the only signal left — and unlike the popup, it covers nothing.
+      this._sound.play(kind)
       // Unconditionally, and before the guards below: the popup is now up for
       // something that needs an answer. Shutting it under the user's cursor
       // mid-click is the worst thing the notice timer could do — and that is
@@ -290,8 +307,6 @@ export const Island = GObject.registerClass(
      * it, and arranges to undo that.
      */
     notifyNotification(key: string): void {
-      if (!this._settings.get_boolean('notification-popup')) return
-      if (Main.layoutManager.primaryMonitor?.inFullscreen) return
       // No text, no notice, or a pending permission/question is holding the
       // row instead of it — either way there is nothing new to show. The
       // second case matters in practice: a notification can arrive while a
@@ -309,8 +324,20 @@ export const Island = GObject.registerClass(
       // leave this feature silent rather than opening an empty popup on its
       // own — noticeVisible covers that too, since no message means no
       // notice at all.
+      //
+      // Now the first test in this method rather than the third, because it is
+      // the only one of the three that answers "is there anything here at
+      // all". The two policy guards below decide whether to *show* it; sound
+      // must not sit behind them, but must sit behind this — beeping for a
+      // message the row will not display is the audible form of the empty
+      // popup this check exists to prevent.
       const session = this._store.get(key)
       if (!session || !noticeVisible(session, Date.now())) return
+
+      this._sound.play('notification')
+
+      if (!this._settings.get_boolean('notification-popup')) return
+      if (Main.layoutManager.primaryMonitor?.inFullscreen) return
 
       this._cancelNoticeClose()
       const seconds = this._settings.get_int('notification-seconds')
@@ -742,6 +769,18 @@ export const Island = GObject.registerClass(
     refresh(): void {
       this._rebuildRows()
       const sessions = this._store.list()
+
+      // Above the early return below, deliberately: with the pill hidden and no
+      // sessions, that return would leave the snapshot stale and the next
+      // visible refresh would replay finishes already sounded. Silent when
+      // nothing moved, which is what makes the always-show handler and the
+      // fullscreen handler free, and the 1s tick too — though the tick never
+      // calls refresh() itself. Its GLib source runs _tickAll(), which reaches
+      // refresh() only indirectly, through setTasks() -> emit(), when a dirty
+      // task read actually changes something.
+      if (newlyDone(this._lastStates, sessions).length > 0) this._sound.play('done')
+      this._lastStates = snapshotStates(sessions)
+
       const count = sessions.length
 
       if (count === 0 && !this._settings.get_boolean('always-show')) {

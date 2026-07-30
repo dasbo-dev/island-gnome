@@ -309,6 +309,15 @@ export class SessionStore {
         s.doneAt = e.ts
         s.currentTool = undefined
         s.detail = undefined
+        // Set here, above the pendingPermission/pendingQuestion branch below,
+        // so both the immediate and the deferred settle path see it: this
+        // switch runs for every session-end regardless of whether a hold is
+        // open, while the branch below only decides *when* the state itself
+        // reaches 'done'. `flag || undefined` rather than a bare assignment,
+        // so a later real exit on the same record can never inherit a stale
+        // `true` left by an earlier /clear — see the field's own comment on
+        // Session.
+        s.endedByClear = e.endedByClear || undefined
         break
       case 'error':
         kindState = 'error'

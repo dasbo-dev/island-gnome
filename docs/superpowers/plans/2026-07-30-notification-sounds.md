@@ -39,7 +39,7 @@
   - `snapshotStates(sessions: Session[]): Map<string, SessionState>`
   - `newlyDone(prev: Map<string, SessionState>, next: Session[]): string[]`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `test/core/sound.test.ts`:
 
@@ -164,12 +164,12 @@ describe('newlyDone', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run test/core/sound.test.ts`
 Expected: FAIL — `Failed to resolve import "../../src/core/sound.js"`.
 
-- [ ] **Step 3: Write minimal implementation**
+- [x] **Step 3: Write minimal implementation**
 
 Create `src/core/sound.ts`:
 
@@ -229,7 +229,7 @@ export function newlyDone(prev: Map<string, SessionState>, next: Session[]): str
 }
 ```
 
-- [ ] **Step 4: Run tests and typecheck**
+- [x] **Step 4: Run tests and typecheck**
 
 Run: `npx vitest run test/core/sound.test.ts`
 Expected: PASS, 11 tests.
@@ -240,7 +240,7 @@ Expected: PASS — the whole suite, including `purity.test.ts`, which now also w
 Run: `npm run typecheck`
 Expected: no output, exit 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/core/sound.ts test/core/sound.test.ts
@@ -262,7 +262,7 @@ git commit -m "feat(core): name a sound for each event, and spot a session finis
 
 This task comes before the player because `Gio.Settings.get_boolean` on a key the compiled schema does not carry aborts the caller.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Create `test/shell/sound.test.ts`:
 
@@ -297,7 +297,10 @@ describe('the notification-sounds setting', () => {
   it('sits in the Notifications group, beside the other notification rows', () => {
     const group = prefs.indexOf("new Adw.PreferencesGroup({ title: 'Notifications' })")
     const row = prefs.indexOf("settings.bind('notification-sounds'")
-    const nextPage = prefs.indexOf('_agentsPage')
+    // 'private _agentsPage', not '_agentsPage': the call in
+    // fillPreferencesWindow comes first in the file and would put this bound
+    // before the group it is meant to follow.
+    const nextPage = prefs.indexOf('private _agentsPage')
     expect(group).toBeGreaterThan(-1)
     expect(row).toBeGreaterThan(group)
     expect(row).toBeLessThan(nextPage)
@@ -312,12 +315,12 @@ describe('the notification-sounds setting', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run test/shell/sound.test.ts`
 Expected: FAIL, 5 failures — the schema has no such key and `prefs.ts` binds nothing.
 
-- [ ] **Step 3: Add the schema key**
+- [x] **Step 3: Add the schema key**
 
 In `schemas/org.gnome.shell.extensions.dasbo-island.gschema.xml`, insert immediately after the `done-linger` key's closing `</key>` and before `</schema>`:
 
@@ -329,7 +332,7 @@ In `schemas/org.gnome.shell.extensions.dasbo-island.gschema.xml`, insert immedia
     </key>
 ```
 
-- [ ] **Step 4: Add the preferences row**
+- [x] **Step 4: Add the preferences row**
 
 In `src/prefs.ts`, in `_behaviourPage`, after the `notificationSeconds` block and before `page.add(notifications)`:
 
@@ -343,7 +346,7 @@ In `src/prefs.ts`, in `_behaviourPage`, after the `notificationSeconds` block an
     notifications.add(notificationSounds)
 ```
 
-- [ ] **Step 5: Run tests and typecheck**
+- [x] **Step 5: Run tests and typecheck**
 
 Run: `npx vitest run test/shell/sound.test.ts`
 Expected: PASS, 5 tests.
@@ -351,7 +354,7 @@ Expected: PASS, 5 tests.
 Run: `npm test && npm run typecheck`
 Expected: both pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add schemas/org.gnome.shell.extensions.dasbo-island.gschema.xml src/prefs.ts test/shell/sound.test.ts
@@ -361,6 +364,39 @@ git commit -m "feat(prefs): add one switch for notification sounds"
 ---
 
 ### Task 3: The player — the only file that touches audio
+
+> **Superseded during review.** The code snippet in Step 3 below is left
+> exactly as originally planned — this is a record of what was planned, not a
+> plan retro-fitted to its outcome — but it is no longer what ships. Treat
+> `src/shell/soundPlayer.ts` and the spec's Architecture section
+> (`docs/superpowers/specs/2026-07-30-notification-sounds-design.md`) as
+> authoritative. Four ways the snippet below is now out of date:
+>
+> 1. It declares a local `const THROTTLE_MS = 500` inside the player. The
+>    constant, and the whole play/mute decision (`shouldPlay`), moved to
+>    `src/core/sound.ts` so the rules are unit-testable rather than only
+>    greppable out of this file's source — see `4205354`.
+> 2. It reads the clock with `Date.now()`. The real file reads
+>    `GLib.get_monotonic_time() / 1000`: the wall clock is not monotonic, and a
+>    backwards NTP step would leave every cue's stamp in the future and
+>    silence it for the whole of the step.
+> 3. It has no `markDestroyed()` method or `_destroyed` flag. The real file
+>    needs both so `disable()` can silence the player before
+>    `resolveAllFallthrough()` runs — that call can settle a held permission to
+>    `done` and reach `play('done')` while the island is still alive, ahead of
+>    the player's own teardown step.
+> 4. Its constructor has no `settings_schema.has_key('notification-sounds')`
+>    guard before the first `get_boolean` call. Without it, a skipped schema
+>    recompile means `get_boolean` on a key absent from the *compiled* schema
+>    is `g_error`, which aborts the whole shell process on the user's first
+>    permission request — not merely a missing beep.
+>
+> The test snippet in Step 1 is stale the same way: it names `island.ts` and
+> `extension.ts` by hand to check they contain no second `play_from_theme`
+> call, where the real `test/shell/sound.test.ts` walks all of `src/` instead,
+> so a third file added later is caught too. Anyone executing this task fresh
+> from the snippet below would rebuild the compositor-abort hazard item 4
+> removed; don't.
 
 **Files:**
 - Create: `src/shell/soundPlayer.ts`
@@ -372,11 +408,12 @@ git commit -m "feat(prefs): add one switch for notification sounds"
   - `class SoundPlayer`
   - `new SoundPlayer(settings: Gio.Settings)` — the extension's own settings object
   - `play(cue: SoundCue): void`
+  - `markDestroyed(): void`
   - `destroy(): void`
 
 `SoundPlayer` cannot be imported under vitest — it imports `gi://Gio` and reads the GJS global `global`. Its guarantees are pinned as source assertions, which is how `test/shell/` already covers `agentChip.ts` and `agentIcon.ts`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `test/shell/sound.test.ts`:
 
@@ -445,12 +482,12 @@ describe('SoundPlayer', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run test/shell/sound.test.ts`
 Expected: FAIL — `ENOENT: no such file or directory, open 'src/shell/soundPlayer.ts'`.
 
-- [ ] **Step 3: Write the implementation**
+- [x] **Step 3: Write the implementation**
 
 Create `src/shell/soundPlayer.ts`:
 
@@ -530,15 +567,19 @@ export class SoundPlayer {
 }
 ```
 
-- [ ] **Step 4: Run tests and typecheck**
+- [x] **Step 4: Run tests and typecheck**
 
 Run: `npx vitest run test/shell/sound.test.ts`
-Expected: PASS, 13 tests.
+Expected: PASS, 13 tests. (True at this task's own commit, `379913f`. The
+supersession note above the task explains why: review reshaped the player and
+added more source assertions, so `test/shell/sound.test.ts` as it exists in
+the repo today — the same file this step names — has 31, not 13. Running this
+exact command against the current tree will not reproduce 13.)
 
 Run: `npm test && npm run typecheck`
 Expected: both pass. If `typecheck` objects to `get_sound_player()`'s return type, do not cast to `any` — report it; `Meta-14.typelib` declares the method and `@girs/gnome-shell` 46.0.2 should carry it.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/shell/soundPlayer.ts test/shell/sound.test.ts
@@ -564,7 +605,7 @@ git commit -m "feat(shell): play a themed sound, unless something asked for sile
 
 `'permission'` and `'question'` are deliberately the cue names themselves, so the kind can be passed straight to `play` with no second map to keep in step.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `test/shell/sound.test.ts`:
 
@@ -617,12 +658,12 @@ describe('sounding a permission and a question', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run test/shell/sound.test.ts`
 Expected: FAIL, 6 failures in the new block.
 
-- [ ] **Step 3: Give the service option a kind**
+- [x] **Step 3: Give the service option a kind**
 
 In `src/dbus/service.ts`, replace the option declaration:
 
@@ -654,7 +695,7 @@ and the permission call site:
       if (this.store.get(key)?.pendingPermission?.id === id) this.opts.onPermissionOpened('permission')
 ```
 
-- [ ] **Step 4: Take the player into the island**
+- [x] **Step 4: Take the player into the island**
 
 In `src/shell/island.ts`, add the import beside the other shell imports:
 
@@ -697,7 +738,7 @@ Replace the head of `notifyPermissionOpened`:
 
 (the rest of the method is unchanged)
 
-- [ ] **Step 5: Wire it in the extension**
+- [x] **Step 5: Wire it in the extension**
 
 In `src/extension.ts`, add the import:
 
@@ -735,7 +776,7 @@ In `disable()`, after the `safely('island', ...)` step:
     })
 ```
 
-- [ ] **Step 6: Run tests and typecheck**
+- [x] **Step 6: Run tests and typecheck**
 
 Run: `npx vitest run test/shell/sound.test.ts`
 Expected: PASS, 19 tests.
@@ -743,7 +784,7 @@ Expected: PASS, 19 tests.
 Run: `npm test && npm run typecheck`
 Expected: both pass. A typecheck error naming `Island`'s constructor arity means a call site was missed — `src/extension.ts` is the only one.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/dbus/service.ts src/shell/island.ts src/extension.ts test/shell/sound.test.ts
@@ -764,7 +805,7 @@ git commit -m "feat(shell): sound a permission and a question, whatever the popu
 
 Two changes with different shapes. The notification cue **reorders** existing guards: `noticeVisible` moves above the two popup-policy reads, because it is the only one of the three that answers "is there anything here at all". The finish cue is a state diff in `refresh()`, because no event carries "finished" — `clearPending` also settles a session to `done`, and a service-level hook would miss that path.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append to `test/shell/sound.test.ts`:
 
@@ -782,7 +823,11 @@ describe('sounding a notification', () => {
     // notification payload is inferred rather than captured, so an
     // unrecognised message field has to stay silent rather than beep at an
     // empty popup.
-    expect(body.indexOf('noticeVisible')).toBeLessThan(body.indexOf("_sound.play('notification')"))
+    // Corrected in 3508ba4: the bare identifier 'noticeVisible' also matches
+    // this describe block's own prose comment above, which mentions it before
+    // the executable guard does — so the assertion passed even with the guard
+    // moved anywhere before play(). Anchored on the if-check itself instead.
+    expect(body.indexOf('if (!session || !noticeVisible(')).toBeLessThan(body.indexOf("_sound.play('notification')"))
   })
 
   it('plays before the popup policy is read, not after', () => {
@@ -795,7 +840,9 @@ describe('sounding a notification', () => {
   it('keeps noticeVisible ahead of the policy guards it was moved past', () => {
     // Pinned so a later edit cannot quietly put policy back in front: with
     // notification-popup off, an early return there would skip the sound too.
-    expect(body.indexOf('noticeVisible')).toBeLessThan(
+    // Corrected in 3508ba4, same reason as above: anchor on the if-check, not
+    // the bare identifier that the prose comment also contains.
+    expect(body.indexOf('if (!session || !noticeVisible(')).toBeLessThan(
       body.indexOf("get_boolean('notification-popup')")
     )
   })
@@ -833,12 +880,12 @@ describe('sounding a finish', () => {
 })
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `npx vitest run test/shell/sound.test.ts`
 Expected: FAIL, 6 failures in the two new blocks.
 
-- [ ] **Step 3: Reorder and sound the notification**
+- [x] **Step 3: Reorder and sound the notification**
 
 In `src/shell/island.ts`, in `notifyNotification`, the current head is:
 
@@ -877,7 +924,7 @@ Rewrite that span so the store read comes first, the cue follows, and the two po
 
 The rest of the method — `_cancelNoticeClose()`, the `seconds` read, `wasClosed`, the open and the close timer — is unchanged and stays below.
 
-- [ ] **Step 4: Diff for finishes in refresh**
+- [x] **Step 4: Diff for finishes in refresh**
 
 In `src/shell/island.ts`, extend the core-sound import (or add it beside the `pillState` import):
 
@@ -903,21 +950,24 @@ Then in `refresh()`, insert between `const sessions = this._store.list()` and `c
       // visible refresh would replay finishes already sounded. Silent when
       // nothing moved, which is what makes the 1s tick, the always-show handler
       // and the fullscreen handler all free.
-      for (const _key of newlyDone(this._lastStates, sessions)) this._sound.play('done')
+      if (newlyDone(this._lastStates, sessions).length > 0) this._sound.play('done')
       this._lastStates = snapshotStates(sessions)
 ```
 
-The loop body ignores its key: every finish plays the same cue, and the player's per-cue throttle collapses a batch of simultaneous finishes into one sound.
+Tested for emptiness rather than looped over: every finish plays the same cue, and the player's per-cue throttle would collapse a batch of simultaneous finishes into one sound anyway. A loop whose body ignores its key would only claim to do something the throttle undoes.
 
-- [ ] **Step 5: Run tests and typecheck**
+- [x] **Step 5: Run tests and typecheck**
 
 Run: `npx vitest run test/shell/sound.test.ts`
-Expected: PASS, 25 tests.
+Expected: PASS, 25 tests. (True at this task's own commit, `d4681e2`. As with
+Task 3's step 4, `test/shell/sound.test.ts` in the repo today has 31 — six
+more, added by the review commits described in Task 3's supersession note,
+none of which is its own Task in this plan.)
 
 Run: `npm test && npm run typecheck`
-Expected: both pass. If typecheck reports `_key` as unused, rename the loop to `for (const key of ...)` and reference nothing — or use `newlyDone(...).length > 0` guarding a single `play`, which is equivalent under the throttle.
+Expected: both pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/shell/island.ts test/shell/sound.test.ts
@@ -976,9 +1026,15 @@ Expected: **one** `complete`, not two — the two finishes land inside the same 
 - With a fullscreen window on the primary monitor, re-run. Expected: **sound plays**, popup does not open.
 - Check the journal for anything from this extension: `journalctl --user -b -g dasbo-island | tail -20`. Expected: no sound-related warning.
 
+**Added after review — these three were missing from the original checklist, and each checks a fix or a decision the review made:**
+
+- **`/clear` in a live Claude session** (not `tools/fake-agent.js sessionend` — the actual `/clear` slash command, so the real `SessionEnd` hook fires with its real `reason`). Expected: **no** `complete` cue. This is the check that proves `70ea012` actually works end to end; the unit tests only prove `newlyDone` skips a session carrying `endedByClear`, not that a real `/clear` sets it.
+- **The deferred-settle path** — the entire justification for catching `done` with a state diff in `refresh()` rather than hooking `session-end` directly: run `tools/fake-agent.js perm`, then `tools/fake-agent.js sessionend` for the *same* session id while that permission is still pending, then answer the permission. Expected: **no** `complete` when `sessionend` arrives, and `complete` only once the permission resolves and `clearPending` settles the session to `done`.
+- **A notification with "Open the popup on a notification" switched off**: turn `notification-popup` off in the preferences, then `tools/fake-agent.js notify`. Expected: the sound still plays, and the popup stays shut — sound is not gated by that switch.
+
 If any of these disagrees with the plan, stop and report it rather than adjusting the test to match — the fullscreen case in particular is a design decision, not an accident.
 
-- [ ] **Step 4: Write the README paragraphs**
+- [x] **Step 4: Write the README paragraphs**
 
 In `README.md`, after the paragraph describing what happens when an agent says it is waiting on you, add:
 
@@ -1000,7 +1056,7 @@ has not been verified; this extension checks the key itself before playing, so
 the setting is respected either way.
 ```
 
-- [ ] **Step 5: Verify the docs match the code**
+- [x] **Step 5: Verify the docs match the code**
 
 Run: `npm test && npm run typecheck`
 Expected: both pass.
@@ -1008,7 +1064,7 @@ Expected: both pass.
 Run: `grep -n "sound" README.md`
 Expected: the two new passages, and no claim that the extension ships audio files.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add README.md
@@ -1028,8 +1084,8 @@ git commit -m "docs: say what the island sounds like, and what stays unverified"
 | `newlyDone` / `snapshotStates` | 1 |
 | Schema key, default on | 2 |
 | Preferences switch, copy, placement | 2 |
-| Three mute checks in order | 3 |
-| 500 ms per-cue throttle | 3 |
+| Three mute checks in order | 3 as planned; moved to `shouldPlay` in `src/core/sound.ts` during review (`4205354`) — see Task 3's supersession note |
+| 500 ms per-cue throttle | 3 as planned; `THROTTLE_MS` moved to `src/core/sound.ts` alongside `shouldPlay` in the same review commit — see Task 3's supersession note |
 | `try`/`catch`, warn once, null cancellable | 3 |
 | `destroy()` clears throttle, no timers | 3 |
 | Permission and question cues, kind argument | 4 |

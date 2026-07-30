@@ -16,8 +16,12 @@ export interface ServiceOptions {
   questionTimeoutSeconds: () => number
   /** Read live from GSettings on every request, so changes need no restart. */
   enabledAgents: () => string[]
-  /** Called after a permission row appears, so the UI can pulse and auto-open. */
-  onPermissionOpened: () => void
+  /**
+   * Called after a permission row appears, so the UI can pulse, auto-open and
+   * sound. The kind is the two callers' only difference, and it doubles as the
+   * sound cue's name, so no second map has to stay in step with it.
+   */
+  onPermissionOpened: (kind: 'permission' | 'question') => void
   /**
    * Called when an agent raised a notification, so the UI can show it. The
    * store already holds the text by the time this fires; this only says that
@@ -206,7 +210,7 @@ export class IslandService {
         // Same test as the permission path below: a request that merely queued
         // behind an active one leaves the published hold unchanged, and only the
         // one that actually became active should pull the popup open.
-        if (this.store.get(key)?.pendingQuestion?.id === qid) this.opts.onPermissionOpened()
+        if (this.store.get(key)?.pendingQuestion?.id === qid) this.opts.onPermissionOpened('question')
         return
       }
 
@@ -234,7 +238,7 @@ export class IslandService {
       // only fires when the new request actually became — or immediately became —
       // the active one. Short-circuited requests (unknown session, always-allowed)
       // never set a pendingPermission with this id, so they stay silent too.
-      if (this.store.get(key)?.pendingPermission?.id === id) this.opts.onPermissionOpened()
+      if (this.store.get(key)?.pendingPermission?.id === id) this.opts.onPermissionOpened('permission')
     } catch (e) {
       console.warn(`dasbo-island: RequestPermissionAsync failed: ${e}`)
       reply('{}')

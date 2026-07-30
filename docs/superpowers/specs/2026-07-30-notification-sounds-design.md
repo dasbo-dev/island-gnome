@@ -19,6 +19,8 @@ finishing. One switch in the preferences turns all of it off.
 | How many settings? | One switch, `notification-sounds`, default on |
 | Coupled to the popup's rules? | No — sound fires even in fullscreen, and with the auto-open switches off |
 | Per-event volume or custom files? | Neither |
+| Does `/clear` count as a finished session? | No — decided during review. Claude's `SessionEnd` hook fires on `/clear` too, a keystroke pressed several times an hour; an `endedByClear` flag skips the cue for it. See the Done section. |
+| Honour Do Not Disturb (`org.gnome.desktop.notifications show-banners`)? | No — decided during review. The island is not a notification service, and a blocked agent is waiting on you regardless of DND. See Architecture. |
 
 Cue to theme name:
 
@@ -64,41 +66,78 @@ Verified on this machine rather than assumed: `Meta-14.typelib` exports
 
 ## Architecture
 
-Two new files, and the split is the one `src/core` purity already forces.
+Two new files, and the split is the one `src/core` purity already forces —
+sharpened during review, when the play *decision itself* moved fully into the
+pure side too, rather than living only as source the wiring tests could grep.
 
 `src/core/sound.ts` — pure, no `gi://`:
 
 ```ts
 export type SoundCue = 'permission' | 'question' | 'notification' | 'done'
 export const CUE_SOUNDS: Record<SoundCue, string>
+export const THROTTLE_MS: number
 /** Keys whose state moved into 'done' since the previous snapshot. */
 export function newlyDone(prev: Map<string, SessionState>, next: Session[]): string[]
 export function snapshotStates(sessions: Session[]): Map<string, SessionState>
+/** The one place that decides whether a cue actually sounds. */
+export function shouldPlay(input: {
+  enabled: boolean
+  eventSounds: boolean | null
+  last: number
+  now: number
+}): boolean
 ```
 
-`src/shell/soundPlayer.ts` — the only file in the tree that touches audio:
+`src/shell/soundPlayer.ts` — the only file in the tree that touches audio, and
+now a thin adapter that gathers `shouldPlay`'s three inputs, calls it, stamps
+the per-cue clock and plays — it does not re-decide anything itself:
 
 ```ts
 export class SoundPlayer {
   constructor(settings: Gio.Settings)   // the extension's own settings
   play(cue: SoundCue): void
+  markDestroyed(): void
   destroy(): void
 }
 ```
 
-`play` returns without a sound when any of three things is true, checked in
-this order:
+`play` gathers `enabled`, `eventSounds` and the cue's `last`/`now` and hands
+them to `shouldPlay`, which returns `false` when any of three things is true,
+checked in this order:
 
 1. `notification-sounds` is false.
-2. `org.gnome.desktop.sound event-sounds` is false. This check is **ours**, not
-   inherited: mutter's player calls libcanberra directly and I have not
-   verified that it consults the key. A beep from this extension on a desktop
-   the user silenced is the worst failure this feature can produce, so it is
-   checked here regardless, and harmlessly twice if mutter checks too.
-3. The same cue played less than 500 ms ago. Two sessions can reach one cue in
-   a single tick, and two overlapping `dialog-warning`s read as a glitch rather
-   than as two events. The throttle is per cue, so a permission and a
-   notification arriving together are both heard.
+2. `org.gnome.desktop.sound event-sounds` is **explicitly** false — `null`
+   (the schema not installed at all) is read as permissive, not as silence,
+   because a desktop with no way to say it wants quiet must not be read as
+   saying so; rule 1 alone keeps governing in that case. This check is
+   **ours**, not inherited: mutter's player calls libcanberra directly and it
+   is not known whether it consults the key. A beep from this extension on a
+   desktop the user silenced is the worst failure this feature can produce,
+   so it is checked here regardless, and harmlessly twice if mutter checks
+   too. **Contrast, deliberately:** Do Not Disturb
+   (`org.gnome.desktop.notifications show-banners`) is a different key
+   entirely and is *not* checked anywhere in this feature — decided during
+   review, not an oversight; see Decisions.
+3. The same cue played less than `THROTTLE_MS` (500 ms) ago. Two sessions can
+   reach one cue in a single tick, and two overlapping `dialog-warning`s read
+   as a glitch rather than as two events. The throttle is per cue, so a
+   permission and a notification arriving together are both heard.
+
+Two more guards exist only in `soundPlayer.ts`, ahead of `shouldPlay`, because
+they need GObject/GLib and have no meaning in a pure function:
+
+- **The clock.** `now`, and each cue's stamp in `_last`, come from
+  `GLib.get_monotonic_time() / 1000`, not `Date.now()`. The wall clock is not
+  monotonic; a backwards NTP step of N milliseconds would otherwise leave
+  every cue's stamp N milliseconds in the future and silence it for the whole
+  of N — the same lesson `island.ts` already applies elsewhere for backwards
+  clock handling.
+- **Two checks before `shouldPlay` is even called:** a `_destroyed` flag, set
+  by `markDestroyed()`, so a permission settled to `done` mid-teardown cannot
+  chime on the way out (see Error handling); and whether the *compiled*
+  schema actually carries the `notification-sounds` key at all, checked once
+  in the constructor with `settings_schema.has_key(...)` rather than on every
+  `play()`.
 
 Otherwise: `global.display.get_sound_player().play_from_theme(name, description,
 null)`, wrapped in `try`/`catch`. The `description` argument is the
@@ -106,13 +145,17 @@ human-readable event name libcanberra passes on to the sound server, where it
 can surface in a per-application volume list — so it is `Dasbo Island:
 permission request` and the like, not the theme name repeated.
 
-The name map lives in core so it is testable without GNOME. The player lives in
-shell because `global.display` cannot be imported in a test. Nothing else in
-the tree learns that sound exists beyond calling `play`.
+The decision and the name map live in core so they are unit-tested with real
+imports rather than only greppable out of the player's source. The player
+lives in shell because `global.display` cannot be imported in a test, and
+because the clock and the two guards above genuinely need GLib. Nothing else
+in the tree learns that sound exists beyond calling `play`.
 
 `extension.ts` constructs the player in `enable()`, passes it to `Island`, and
 calls `destroy()` from a `safely(...)` step in `disable()` alongside the other
-teardown.
+teardown — and, ahead of that, an earlier teardown step calls
+`markDestroyed()` so a fallthrough resolution reached mid-teardown cannot
+chime on the way out (see Error handling).
 
 ## Data flow
 
@@ -126,6 +169,15 @@ behind another calls nothing. Sound inherits that test for free: a parallel
 tool batch of five permissions makes one sound. The two call sites are already
 separate, so they gain an argument saying which they are:
 `onPermissionOpened('permission')` and `onPermissionOpened('question')`.
+
+The same silence reaches one case further than a simultaneous batch, though:
+`PermissionTable.activate()` can promote a queued request to active minutes
+later — after the one ahead of it resolves or times out — and it does that by
+calling the store directly, never through `onPermissionOpened`. A permission
+promoted that way makes no sound. This is consistent rather than a gap:
+promotion is silent visually too (no pulse, no auto-open), so sound simply
+follows the same rule the popup already does. Noted here so the next reader
+does not mistake it for an oversight.
 
 In `Island.notifyPermissionOpened(kind)` the cue plays above every existing
 line, including the notice-timer reset:
@@ -200,6 +252,26 @@ Edge cases this settles:
   entry — and silent, by the rule above.
 - **`done` → `running`** re-arms the cue. An agent that keeps working after a
   session-end event sounds again when it next finishes. Intended.
+- **A session ended by `/clear` never cues**, regardless of the diff above.
+  See the decision immediately below.
+
+**A decision made during review, which this spec did not ask for at the
+time:** `/clear` must not sound like a finished session. The only route to
+`done` is a session-end event, and for Claude that is the `SessionEnd` hook,
+whose `reason` values are `clear`, `logout`, `prompt_input_exit` and `other`
+— so before this fix, **every `/clear` played `complete`**, on a keystroke
+pressed several times an hour, while the moment a user would actually call
+"the agent finished" (`turn-end` → `idle`) cued nothing at all. The fix
+threads the reason through `claudeAdapter.normalize` and `SessionStore.apply`
+as an `endedByClear` flag on the event and the session, and `newlyDone` skips
+a session carrying it.
+
+The honest caveat, kept rather than smoothed over: Claude's `SessionEnd`
+payload is inferred rather than captured from a real hook (see
+`docs/agent-dialects.md`), so if a real hook spells its `reason` differently
+than assumed, `endedByClear` simply stays `undefined` and the cue plays —
+the failure direction is today's pre-fix behaviour, not a new and unexpected
+silence.
 
 ## Settings
 
@@ -228,7 +300,7 @@ No volume row, no per-event rows, no test-sound button.
 
 ## Error handling
 
-Three failure modes, all silent and all non-fatal:
+Three failure modes in the play call itself, all silent and all non-fatal:
 
 - `get_sound_player()` throws or returns null → caught, `console.warn` **once**
   per player instance, which is once per `enable()`, and never again. A
@@ -243,9 +315,35 @@ Three failure modes, all silent and all non-fatal:
 No cue is worth an exception escaping a GLib callback — that removes the
 source, and one of these sources is the refresh path.
 
+Two more hazards surfaced during review, both about *aborting the compositor*
+rather than merely failing to beep — a different order of severity, so they
+are guarded ahead of the play call rather than caught:
+
+- **A skipped schema recompile.** `Gio.Settings.get_boolean` on a key absent
+  from the *compiled* schema is `g_error`, which aborts the whole shell
+  process, not just this extension. `SoundPlayer`'s constructor checks
+  `settings.settings_schema.has_key('notification-sounds')` once and remembers
+  the answer; `play()` returns immediately if it was false. Silence is a
+  survivable degradation for a stale install; aborting the compositor on the
+  user's first permission request is not.
+- **A chime during teardown.** `disable()`'s teardown can resolve a held
+  permission straight through to `done` (via `PermissionTable.resolveAllFallthrough`
+  → `clearPending`), which reaches `Island.refresh()` → `play('done')` while
+  the island is still alive — its own teardown step has not run yet. A
+  `markDestroyed()` call, made before that resolution step (not reordering it —
+  only adding an earlier "go silent" flag), makes `play()` a no-op for the
+  rest of teardown. `destroy()` still runs later in its usual place to release
+  the rest of the player's state.
+
 `destroy()` clears the throttle map and drops the player reference. There are
 no timers to remove: the throttle is a timestamp comparison, not a
 `timeout_add`.
+
+One more failure mode addressed, not in the play call but in the clock behind
+the throttle: `Date.now()` is not monotonic, so a backwards NTP step of N
+milliseconds would leave every cue's stamp N milliseconds in the future and
+silence every cue for the whole of N. The throttle now reads
+`GLib.get_monotonic_time() / 1000` instead, which cannot step backwards.
 
 ## Testing
 
@@ -257,19 +355,36 @@ Behaviour in `test/core/`, wiring pinned by source assertions in
 - every `SoundCue` has an entry in `CUE_SOUNDS`, and the four names are
   distinct
 - `newlyDone`: `running` → `done` cues; `done` → `done` does not; absent →
-  `done` does not; `done` → `running` → `done` cues twice
+  `done` does not; `done` → `running` → `done` cues twice; a session carrying
+  `endedByClear` never cues, one carrying no such flag still does
 - `snapshotStates` drops keys absent from the new list
+- `shouldPlay`, with real imports rather than source assertions: each of the
+  four rules in isolation (extension switch off, desktop switch explicitly
+  off, `eventSounds: null` read as permissive, the throttle boundary at
+  exactly `THROTTLE_MS` — `<`, not `<=`), and several reasons to stay silent
+  at once still returning `false`
 
 `test/shell/sound.test.ts`
 
-- `soundPlayer.ts` reads both `notification-sounds` and `event-sounds` before
-  any `play_from_theme` call
+- `soundPlayer.ts` is the only file in the tree containing `play_from_theme`
+  (walked across `src/`, not named file by file)
+- it delegates to `shouldPlay` rather than re-implementing the mute checks or
+  `THROTTLE_MS` itself
+- it reads `GLib.get_monotonic_time()` for the throttle clock, never
+  `Date.now()`
 - `play_from_theme` sits inside a `try`
+- `_destroyed` is checked as the very first statement in `play()`
+- the constructor checks `settings_schema.has_key('notification-sounds')`
+  once, and `play()` returns immediately if that was false
+- `destroy()` sets `_destroyed` before it nulls `_desktop`, so a post-destroy
+  `play()` cannot be un-skipped by the null check that used to gate the
+  `event-sounds` read
 - `island.ts` calls `_sound.play(` before it reads `auto-open-on-permission`
 - `island.ts` calls `noticeVisible` before it reads `notification-popup` — the
   reorder above, pinned so a later edit cannot quietly put policy back in front
   of it
-- `extension.ts` constructs the player and destroys it in `disable()`
+- `extension.ts` constructs the player, calls `markDestroyed()` ahead of
+  `resolveAllFallthrough()`, and destroys it in `disable()`
 
 `purity.test.ts` covers `src/core/sound.ts` automatically.
 

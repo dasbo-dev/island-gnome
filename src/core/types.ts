@@ -83,6 +83,16 @@ export interface AgentEvent {
    * count and the clock.
    */
   startsNewConversation?: boolean
+  /**
+   * Set when a `session-end` announces `/clear`, not a real exit — Claude's
+   * `SessionEnd` hook fires on `/clear`, `logout`, `prompt_input_exit` and
+   * `other`, and only the first of those is a keystroke pressed several times
+   * an hour rather than the agent actually leaving. Only adapters whose
+   * dialect can tell set it, so absence means "same as a real exit, or no way
+   * to know". Never `false`, like `startsNewConversation`: a single
+   * truthiness test is all any consumer should need.
+   */
+  endedByClear?: boolean
 }
 
 export interface PendingPermission {
@@ -208,6 +218,18 @@ export interface Session {
    * counted by.
    */
   lineageKey?: string
+  /**
+   * Set by `SessionStore.apply` on every `session-end`, from
+   * `AgentEvent.endedByClear`, as `flag || undefined` — never left holding a
+   * stale `true` from an earlier `/clear` once a later, real session-end
+   * lands on the same record (a resumed session id can see more than one; see
+   * "does not settle a resumed session to done from a stale doneAt" in
+   * store.test.ts). Assigned unconditionally, including while a permission or
+   * question defers the state to 'waiting': `clearPending` settles the state
+   * later, but this is already on the record by the time it does. Read only
+   * by `newlyDone`, to keep `/clear` from sounding the 'done' cue.
+   */
+  endedByClear?: boolean
 }
 
 /**
