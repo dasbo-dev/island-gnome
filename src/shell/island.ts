@@ -773,8 +773,11 @@ export const Island = GObject.registerClass(
       // Above the early return below, deliberately: with the pill hidden and no
       // sessions, that return would leave the snapshot stale and the next
       // visible refresh would replay finishes already sounded. Silent when
-      // nothing moved, which is what makes the 1s tick, the always-show handler
-      // and the fullscreen handler all free.
+      // nothing moved, which is what makes the always-show handler and the
+      // fullscreen handler free, and the 1s tick too — though the tick never
+      // calls refresh() itself. Its GLib source runs _tickAll(), which reaches
+      // refresh() only indirectly, through setTasks() -> emit(), when a dirty
+      // task read actually changes something.
       if (newlyDone(this._lastStates, sessions).length > 0) this._sound.play('done')
       this._lastStates = snapshotStates(sessions)
 
