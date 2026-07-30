@@ -50,8 +50,9 @@ has sat idle, and for any permission the island did not answer itself — the
 message appears on that session's row and the popup opens to show it. Both
 revert a few seconds later, and a popup you opened yourself is never closed
 for you. The delay, and whether the popup opens at all, are in the
-preferences; set the delay to zero to keep the message until the agent does
-something else.
+preferences; set the delay to zero to keep the message on the row until the
+agent does something else, and to keep a popup it opened staying open until
+you close it yourself.
 
 Panel box and position changes apply immediately,
 with no reload; note that extensions replacing the top bar, such as Dash to
@@ -61,7 +62,7 @@ Panel, decide where each box ends up on screen.
 
 | Agent | Config touched | Status | Permission gating |
 |---|---|---|---|
-| Claude Code | `~/.claude/settings.json` | verified against 17 real hook-payload fixtures | yes |
+| Claude Code | `~/.claude/settings.json` | verified against 17 real hook-payload fixtures; SessionEnd and Notification are inferred — see docs/agent-dialects.md | yes |
 | Antigravity CLI (`agy`) | `~/.gemini/config/hooks.json` | verified against 12 real hook-payload fixtures | unverified — see notes |
 | Codex CLI | `~/.codex/hooks.json` | **unverified** — see below | see notes |
 

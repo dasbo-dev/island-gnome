@@ -86,8 +86,8 @@ Pre+Post pair.
 ### Exact key names
 
 Covers the five captured hooks only — `SessionStart`, `UserPromptSubmit`,
-`PreToolUse`, `PostToolUse`, `Stop`. `SessionEnd` is not represented here;
-see above.
+`PreToolUse`, `PostToolUse`, `Stop`. Neither `SessionEnd` nor `Notification`
+is represented here; see above for both.
 
 | Field | Key | Notes |
 |---|---|---|

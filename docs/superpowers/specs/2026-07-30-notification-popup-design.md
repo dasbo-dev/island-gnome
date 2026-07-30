@@ -193,12 +193,22 @@ buttons the user has to reach.
 ### `src/core/activity.ts`
 
 `activityText(session, now)` takes the clock. New branch, after the question and
-permission branches and before the tool/detail ones:
+permission branches and before the tool/detail ones, sharing its rule with a
+new exported function rather than inlining it:
 
 ```ts
-const notice = session.notice
-if (notice && (notice.until === 0 || now < notice.until)) {
-  return { text: truncateDetail(notice.text), hint: false }
+export function noticeVisible(session: Session, now: number): boolean {
+  const notice = session.notice
+  if (!notice) return false
+  if (notice.until !== 0 && now >= notice.until) return false
+  if (session.pendingPermission || session.pendingQuestion) return false
+  return true
+}
+```
+
+```ts
+if (noticeVisible(session, now)) {
+  return { text: truncateDetail(session.notice!.text), hint: false }
 }
 ```
 
@@ -209,10 +219,15 @@ reasoning the `pending.tool` line above it already records.
 standing in for absent content.
 
 Below the pending branches so a permission's buttons are never described by
-something other than the permission. Above tool/detail because in practice those
-are already cleared by the time a notification arrives — the ordering matters
-only for a payload that arrives out of order, and there the notice is the fresher
-fact.
+something other than the permission. This is not a defensive ordering against
+something that cannot happen: `store.apply`'s notification branch sets
+`s.notice` without touching `pendingPermission` or `pendingQuestion`, so the
+ordinary sequence "a permission is requested, then Claude raises
+`Notification` because the same prompt has also sat idle" leaves a session
+holding both at once. `noticeVisible` is where that is decided once, and it is
+exported specifically so `Island.notifyNotification` can ask the same
+question before opening the popup — see that section below, and Fix 2 of the
+review that made this change.
 
 ### `src/dbus/service.ts`
 
@@ -247,8 +262,15 @@ The open-and-close half:
 notifyNotification(key: string): void {
   if (!this._settings.get_boolean('notification-popup')) return
   if (Main.layoutManager.primaryMonitor?.inFullscreen) return
-  // No text, no notice, nothing to show — see the inferred-payload note above.
-  if (!this._store.get(key)?.notice) return
+  // No text, no notice, or a pending permission/question is holding the row
+  // instead of it — nothing to show either way. noticeVisible is the single
+  // place that decides which case this is, shared with activityText's own
+  // notice branch (see src/core/activity.ts above), so the row and the
+  // popup-open decision can never disagree about what the notice is doing.
+  // This also covers the inferred-payload case above: no message means no
+  // notice at all, which noticeVisible already treats as not visible.
+  const session = this._store.get(key)
+  if (!session || !noticeVisible(session, Date.now())) return
 
   this._cancelNoticeClose()
   const seconds = this._settings.get_int('notification-seconds')
@@ -384,6 +406,7 @@ count goes to 18, and if it is not, the claim needs the same
 | `notification-seconds` is 0 | The popup still opens, the notice stays until the next event from that session, and nothing ever closes the popup. `_noticeOpened` is deliberately not set, so a later notification's timer cannot inherit permission to close this popup |
 | The user closes the popup during the window | Flag cleared, timer cancelled. The notice itself stays on the row until it expires or is replaced |
 | A permission lands during the window | `notifyPermissionOpened` clears the flag, `setPending` clears the notice. The row shows the permission and its buttons, and the popup stays open |
+| A notification arrives while a permission (or question) is already pending | `store.apply`'s notification branch sets `s.notice` without touching `pendingPermission`/`pendingQuestion`, so the session ends up holding both. `noticeVisible` returns false while either pending field is set, so `notifyNotification` opens nothing and arms no close timer, and `activityText` keeps rendering the permission or question. The notice is still recorded — if the pending hold resolves before the notice's own deadline, it is what the row shows next |
 | Fullscreen window on the primary monitor | No open, matching `auto-open-on-permission`. The notice is still set, so it is on the row if the popup is opened by hand within the window |
 
 Every path degrades either to today's behaviour or to "the notice is on the row
