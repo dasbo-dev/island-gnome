@@ -214,7 +214,7 @@ export const Island = GObject.registerClass(
       row.showTransient('no window')
       const id = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
         const s = this._store.get(key)
-        if (s) row.update(s)
+        if (s) row.update(s, Date.now())
         this._transientIds.delete(id)
         return GLib.SOURCE_REMOVE
       })
@@ -460,6 +460,9 @@ export const Island = GObject.registerClass(
     private _rebuildRows(): void {
       const sessions = this._store.list()
       const live = new Set(sessions.map((s) => s.key))
+      // One clock for the whole rebuild, so every row in a single pass agrees
+      // about whether a notice has expired.
+      const now = Date.now()
 
       for (const [key, row] of [...this._rows]) {
         if (!live.has(key)) {
@@ -492,7 +495,7 @@ export const Island = GObject.registerClass(
       for (const s of sessions) {
         const existing = this._rows.get(s.key)
         if (existing) {
-          existing.update(s)
+          existing.update(s, now)
         } else {
           const row = new SessionRow(s, {
             onJump: (sess) => this._onJump(sess),
@@ -500,7 +503,7 @@ export const Island = GObject.registerClass(
               this._questions.get(s.key)?.panel.setExpanded(expanded)
               this._taskLists.get(s.key)?.list.setExpanded(expanded)
             },
-          })
+          }, now)
           this._rows.set(s.key, row)
           this._body.addMenuItem(row)
         }

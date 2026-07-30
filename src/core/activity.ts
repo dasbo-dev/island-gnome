@@ -32,8 +32,13 @@ export interface Activity {
  * `clearPending` clears both together, and `setPendingQuestion` is the pair
  * that keeps `waiting` honest for questions). This function is pure and does
  * not re-check that invariant itself.
+ *
+ * The notice branch sits between the pending pair and the tool pair. It cannot
+ * co-exist with either pending field in practice — `setPending` and
+ * `setPendingQuestion` both clear the notice — so the ordering only decides an
+ * out-of-order payload, where the thing with buttons must win.
  */
-export function activityText(session: Session): Activity {
+export function activityText(session: Session, now: number): Activity {
   const question = session.pendingQuestion
   if (question) {
     // The header, not the question text: Claude bounds it at 12 characters, so
@@ -50,6 +55,18 @@ export function activityText(session: Session): Activity {
     const what = pending.detail ? `${tool} · ${truncateDetail(pending.detail)}` : tool
     const more = pending.queued > 0 ? ` · +${pending.queued} more` : ''
     return { text: `waiting for you · ${what}${more}`, hint: false }
+  }
+
+  // Below the two pending branches, because each of those puts controls on the
+  // row and the label has to describe what those controls are for. Above
+  // tool/detail because a notification arrives when nothing is running, so in
+  // practice those are already clear — and where they are not, the notice is
+  // the fresher fact.
+  const notice = session.notice
+  if (notice && (notice.until === 0 || now < notice.until)) {
+    // Bounded for the same reason the tool name above is: `message` comes
+    // straight off the payload and nothing else caps it.
+    return { text: truncateDetail(notice.text), hint: false }
   }
 
   const tool = session.currentTool
