@@ -3,6 +3,10 @@
 Live AI coding-agent sessions in the GNOME top bar: status at a glance, inline
 permission approval, and jump-back to the terminal running the session.
 
+**[See the pill run live →](https://fsevenm.github.io/dasbo-island/)** — the
+demo on that page is the extension's real `src/core` state machine, bundled
+for the browser.
+
 Inspired by [open-vibe-island](https://github.com/Octane0411/open-vibe-island),
 rebuilt natively for GNOME Shell.
 
@@ -146,6 +150,10 @@ tools/fake-agent.js perm   # drive the UI without a real agent
 ```
 
 `src/core/` must never import `gi://` or `resource://`. A test enforces this.
+
+`node build.mjs` also writes the landing page to `dist-site/`; preview it with
+`python3 -m http.server -d dist-site 8080`. Pushes to master deploy it to
+GitHub Pages via `.github/workflows/site.yml`.
 
 ## License
 
