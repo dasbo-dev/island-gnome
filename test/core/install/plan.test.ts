@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import {
   planInstall,
   planUninstall,
-  isLegacyCodexHooks,
   configPath,
   installState,
   type InstallEnv,
@@ -56,8 +55,8 @@ describe('planInstall for claude', () => {
 
   it('leaves the plans for the other two agents alone', () => {
     const codex = JSON.parse(planInstall('codex', env())[0]!.content)
-    expect(codex.hooks['dasbo-island'].events).toEqual(
-      ['session.start', 'session.end', 'tool.start', 'tool.end']
+    expect(Object.keys(codex.hooks).sort()).toEqual(
+      ['PostToolUse', 'PreToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'UserPromptSubmit']
     )
     const antigravity = JSON.parse(planInstall('antigravity', env())[0]!.content)
     expect(Object.keys(antigravity['dasbo-island']).sort()).toEqual(
@@ -119,38 +118,88 @@ describe('planInstall for claude', () => {
 })
 
 describe('planInstall for codex', () => {
-  it('writes hooks.json preserving a foreign entry, nested under hooks', () => {
-    const before = JSON.stringify({
-      hooks: { 'vibe-island': { command: 'python3 /x/y.py', events: ['session.start'] } },
-    })
-    const edits = planInstall('codex', env({ '/home/me/.codex/hooks.json': before }))
+  // Codex 0.146 takes Claude's shape at ~/.codex/hooks.json: an event-keyed
+  // map under `hooks`, each event holding groups of command handlers. The
+  // named-hook form dasbo used to write (`{"dasbo-island": {command, events}}`)
+  // parses without a warning and never fires — see docs/agent-dialects.md.
+  it('writes the six events dasbo listens for, keyed by event name under hooks', () => {
+    const edits = planInstall('codex', env())
+    expect(edits[0]!.path).toBe('/home/me/.codex/hooks.json')
     const parsed = JSON.parse(edits[0]!.content)
-    expect(parsed.hooks['vibe-island']).toBeDefined()
-    expect(parsed.hooks['dasbo-island'].command).toContain('codex notify')
-    expect(parsed.hooks['dasbo-island'].events).toContain('session.start')
-  })
-
-  it('nests codex entries under a hooks key, as Codex 0.142 requires', () => {
-    const parsed = JSON.parse(planInstall('codex', env())[0]!.content)
-    expect(parsed.hooks['dasbo-island']).toBeDefined()
-    expect(parsed['dasbo-island'], 'must not sit at the top level').toBeUndefined()
-  })
-
-  it('rescues foreign entries from a legacy unwrapped codex hooks.json', () => {
-    const legacy = JSON.stringify({ 'vibe-island': { command: 'python3 /x/y.py', events: ['session.start'] } })
-    const parsed = JSON.parse(
-      planInstall('codex', env({ '/home/me/.codex/hooks.json': legacy }))[0]!.content
+    expect(Object.keys(parsed.hooks).sort()).toEqual(
+      ['PostToolUse', 'PreToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'UserPromptSubmit']
     )
-    expect(parsed.hooks['vibe-island'], 'legacy entry must be migrated under hooks, not dropped').toBeDefined()
-    expect(parsed.hooks['dasbo-island']).toBeDefined()
+    expect(parsed.hooks.SessionStart[0].hooks[0].type).toBe('command')
   })
 
-  it('is idempotent — installing twice yields one dasbo-island entry under hooks', () => {
+  it('installs every codex event in notify mode, never permission', () => {
+    // Codex rejects `permissionDecision: allow` and `: ask` from a PreToolUse
+    // hook outright, so the permission path Claude uses would error rather than
+    // gate anything. Approvals ride Codex's own PermissionRequest event, which
+    // dasbo does not wire yet.
+    const parsed = JSON.parse(planInstall('codex', env())[0]!.content)
+    const commands = Object.values<any>(parsed.hooks).flatMap((groups: any) =>
+      groups.flatMap((g: any) => g.hooks.map((h: any) => h.command))
+    )
+    expect(commands.every((c: string) => c.includes('codex notify'))).toBe(true)
+    expect(commands.some((c: string) => c.includes('permission'))).toBe(false)
+  })
+
+  it('carries the event name in every command, so each hook line is self-describing', () => {
+    const parsed = JSON.parse(planInstall('codex', env())[0]!.content)
+    expect(parsed.hooks.PreToolUse[0].hooks[0].command).toContain('codex notify PreToolUse')
+    expect(parsed.hooks.Stop[0].hooks[0].command).toContain('codex notify Stop')
+  })
+
+  it('gives the tool events a matcher and the rest none, as Claude does', () => {
+    const parsed = JSON.parse(planInstall('codex', env())[0]!.content)
+    expect(parsed.hooks.PreToolUse[0].matcher).toBe('*')
+    expect(parsed.hooks.PostToolUse[0].matcher).toBe('*')
+    expect(parsed.hooks.SessionStart[0].matcher).toBeUndefined()
+  })
+
+  it('preserves foreign hook entries alongside ours', () => {
+    const before = JSON.stringify({
+      hooks: { Stop: [{ hooks: [{ type: 'command', command: '/other/tool' }] }] },
+    })
+    const parsed = JSON.parse(
+      planInstall('codex', env({ '/home/me/.codex/hooks.json': before }))[0]!.content
+    )
+    const commands = parsed.hooks.Stop.flatMap((g: any) => g.hooks.map((h: any) => h.command))
+    expect(commands).toContain('/other/tool')
+    expect(commands.some((c: string) => c.includes('dasbo-hook'))).toBe(true)
+  })
+
+  it('clears the old named-hook entry, which Codex parses but never fires', () => {
+    const before = JSON.stringify({
+      hooks: {
+        'vibe-island': { command: 'python3 /x/y.py', events: ['session.start'] },
+        'dasbo-island': { command: '/h/dasbo-hook codex notify', events: ['session.start'] },
+      },
+    })
+    const parsed = JSON.parse(
+      planInstall('codex', env({ '/home/me/.codex/hooks.json': before }))[0]!.content
+    )
+    expect(parsed.hooks['dasbo-island'], 'our dead entry goes').toBeUndefined()
+    expect(parsed.hooks['vibe-island'], 'a foreign entry is not ours to remove').toBeDefined()
+    expect(parsed.hooks.SessionStart).toBeDefined()
+  })
+
+  it('is idempotent — installing twice yields one dasbo entry per event', () => {
     const first = planInstall('codex', env())[0]!.content
     const parsed = JSON.parse(
       planInstall('codex', env({ '/home/me/.codex/hooks.json': first }))[0]!.content
     )
-    expect(Object.keys(parsed.hooks).filter((k) => k === 'dasbo-island')).toHaveLength(1)
+    const commands = parsed.hooks.Stop.flatMap((g: any) => g.hooks.map((h: any) => h.command))
+    expect(commands.filter((c: string) => c.includes('dasbo-hook'))).toHaveLength(1)
+  })
+
+  it('preserves unrelated top-level keys in an existing hooks.json', () => {
+    const before = JSON.stringify({ version: 2, hooks: {} })
+    const parsed = JSON.parse(
+      planInstall('codex', env({ '/home/me/.codex/hooks.json': before }))[0]!.content
+    )
+    expect(parsed.version).toBe(2)
   })
 
   it('leaves malformed existing JSON untouched by returning no edits', () => {
@@ -258,7 +307,17 @@ describe('planUninstall', () => {
     ])
   })
 
-  it('removes only the dasbo-island key from codex hooks.json', () => {
+  it('removes only our codex entries and keeps foreign ones', () => {
+    const installed = JSON.parse(planInstall('codex', env())[0]!.content)
+    installed.hooks.Stop.push({ hooks: [{ type: 'command', command: '/other/tool' }] })
+    const parsed = JSON.parse(
+      planUninstall('codex', env({ '/home/me/.codex/hooks.json': JSON.stringify(installed) }))[0]!.content
+    )
+    const commands = parsed.hooks.Stop.flatMap((g: any) => g.hooks.map((h: any) => h.command))
+    expect(commands).toEqual(['/other/tool'])
+  })
+
+  it('removes the old named-hook entry too, so a removal leaves nothing of ours', () => {
     const before = JSON.stringify({
       hooks: {
         'vibe-island': { command: 'python3 /x/y.py', events: ['session.start'] },
@@ -272,26 +331,11 @@ describe('planUninstall', () => {
     expect(parsed.hooks['dasbo-island']).toBeUndefined()
   })
 
-  it('does not wrap a legacy codex file on uninstall, which would activate dormant hooks', () => {
-    // An unwrapped file is rejected by Codex and therefore inert. Wrapping it
-    // here would switch every foreign hook on as a side effect of a removal.
-    const legacy = JSON.stringify({
-      'vibe-island': { command: 'python3 /x/y.py', events: ['session.start'] },
-      'dasbo-island': { command: '/h/dasbo-hook codex notify', events: ['session.start'] },
-    })
-    const parsed = JSON.parse(
-      planUninstall('codex', env({ '/home/me/.codex/hooks.json': legacy }))[0]!.content
-    )
-    expect(parsed.hooks, 'must stay unwrapped').toBeUndefined()
-    expect(parsed['vibe-island'], 'foreign entry survives, still dormant').toBeDefined()
-    expect(parsed['dasbo-island']).toBeUndefined()
-  })
-
   it('returns no edits for claude when the existing settings.json is malformed', () => {
     expect(planUninstall('claude', env({ '/home/me/.claude/settings.json': '{not json' }))).toEqual([])
   })
 
-  it('returns no edits for codex when dasbo-island is not installed', () => {
+  it('returns no edits for codex when nothing of ours is installed', () => {
     const before = JSON.stringify({ hooks: { 'vibe-island': { command: 'x', events: ['session.start'] } } })
     expect(planUninstall('codex', env({ '/home/me/.codex/hooks.json': before }))).toEqual([])
   })
@@ -316,40 +360,6 @@ describe('planUninstall', () => {
   it('leaves malformed existing antigravity JSON untouched by returning no edits', () => {
     const edits = planUninstall('antigravity', env({ '/home/me/.gemini/config/hooks.json': '{not json' }))
     expect(edits).toEqual([])
-  })
-})
-
-describe('isLegacyCodexHooks', () => {
-  it('is false when the file is absent', () => {
-    expect(isLegacyCodexHooks(null)).toBe(false)
-  })
-
-  it('is false for an empty object — nothing to reactivate', () => {
-    expect(isLegacyCodexHooks(JSON.stringify({}))).toBe(false)
-  })
-
-  it('is false when already wrapped under hooks', () => {
-    const wrapped = JSON.stringify({ hooks: { 'vibe-island': { command: 'x', events: ['session.start'] } } })
-    expect(isLegacyCodexHooks(wrapped)).toBe(false)
-  })
-
-  it('is true for an unwrapped file with entries — the legacy shape Codex silently ignores', () => {
-    const legacy = JSON.stringify({ 'vibe-island': { command: 'x', events: ['session.start'] } })
-    expect(isLegacyCodexHooks(legacy)).toBe(true)
-  })
-
-  it('is true when hooks is present but null — a malformed hand edit, not a valid wrapper', () => {
-    const malformed = JSON.stringify({ hooks: null, 'vibe-island': { command: 'x', events: ['session.start'] } })
-    expect(isLegacyCodexHooks(malformed)).toBe(true)
-  })
-
-  it('is true when hooks is present but not an object (e.g. a string)', () => {
-    const malformed = JSON.stringify({ hooks: 'oops', 'vibe-island': { command: 'x', events: ['session.start'] } })
-    expect(isLegacyCodexHooks(malformed)).toBe(true)
-  })
-
-  it('is false for malformed JSON', () => {
-    expect(isLegacyCodexHooks('{not json')).toBe(false)
   })
 })
 
@@ -439,13 +449,14 @@ describe('installState', () => {
     })
   }
 
-  it('reports stale for codex when our key sits in an unwrapped file', () => {
-    // Codex 0.142 rejects the whole file, so the entry never fires. Calling it
-    // installed would grey out Install — the one action that wraps the file
-    // and brings the entry back to life.
-    const doc = JSON.parse(planInstall('codex', env())[0]!.content)
-    const files = { '/home/me/.codex/hooks.json': JSON.stringify(doc.hooks) }
-    expect(installState('codex', env(files))).toBe('stale')
+  it('reports stale for a codex install left in the old named-hook shape', () => {
+    // The shape every dasbo release before this one wrote. Codex parses it and
+    // never fires it, so calling it installed would grey out Update — the one
+    // action that replaces it with the event-keyed shape that does fire.
+    const before = JSON.stringify({
+      hooks: { 'dasbo-island': { command: '/h/dasbo-hook codex notify', events: ['session.start'] } },
+    })
+    expect(installState('codex', env({ '/home/me/.codex/hooks.json': before }))).toBe('stale')
   })
 
   it('reports absent for codex when only a foreign entry is present', () => {
@@ -484,16 +495,23 @@ describe('installState', () => {
     expect(installState('claude', env(files))).toBe('stale')
   })
 
-  it('reports stale for codex when the events list no longer matches', () => {
+  it('reports stale for codex when one of the six events lost its hook', () => {
     const doc = JSON.parse(planInstall('codex', env())[0]!.content)
-    doc.hooks['dasbo-island'].events = ['session.start']
+    delete doc.hooks.Stop
     const files = { '/home/me/.codex/hooks.json': JSON.stringify(doc) }
     expect(installState('codex', env(files))).toBe('stale')
   })
 
-  it('reports installed for codex regardless of the order of the events list', () => {
+  it('reports stale for codex when the old named entry survives beside the new ones', () => {
     const doc = JSON.parse(planInstall('codex', env())[0]!.content)
-    doc.hooks['dasbo-island'].events = [...doc.hooks['dasbo-island'].events].reverse()
+    doc.hooks['dasbo-island'] = { command: '/h/dasbo-hook codex notify', events: ['session.start'] }
+    const files = { '/home/me/.codex/hooks.json': JSON.stringify(doc) }
+    expect(installState('codex', env(files))).toBe('stale')
+  })
+
+  it('stays installed for codex when a foreign hook is appended after ours', () => {
+    const doc = JSON.parse(planInstall('codex', env())[0]!.content)
+    doc.hooks.Stop.push({ hooks: [{ type: 'command', command: '/other/tool' }] })
     const files = { '/home/me/.codex/hooks.json': JSON.stringify(doc) }
     expect(installState('codex', env(files))).toBe('installed')
   })

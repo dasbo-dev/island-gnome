@@ -6,7 +6,6 @@ import { ExtensionPreferences } from 'resource:///org/gnome/Shell/Extensions/js/
 import {
   planInstall,
   planUninstall,
-  isLegacyCodexHooks,
   installState,
   configPath,
   type InstallEnv,
@@ -210,7 +209,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
           return 'Hooks installed'
         // Deliberately vague about the cause: stale covers an out-of-date hook
         // path, a duplicated entry, a missing event, a command under the wrong
-        // event, and a codex file Codex ignores for being unwrapped.
+        // event, and a codex file still holding the old named-hook entry.
         case 'stale':
           return 'Hooks need updating — they don’t match what this version installs'
         case 'unreadable':
@@ -248,16 +247,16 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
           this._toast(window, `${adapters[id].displayName}: nothing to ${verb}`)
           return
         }
-        // Must be read before applyEdits rewrites the file — afterwards it's
-        // already wrapped and this would always report false.
-        const migrating =
-          id === 'codex' && verb === 'install' && isLegacyCodexHooks(env.existing(configPath('codex', env)))
         try {
           applyEdits(edits)
-          const migrationNote = migrating
-            ? ' — existing entries in hooks.json were previously inert (Codex rejects the unwrapped format) and are now re-activated'
-            : ''
-          this._toast(window, `${adapters[id].displayName}: ${verb} complete${migrationNote}`)
+          // Codex will not run a newly written hook until it has been trusted,
+          // and that review only happens in its own TUI — so an install that
+          // succeeded here is still one step short of firing.
+          const trustNote =
+            id === 'codex' && verb === 'install'
+              ? ' — start `codex` once and approve the hook review, or Codex will not run them'
+              : ''
+          this._toast(window, `${adapters[id].displayName}: ${verb} complete${trustNote}`)
         } catch (e) {
           this._toast(window, `${adapters[id].displayName}: ${verb} failed — ${e}`)
         }

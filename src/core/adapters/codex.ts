@@ -6,28 +6,20 @@ import { detailFromToolInput } from './claude.js'
 import { isRecord, str } from './shared.js'
 
 /**
- * UNVERIFIED. Codex captured no fixtures in Task 2 — the environment was not
- * authenticated. Key names are taken from the installed vibe-island hook
- * script, which reads `type`, `session_id`, `cwd` and `tool_name`. Both the
- * dotted `type` names and the CamelCase `hook_event_name` names are accepted,
- * since the installed build and the published docs disagree about which is used.
+ * Captured from Codex CLI 0.146.0 — fixtures in `test/fixtures/codex/`, key
+ * names recorded in `docs/agent-dialects.md`. Codex speaks Claude's dialect:
+ * the same PascalCase `hook_event_name` values over the same `session_id` /
+ * `cwd` / `tool_name` / `tool_input` / `transcript_path` fields.
  *
- * Latent dead end: `CODEX_EVENTS` in `../install/plan.ts` only installs the
- * dotted lowercase spelling (`session.start`, `session.end`, `tool.start`,
- * `tool.end`) — there is no turn-level event in that spelling. The only
- * mapping to `turn-end` here is the CamelCase `Stop`, which Codex's installer
- * never writes. So an installed Codex session has no route back to `idle`
- * between tool calls; it would sit at `running` from its first tool call
- * until `session.end`. Impact today is zero — `docs/agent-dialects.md`
- * records that Codex hooks parse but never fire — but whoever revives Codex
- * support needs to either add a dotted turn event to `CODEX_EVENTS` (if one
- * exists) or install the CamelCase spelling instead.
+ * The dotted lowercase spelling earlier releases installed (`session.start`,
+ * `tool.start`, ...) names no event Codex emits, and is gone from here as
+ * well as from `CODEX_EVENTS` in `../install/plan.ts`.
+ *
+ * Codex also fires `PermissionRequest`, `PreCompact`, `PostCompact`,
+ * `SubagentStart` and `SubagentStop`, none of which dasbo installs; it has no
+ * `Notification` event, so Claude's idle-notification path has no counterpart.
  */
 const KIND_BY_EVENT: Record<string, EventKind> = {
-  'session.start': 'session-start',
-  'session.end': 'session-end',
-  'tool.start': 'tool-start',
-  'tool.end': 'tool-end',
   SessionStart: 'session-start',
   SessionEnd: 'session-end',
   UserPromptSubmit: 'prompt-submit',
@@ -45,7 +37,7 @@ export const codexAdapter: AgentAdapter = {
   normalize(raw, ctx) {
     if (!isRecord(raw)) return null
 
-    const eventName = str(raw['type']) ?? str(raw['hook_event_name']) ?? ctx.event
+    const eventName = str(raw['hook_event_name']) ?? ctx.event
     if (!eventName) return null
     const kind = KIND_BY_EVENT[eventName]
     if (!kind) return null
@@ -71,11 +63,11 @@ export const codexAdapter: AgentAdapter = {
   },
 
   /**
-   * UNVERIFIED, like everything else in this file. Codex's `update_plan` is
-   * documented to carry `{ plan: [{ step, status }] }`, and no fixture has ever
-   * been captured — `docs/agent-dialects.md` records that Codex hooks parse but
-   * have never fired. A shape that turns out to differ returns null here, which
-   * leaves Codex rows exactly as they are today.
+   * UNVERIFIED, unlike the rest of this file. Codex's `update_plan` is
+   * documented to carry `{ plan: [{ step, status }] }`, and the 0.146.0
+   * capture session never drove the model into calling it, so no fixture
+   * pins the shape. A shape that turns out to differ returns null here, which
+   * leaves Codex rows without tasks rather than with wrong ones.
    *
    * The whole snapshot is rejected when one step is unusable, rather than that
    * step being skipped: the plan is a numbered sequence, and dropping an entry
@@ -103,6 +95,12 @@ export const codexAdapter: AgentAdapter = {
     return out
   },
 
+  /**
+   * Unreachable while the installer wires Codex in notify mode only (see
+   * `modeFor` in `../install/plan.ts`): Codex rejects `allow` and `ask` from a
+   * PreToolUse hook and routes approvals through its own `PermissionRequest`
+   * event instead. Kept, and kept honest, for whoever wires that event up.
+   */
   encodeDecision(d: Decision) {
     // 'answer' joins 'fallthrough' here: Codex has no question concept, so it
     // can never receive one — and if it somehow did, emitting `d.kind` below

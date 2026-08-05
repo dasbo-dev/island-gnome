@@ -1,0 +1,9 @@
+{
+  "session_id": "019fb3a3-3551-7b32-9b98-a002532e6dee",
+  "transcript_path": "/home/fsevenm/.codex/sessions/2026/07/30/rollout-2026-07-30T23-27-25-019fb3a3-3551-7b32-9b98-a002532e6dee.jsonl",
+  "cwd": "/tmp/dasbo-codex-probe",
+  "hook_event_name": "SessionStart",
+  "model": "gpt-5.6-sol",
+  "permission_mode": "bypassPermissions",
+  "source": "startup"
+}

@@ -17,31 +17,50 @@ export function configPath(agent: AgentId, env: InstallEnv): string {
 
 /** Marker used to recognise our own entries on uninstall and to stay idempotent. */
 const MARKER = 'dasbo-hook'
-const CODEX_KEY = 'dasbo-island'
+/**
+ * The hook name every dasbo release before this one wrote into
+ * ~/.codex/hooks.json, in the named-hook form `{command, events}`. Codex
+ * parses that form and never fires it (see docs/agent-dialects.md), so the key
+ * is dead weight: install and uninstall both clear it.
+ */
+const CODEX_LEGACY_KEY = 'dasbo-island'
 const ANTIGRAVITY_KEY = 'dasbo-island'
 
 const CLAUDE_EVENTS = [
   'SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop', 'SessionEnd',
   'Notification',
 ] as const
-const CODEX_EVENTS = ['session.start', 'session.end', 'tool.start', 'tool.end'] as const
+/**
+ * Codex's own vocabulary, all six verified firing on 0.146.0 (fixtures in
+ * `test/fixtures/codex/`). Codex has no `Notification` event; it does have
+ * `PermissionRequest`, `PreCompact`, `PostCompact`, `SubagentStart` and
+ * `SubagentStop`, none of which dasbo listens for yet.
+ */
+const CODEX_EVENTS = [
+  'SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop', 'SessionEnd',
+] as const
 const ANTIGRAVITY_GROUPED = ['PreToolUse', 'PostToolUse'] as const
 const ANTIGRAVITY_FLAT = ['PreInvocation', 'PostInvocation', 'Stop'] as const
 
 /**
  * Every event gets its own command carrying the event name, so a hook line
  * is self-describing even for agents whose payload already names the event
- * (Claude) and load-bearing for the one that has no event field at all
- * (Antigravity) and the one that takes a single command for many events
- * (Codex, which cannot use this per-event form — see codexEdits).
+ * (Claude, Codex) and load-bearing for the one that has no event field at all
+ * (Antigravity).
  */
 function cmd(env: InstallEnv, agent: AgentId, mode: 'notify' | 'permission', event: string): string {
   return `${env.hookPath} ${agent} ${mode} ${event}`
 }
 
-/** Codex's single command, shared across all its events — see codexEdits. */
-function codexCommand(env: InstallEnv): string {
-  return `${env.hookPath} codex notify`
+/**
+ * Only Claude gates tool calls through us. Codex refuses a PreToolUse hook
+ * that answers `permissionDecision: allow` or `: ask` — its approval flow
+ * rides a separate `PermissionRequest` event — so asking it for a decision
+ * would turn every tool call into a hook error instead of a prompt. Codex
+ * events are therefore all notify.
+ */
+function modeFor(agent: AgentId, event: string): 'notify' | 'permission' {
+  return agent === 'claude' && event === 'PreToolUse' ? 'permission' : 'notify'
 }
 
 function isRecord(v: unknown): v is Record<string, any> {
@@ -56,29 +75,6 @@ function parseOrNull(text: string | null): Record<string, any> | null | undefine
   } catch {
     return undefined // malformed: refuse to touch it
   }
-}
-
-/**
- * True when ~/.codex/hooks.json exists, parses, and holds at least one entry
- * in the legacy unwrapped shape — no top-level `hooks` key, or a `hooks` key
- * whose value is not an object (`null`, a string, an array — a plausible
- * result of a partial or malformed hand edit). That shape is the one Codex
- * 0.142 rejects outright, silently disabling every entry in the file until
- * install() wraps it. Shares the same `isRecord` test codexEdits uses to
- * decide `wrapped`, so the two can never disagree about what "legacy" means.
- * An absent file or an empty `{}` has nothing to reactivate, so both are
- * excluded.
- */
-export function isLegacyCodexHooks(content: string | null): boolean {
-  if (content === null) return false
-  let doc: unknown
-  try {
-    doc = JSON.parse(content)
-  } catch {
-    return false
-  }
-  if (!isRecord(doc)) return false
-  return !isRecord(doc['hooks']) && Object.keys(doc).length > 0
 }
 
 function isOurs(command: unknown): command is string {
@@ -120,19 +116,33 @@ function withoutOurs(groups: unknown): any[] {
     .filter((g): g is any => g !== null)
 }
 
-function claudeEdits(env: InstallEnv, install: boolean): FileEdit[] {
-  const path = configPath('claude', env)
+/**
+ * Claude's hook shape, which Codex 0.146 also takes at ~/.codex/hooks.json: an
+ * event-keyed map under `hooks`, each event holding groups of command
+ * handlers. Only the path, the event list and the per-event mode differ
+ * between the two agents.
+ */
+function eventMapEdits(agent: 'claude' | 'codex', events: readonly string[], env: InstallEnv, install: boolean): FileEdit[] {
+  const path = configPath(agent, env)
   const doc = parseOrNull(env.existing(path))
   if (doc === undefined) return []
   const root: Record<string, any> = doc === null ? {} : { ...doc }
   const hooks: Record<string, any> = { ...(root['hooks'] ?? {}) }
 
   let changed = false
-  for (const event of CLAUDE_EVENTS) {
+
+  // Whichever way this call goes, an entry in the shape Codex never fires is
+  // ours to clear: leaving it behind would keep a dead hook in the file that
+  // installState then has to keep reporting as stale.
+  if (agent === 'codex' && isOurs((hooks[CODEX_LEGACY_KEY] as any)?.command)) {
+    delete hooks[CODEX_LEGACY_KEY]
+    changed = true
+  }
+
+  for (const event of events) {
     if (install) {
-      const mode = event === 'PreToolUse' ? 'permission' : 'notify'
       const group: Record<string, any> = {
-        hooks: [{ type: 'command', command: cmd(env, 'claude', mode, event) }],
+        hooks: [{ type: 'command', command: cmd(env, agent, modeFor(agent, event), event) }],
       }
       if (event === 'PreToolUse' || event === 'PostToolUse') group['matcher'] = '*'
       hooks[event] = [...withoutOurs(hooks[event]), group]
@@ -153,60 +163,6 @@ function claudeEdits(env: InstallEnv, install: boolean): FileEdit[] {
 
   if (!changed) return []
   root['hooks'] = hooks
-  return [{ path, content: JSON.stringify(root, null, 2) + '\n', backup: true }]
-}
-
-/**
- * Codex 0.142 rejects a bare top-level named-hook map outright
- * (`unknown field 'vibe-island', expected 'hooks'`), which silently disables
- * every hook in the file — including foreign entries already present. The
- * map must therefore live under a `hooks` key.
- *
- * A pre-existing unwrapped file (no top-level `hooks` key: every top-level
- * key IS a hook name, per the legacy shape Codex currently rejects and thus
- * ignores) has its entries migrated into the wrapper rather than dropped —
- * that's the whole point of "rescue", since the file is otherwise inert.
- */
-function codexEdits(env: InstallEnv, install: boolean): FileEdit[] {
-  const path = configPath('codex', env)
-  const doc = parseOrNull(env.existing(path))
-  if (doc === undefined) return []
-  const source: Record<string, any> = doc === null ? {} : doc
-
-  const wrapped = isRecord(source['hooks'])
-  const hooks: Record<string, any> = wrapped ? { ...source['hooks'] } : { ...source }
-
-  if (install) {
-    hooks[CODEX_KEY] = {
-      command: codexCommand(env),
-      events: [...CODEX_EVENTS],
-    }
-  } else {
-    if (!(CODEX_KEY in hooks)) return []
-    delete hooks[CODEX_KEY]
-
-    // Removing must never activate anything. If the file was in the legacy
-    // unwrapped shape, Codex is currently ignoring it entirely — wrapping it
-    // here would silently switch every dormant foreign hook on, as a side
-    // effect of an uninstall. Write the legacy shape back untouched apart
-    // from our own key.
-    if (!wrapped) {
-      const legacy = { ...source }
-      delete legacy[CODEX_KEY]
-      return [{ path, content: JSON.stringify(legacy, null, 2) + '\n', backup: true }]
-    }
-  }
-
-  // Only reached when writing the wrapped shape (a fresh install, or an
-  // uninstall that was already wrapped — the legacy-unwrapped uninstall path
-  // above returns early). `rest` is whatever else sat beside `hooks` at the
-  // top level; in the legacy unwrapped case every top-level key moved into
-  // `hooks` above, so nothing legitimately survives in `rest`.
-  const rest: Record<string, any> = { ...source }
-  delete rest['hooks']
-  const outerRest = wrapped ? rest : {}
-
-  const root = { ...outerRest, hooks }
   return [{ path, content: JSON.stringify(root, null, 2) + '\n', backup: true }]
 }
 
@@ -247,14 +203,14 @@ function antigravityEdits(env: InstallEnv, install: boolean): FileEdit[] {
 }
 
 export function planInstall(agent: AgentId, env: InstallEnv): FileEdit[] {
-  if (agent === 'claude') return claudeEdits(env, true)
-  if (agent === 'codex') return codexEdits(env, true)
+  if (agent === 'claude') return eventMapEdits('claude', CLAUDE_EVENTS, env, true)
+  if (agent === 'codex') return eventMapEdits('codex', CODEX_EVENTS, env, true)
   return antigravityEdits(env, true)
 }
 
 export function planUninstall(agent: AgentId, env: InstallEnv): FileEdit[] {
-  if (agent === 'claude') return claudeEdits(env, false)
-  if (agent === 'codex') return codexEdits(env, false)
+  if (agent === 'claude') return eventMapEdits('claude', CLAUDE_EVENTS, env, false)
+  if (agent === 'codex') return eventMapEdits('codex', CODEX_EVENTS, env, false)
   return antigravityEdits(env, false)
 }
 
@@ -279,10 +235,8 @@ function sameStrings(a: string[], b: string[]): boolean {
  * compare them. A space is a safe separator: none of our event names
  * (`PreToolUse`, `PostInvocation`, ...) contain one.
  */
-function expectedClaudeEntries(env: InstallEnv): string[] {
-  return CLAUDE_EVENTS.map(
-    (event) => `${event} ${cmd(env, 'claude', event === 'PreToolUse' ? 'permission' : 'notify', event)}`
-  )
+function expectedEventMapEntries(agent: 'claude' | 'codex', events: readonly string[], env: InstallEnv): string[] {
+  return events.map((event) => `${event} ${cmd(env, agent, modeFor(agent, event), event)}`)
 }
 
 function expectedAntigravityEntries(env: InstallEnv): string[] {
@@ -295,10 +249,10 @@ function expectedAntigravityEntries(env: InstallEnv): string[] {
 }
 
 /** (event, command) pairs the file currently attributes to us, across the events we own. */
-function presentClaudeEntries(root: Record<string, any>): string[] {
+function presentEventMapEntries(events: readonly string[], root: Record<string, any>): string[] {
   const hooks = isRecord(root['hooks']) ? root['hooks'] : {}
   const out: string[] = []
-  for (const event of CLAUDE_EVENTS) {
+  for (const event of events) {
     for (const command of ourCommandsIn(hooks[event])) out.push(`${event} ${command}`)
   }
   return out
@@ -326,25 +280,15 @@ function presentAntigravityEntries(root: Record<string, any>): string[] {
 }
 
 /**
- * Our codex entry, and whether Codex would actually run it.
- *
- * An unwrapped file is never fresh, however well-formed our key looks inside
- * it: Codex 0.142 rejects such a file wholesale (`unknown field …, expected
- * 'hooks'`), so nothing fires. Reporting `installed` there would strand the
- * user — the row would say so with Install greyed out, and Install, which
- * wraps the file, is the one action that repairs it. Returning false makes
- * the state `stale`, the button `Update`, and the fix reachable.
+ * True when the file still holds our entry in the named-hook shape Codex
+ * parses and never fires. A file carrying one is never fresh, however correct
+ * the event-keyed entries beside it look: leaving a dead hook of ours in the
+ * file is exactly what Update exists to clean up.
  */
-function codexMatches(env: InstallEnv, root: Record<string, any>): boolean {
-  if (!isRecord(root['hooks'])) return false
-  const hooks = root['hooks']
-  const entry = hooks[CODEX_KEY]
-  if (!isRecord(entry)) return false
-  if (entry['command'] !== codexCommand(env)) return false
-  const events = Array.isArray(entry['events'])
-    ? entry['events'].filter((e: unknown): e is string => typeof e === 'string')
-    : []
-  return sameStrings(events, [...CODEX_EVENTS])
+function hasLegacyCodexEntry(root: Record<string, any>): boolean {
+  const hooks = isRecord(root['hooks']) ? root['hooks'] : {}
+  const entry = hooks[CODEX_LEGACY_KEY]
+  return isRecord(entry) && isOurs(entry['command'])
 }
 
 /**
@@ -358,18 +302,16 @@ function codexMatches(env: InstallEnv, root: Record<string, any>): boolean {
  * buttons: planInstall refuses to touch it either.
  *
  * Freshness compares what the file attributes to us against what planInstall
- * would write, as sorted lists, but *what* gets compared differs by agent.
- * For Claude and Antigravity it is (event, command) pairs, not bare command
- * strings: every command we write encodes its own event name (see cmd()), so
- * a command sitting under the wrong event — say ours for PreToolUse hand-moved
- * under PostToolUse — is a broken install even though the multiset of command
- * strings alone looks unchanged. Comparing pairs catches that; rewriting via
- * planInstall repairs it. For Codex there is only one command shared across
- * many events (see codexCommand), so the array of event names is what varies
- * and carries no per-command association — that stays a plain sorted-array
- * comparison. Comparing serialized text instead of either of these would
- * report a false `stale` for indentation, key order, or a foreign hook
- * appended after ours.
+ * would write, as sorted lists of (event, command) pairs rather than bare
+ * command strings: every command we write encodes its own event name (see
+ * cmd()), so a command sitting under the wrong event — say ours for PreToolUse
+ * hand-moved under PostToolUse — is a broken install even though the multiset
+ * of command strings alone looks unchanged. Comparing pairs catches that;
+ * rewriting via planInstall repairs it. Codex adds one extra condition: a
+ * leftover named-hook entry of ours (the shape releases before this one wrote)
+ * makes the install stale even when the event map is otherwise exact.
+ * Comparing serialized text instead would report a false `stale` for
+ * indentation, key order, or a foreign hook appended after ours.
  */
 export function installState(agent: AgentId, env: InstallEnv): InstallState {
   const doc = parseOrNull(env.existing(configPath(agent, env)))
@@ -378,9 +320,10 @@ export function installState(agent: AgentId, env: InstallEnv): InstallState {
   const root = doc ?? {}
   const fresh =
     agent === 'claude'
-      ? sameStrings(presentClaudeEntries(root), expectedClaudeEntries(env))
+      ? sameStrings(presentEventMapEntries(CLAUDE_EVENTS, root), expectedEventMapEntries('claude', CLAUDE_EVENTS, env))
       : agent === 'codex'
-        ? codexMatches(env, root)
+        ? !hasLegacyCodexEntry(root) &&
+          sameStrings(presentEventMapEntries(CODEX_EVENTS, root), expectedEventMapEntries('codex', CODEX_EVENTS, env))
         : sameStrings(presentAntigravityEntries(root), expectedAntigravityEntries(env))
   return fresh ? 'installed' : 'stale'
 }

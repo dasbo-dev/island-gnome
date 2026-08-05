@@ -92,27 +92,34 @@ Panel, decide where each box ends up on screen.
 |---|---|---|---|
 | Claude Code | `~/.claude/settings.json` | verified against 17 real hook-payload fixtures; SessionEnd and Notification are inferred — see docs/agent-dialects.md | yes |
 | Antigravity CLI (`agy`) | `~/.gemini/config/hooks.json` | verified against 12 real hook-payload fixtures | unverified — see notes |
-| Codex CLI | `~/.codex/hooks.json` | **unverified** — see below | see notes |
+| Codex CLI | `~/.codex/hooks.json` | verified against 6 real hook-payload fixtures (0.146.0); needs a one-time trust approval — see below | no — see notes |
 
 Hook installation preserves entries belonging to other tools and writes a
 `.dasbo.bak` backup before its first change.
 
 ### A note on Codex CLI
 
-Codex support has never been exercised against a real Codex session. Zero hook
-payloads have ever been captured from it: on the installed build (0.145.0),
-Codex's hooks parse but never fire — confirmed with trace logging that showed
-zero hook lines emitted, no `HookCompletedEvent` in any session rollout, and a
-malformed-JSON control test proving the hook parser itself is live and would
-have reported a failure if one had occurred. The Codex adapter is written
-against key names read out of a third-party hook script, not from anything
-Codex itself has actually sent. Treat the Codex integration as best-effort and
-unverified until someone confirms it against a real payload.
+**Installing the hooks is not enough on its own.** Codex will not run a hook it
+has not been told to trust: it stores that decision per hook config, and the
+review that grants it only happens in Codex's own interactive TUI. After
+Install (or Update), start `codex` once and approve the hook review. Until you
+do, the hooks sit in the file and never fire, and no Codex session reaches the
+island.
 
-Separately, Codex has **no permission gate at all**: the installed hook is
-notify-only, so `codexAdapter.encodeDecision` is never reached from a real
-Codex session. Its permission-encoding logic is exercised only by unit tests,
-not by anything Codex itself calls.
+Codex 0.146.0 speaks Claude's hook dialect — an event-keyed map under `hooks`,
+PascalCase event names, `hook_event_name`/`session_id`/`cwd`/`tool_name`
+payloads. Every dasbo release before this one wrote the older named-hook form
+(`{"dasbo-island": {"command": …, "events": ["session.start", …]}}`), which
+Codex parses without complaint and never fires; Update replaces it. Six events
+are installed — `SessionStart`, `UserPromptSubmit`, `PreToolUse`,
+`PostToolUse`, `Stop`, `SessionEnd` — all captured firing, fixtures in
+`test/fixtures/codex/`.
+
+Codex has **no permission gate through dasbo**: its `PreToolUse` hook rejects
+an `allow` or `ask` decision outright, and approvals ride a separate
+`PermissionRequest` event that dasbo does not wire, so every Codex hook is
+installed notify-only. `codexAdapter.encodeDecision` is exercised by unit tests
+and never reached from a real Codex session.
 
 ### A note on Antigravity CLI
 

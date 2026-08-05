@@ -1,55 +1,58 @@
 import { describe, it, expect } from 'vitest'
-import { existsSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { codexAdapter } from '../../../src/core/adapters/codex.js'
 import type { HookContext } from '../../../src/core/types.js'
 
 const ctx: HookContext = { pid: 1, ts: 2, cwd: '/hook/cwd' }
 
-// NOTE: Codex captured zero fixtures in Task 2 (not authenticated, HTTP 401).
-// The key names below come from ~/.codex/vibe-island-hook.py, which reads
-// `type`, `session_id`, `cwd`, `tool_name`. That is third-party evidence, not
-// verbatim capture. These tests pin the adapter's behaviour against that
-// assumption so a later real capture produces a clear, loud failure if the
-// assumption was wrong.
+// Codex CLI 0.146.0, captured verbatim — see docs/agent-dialects.md. Codex
+// speaks Claude's dialect: PascalCase `hook_event_name`, `session_id`, `cwd`,
+// `tool_name`, `tool_input`, `transcript_path`. The dotted `session.start`
+// spelling earlier releases installed names no event Codex has ever emitted.
 
-describe('codexAdapter.normalize (UNVERIFIED — no captured fixtures)', () => {
-  it('maps dotted event names from the type field', () => {
+describe('codexAdapter.normalize', () => {
+  it('maps every event Codex fires to a kind', () => {
     const cases: Array<[string, string]> = [
-      ['session.start', 'session-start'],
-      ['session.end', 'session-end'],
-      ['tool.start', 'tool-start'],
-      ['tool.end', 'tool-end'],
+      ['SessionStart', 'session-start'],
+      ['UserPromptSubmit', 'prompt-submit'],
+      ['PreToolUse', 'tool-start'],
+      ['PostToolUse', 'tool-end'],
+      ['Stop', 'turn-end'],
+      ['SessionEnd', 'session-end'],
     ]
-    for (const [type, kind] of cases) {
-      const e = codexAdapter.normalize({ type, session_id: 's1', cwd: '/p/app' }, ctx)
-      expect(e?.kind, type).toBe(kind)
+    for (const [name, kind] of cases) {
+      const e = codexAdapter.normalize({ hook_event_name: name, session_id: 's1', cwd: '/p/app' }, ctx)
+      expect(e?.kind, name).toBe(kind)
     }
   })
 
-  it('also accepts CamelCase hook_event_name payloads', () => {
+  it('reads the tool name and its input off a captured tool call', () => {
     const e = codexAdapter.normalize(
-      { hook_event_name: 'PreToolUse', session_id: 's1', cwd: '/p/app', tool_name: 'shell' }, ctx
+      { hook_event_name: 'PreToolUse', session_id: 's1', cwd: '/p/app', tool_name: 'Bash', tool_input: { command: 'echo hi' } },
+      ctx
     )
-    expect(e?.kind).toBe('tool-start')
-    expect(e?.tool).toBe('shell')
-  })
-
-  it('maps the CamelCase terminal events apart, as Claude does', () => {
-    const kinds = ['Stop', 'SessionEnd'].map(
-      (n) => codexAdapter.normalize({ hook_event_name: n, session_id: 's1', cwd: '/p' }, ctx)?.kind
-    )
-    expect(kinds).toEqual(['turn-end', 'session-end'])
+    expect(e?.tool).toBe('Bash')
+    expect(e?.detail).toBe('echo hi')
   })
 
   it('falls back to the argv event and the hook cwd', () => {
-    const e = codexAdapter.normalize({ session_id: 's1' }, { ...ctx, event: 'tool.start' })
+    const e = codexAdapter.normalize({ session_id: 's1' }, { ...ctx, event: 'PreToolUse' })
     expect(e?.kind).toBe('tool-start')
     expect(e?.cwd).toBe('/hook/cwd')
   })
 
-  it('returns null on unknown type or missing session id', () => {
-    expect(codexAdapter.normalize({ type: 'nope', session_id: 's', cwd: '/p' }, ctx)).toBeNull()
-    expect(codexAdapter.normalize({ type: 'tool.start', cwd: '/p' }, ctx)).toBeNull()
+  it('returns null on unknown event or missing session id', () => {
+    expect(codexAdapter.normalize({ hook_event_name: 'nope', session_id: 's', cwd: '/p' }, ctx)).toBeNull()
+    expect(codexAdapter.normalize({ hook_event_name: 'PreToolUse', cwd: '/p' }, ctx)).toBeNull()
+  })
+
+  it('drops the events Codex has but dasbo does not install', () => {
+    // PermissionRequest, PreCompact, PostCompact, SubagentStart and
+    // SubagentStop exist in Codex 0.146 and are not wired: they must fall
+    // through as unrecognised rather than land on the wrong kind.
+    for (const name of ['PermissionRequest', 'PreCompact', 'PostCompact', 'SubagentStart', 'SubagentStop']) {
+      expect(codexAdapter.normalize({ hook_event_name: name, session_id: 's1', cwd: '/p' }, ctx), name).toBeNull()
+    }
   })
 
   it('returns null for a non-object payload', () => {
@@ -63,8 +66,38 @@ describe('codexAdapter.normalize (UNVERIFIED — no captured fixtures)', () => {
 
   it('returns null when neither the payload nor the hook supplies a cwd', () => {
     expect(
-      codexAdapter.normalize({ type: 'tool.start', session_id: 's1' }, { ...ctx, cwd: '' })
+      codexAdapter.normalize({ hook_event_name: 'PreToolUse', session_id: 's1' }, { ...ctx, cwd: '' })
     ).toBeNull()
+  })
+})
+
+describe('codexAdapter against captured fixtures', () => {
+  const dir = 'test/fixtures/codex'
+  const files = readdirSync(dir).filter((f) => f.endsWith('.json'))
+  const read = (f: string) => JSON.parse(readFileSync(`${dir}/${f}`, 'utf8'))
+
+  it('normalizes every captured payload into a usable event', () => {
+    for (const f of files) {
+      const e = codexAdapter.normalize(read(f), ctx)
+      expect(e, `${f} must normalize, not drop`).not.toBeNull()
+      expect(e!.sessionId, `${f} must yield a session id`).toBeTruthy()
+      expect(e!.cwd, `${f} must yield a cwd`).toBeTruthy()
+    }
+  })
+
+  it('covers the whole session arc across the captures', () => {
+    const kinds = new Set(files.map((f) => codexAdapter.normalize(read(f), ctx)?.kind))
+    expect(kinds).toEqual(
+      new Set(['session-start', 'prompt-submit', 'tool-start', 'tool-end', 'turn-end', 'session-end'])
+    )
+  })
+
+  it('carries one session id and one transcript path through the whole arc', () => {
+    // Every event of a session must land on the same row: the island keys rows
+    // by session id, so a capture disagreeing here would split one session in two.
+    const live = files.filter((f) => f !== 'SessionEnd.json').map((f) => codexAdapter.normalize(read(f), ctx)!)
+    expect(new Set(live.map((e) => e.sessionId)).size).toBe(1)
+    expect(new Set(live.map((e) => e.transcriptPath)).size).toBe(1)
   })
 })
 
@@ -79,16 +112,6 @@ describe('codexAdapter.encodeDecision', () => {
 
   it('encodes fallthrough as an empty object so Codex is unaffected', () => {
     expect(codexAdapter.encodeDecision({ kind: 'fallthrough' })).toEqual({})
-  })
-})
-
-describe('codex fixture status', () => {
-  it('records that no fixtures exist yet, and will fail once they do', () => {
-    expect(
-      existsSync('test/fixtures/codex'),
-      'test/fixtures/codex now exists — delete this test and write real fixture-driven ' +
-      'assertions like the claude and antigravity suites have'
-    ).toBe(false)
   })
 })
 
