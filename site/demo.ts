@@ -129,7 +129,7 @@ function buildRow(s: Session): RowEntry {
  * represents actually changes — because unlike everything else in a row, a
  * human's mousedown or keyboard focus can be resting on it between calls.
  */
-function updateRow(entry: RowEntry, s: Session, now: number, store: SessionStore): void {
+function updateRow(entry: RowEntry, s: Session, now: number, getStore: () => SessionStore): void {
   entry.el.className = `row state-${s.state}`
 
   entry.meta.replaceChildren()
@@ -150,11 +150,23 @@ function updateRow(entry: RowEntry, s: Session, now: number, store: SessionStore
       const allow = el('button', 'allow', 'Allow')
       const deny = el('button', 'deny', 'Deny')
       // Both settle the demo the same way the extension's clearPending does —
-      // the point is showing that the controls are the real ones.
-      allow.onclick = (): void => store.clearPending(s.key)
-      deny.onclick = (): void => store.clearPending(s.key)
+      // the point is showing that the controls are the real ones. Read the
+      // store through `getStore()` rather than closing over the `store`
+      // in scope when the buttons were built: this subtree deliberately
+      // outlives the tick that created it (see the RowEntry doc comment),
+      // and the 30s loop restart reassigns the outer `store` variable to a
+      // fresh SessionStore. A stale capture would call clearPending on a
+      // discarded store and silently do nothing.
+      allow.onclick = (): void => getStore().clearPending(s.key)
+      deny.onclick = (): void => getStore().clearPending(s.key)
       controls.append(allow, deny)
-      entry.el.append(controls)
+      // Anchored right after `.activity` — not appended at the end — so
+      // child order is `head, activity, controls, tasks` regardless of
+      // whether the task list already exists when the permission arrives
+      // or arrives afterward. The Allow/Deny buttons must sit directly
+      // under the "waiting for you" line they answer, not below a task
+      // list that can run to several lines.
+      entry.activity.after(controls)
       entry.controls = controls
       entry.controlsId = s.pendingPermission.id
     }
@@ -194,8 +206,14 @@ const rowEntries = new Map<string, RowEntry>()
  * `store.list()`'s order by moving existing nodes rather than recreating
  * them, which is also safe for focus — repositioning a node that stays
  * connected to the document does not blur it.
+ *
+ * `getStore` is a *getter*, not the store itself, so the Allow/Deny closures
+ * `updateRow` builds keep reading whichever store is current at click time —
+ * see the comment in `updateRow` on why capturing a single store reference
+ * would go stale across the demo's 30s loop restart.
  */
-function syncRows(container: HTMLElement, store: SessionStore, now: number): void {
+function syncRows(container: HTMLElement, getStore: () => SessionStore, now: number): void {
+  const store = getStore()
   const sessions = store.list()
   const live = new Set(sessions.map((s) => s.key))
 
@@ -206,6 +224,20 @@ function syncRows(container: HTMLElement, store: SessionStore, now: number): voi
     }
   }
 
+  // Any container child not owned by a surviving RowEntry is stale: on the
+  // very first call it is the three hand-written no-JS fallback rows
+  // index.html ships (for when this script never runs at all — see the
+  // `<noscript>`-equivalent role of #popup-rows' static markup); later it
+  // can never happen, since every live row is tracked above. Sweeping them
+  // here, rather than once before the loop starts, keeps the clear tied to
+  // "JS has actually taken over and produced a real render pass" instead of
+  // an unconditional wipe that would also fire before pillGrid/pillLabel
+  // are known to exist.
+  const known: Set<Element> = new Set([...rowEntries.values()].map((entry) => entry.el))
+  for (const child of [...container.children]) {
+    if (!known.has(child)) child.remove()
+  }
+
   let ref: ChildNode | null = container.firstChild
   for (const s of sessions) {
     let entry = rowEntries.get(s.key)
@@ -213,7 +245,7 @@ function syncRows(container: HTMLElement, store: SessionStore, now: number): voi
       entry = buildRow(s)
       rowEntries.set(s.key, entry)
     }
-    updateRow(entry, s, now, store)
+    updateRow(entry, s, now, getStore)
     if (ref !== entry.el) container.insertBefore(entry.el, ref)
     else ref = ref.nextSibling
   }
@@ -240,7 +272,7 @@ if (pillGrid && pillLabel && rowsBox) {
     // viewer has no animation to cross-check against — it must not be able to
     // show one state's grid beside another state's word.
     pillLabel.textContent = `${sessions.length} · ${STATE_WORD[state]}`
-    syncRows(rowsBox, store, 9_500)
+    syncRows(rowsBox, () => store, 9_500)
     stripGrids.forEach((g, i) => {
       const state = STRIP_STATES[i]!
       paint(g, state, state === 'done' ? 300 : 0)
@@ -296,7 +328,7 @@ if (pillGrid && pillLabel && rowsBox) {
       }
       const sessions = store.list()
       pillLabel.textContent = `${sessions.length} · ${STATE_WORD[pillState(sessions)]}`
-      syncRows(rowsBox, store, t)
+      syncRows(rowsBox, () => store, t)
       window.setTimeout(drive, 100)
     }
     drive()
