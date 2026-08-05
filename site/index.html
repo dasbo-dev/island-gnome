@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dasbo Island — your coding agents, on the GNOME top bar</title>
 <meta name="description" content="A GNOME Shell extension that keeps every live Claude Code, Codex, and Antigravity session in the top bar — status at a glance, permissions answered inline, one click back to the terminal.">
+<meta property="og:title" content="Dasbo Island — your coding agents, on the GNOME top bar">
+<meta property="og:description" content="A GNOME Shell extension that keeps every live Claude Code, Codex, and Antigravity session in the top bar — status at a glance, permissions answered inline, one click back to the terminal.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://fsevenm.github.io/dasbo-island/">
+<meta name="twitter:card" content="summary">
 <link rel="stylesheet" href="site.css">
 </head>
 <body>
@@ -34,7 +39,7 @@
     <div id="popup-rows">
       <div class="row state-running">
         <div class="row-head">
-          <span class="chip"><img src="icons/claude.svg" alt=""><span class="chip-name">Claude Code</span></span>
+          <span class="chip"><img src="icons/claude.svg" alt=""><span class="chip-name">Claude</span></span>
           <span class="project">rocket</span>
           <span class="meta"><span class="tasks-count">2/6</span><span class="elapsed">4m</span></span>
         </div>
@@ -63,12 +68,19 @@
 
 <section id="states">
   <h2>One glance says what every session needs.</h2>
+  <!-- Each grid below is a still frame of gridPose(state, phase) from
+       src/core/grid.ts, at one representative phase per state (see the
+       final-review-fixes report for which): idle@0ms, running@200ms (the
+       same chase position the hero pill above already uses), waiting@700ms
+       (the dim half of its blink), error@0ms (unchanged — already correct),
+       done@150ms (mid-stagger). This is the no-JS fallback, so it has to be
+       a real pose, not a guess. -->
   <div class="strip">
-    <figure><span class="grid state-idle"><span class="block"></span><span class="block"></span><span class="block"></span><span class="block"></span></span><figcaption><strong>Resting</strong> — one block breathes</figcaption></figure>
-    <figure><span class="grid state-running"><span class="block"></span><span class="block"></span><span class="block"></span><span class="block"></span></span><figcaption><strong>Working</strong> — a light runs clockwise</figcaption></figure>
-    <figure><span class="grid state-waiting accent"><span class="block"></span><span class="block"></span><span class="block"></span><span class="block"></span></span><figcaption><strong>Needs you</strong> — all four blink</figcaption></figure>
+    <figure><span class="grid state-idle"><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.45"></span></span><figcaption><strong>Resting</strong> — one block breathes</figcaption></figure>
+    <figure><span class="grid state-running"><span class="block" style="opacity:.6"></span><span class="block" style="opacity:1"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span></span><figcaption><strong>Working</strong> — a light runs clockwise</figcaption></figure>
+    <figure><span class="grid state-waiting accent"><span class="block" style="opacity:.16"></span><span class="block" style="opacity:.16"></span><span class="block" style="opacity:.16"></span><span class="block" style="opacity:.16"></span></span><figcaption><strong>Needs you</strong> — all four blink</figcaption></figure>
     <figure><span class="grid state-error accent"><span class="block"></span><span class="block" style="opacity:.16"></span><span class="block"></span><span class="block" style="opacity:.16"></span></span><figcaption><strong>Error</strong> — a diagonal pair holds</figcaption></figure>
-    <figure><span class="grid state-done accent"><span class="block"></span><span class="block"></span><span class="block"></span><span class="block"></span></span><figcaption><strong>Done</strong> — a green stagger</figcaption></figure>
+    <figure><span class="grid state-done accent"><span class="block"></span><span class="block"></span><span class="block" style="opacity:0"></span><span class="block" style="opacity:0"></span></span><figcaption><strong>Done</strong> — a green stagger</figcaption></figure>
   </div>
 </section>
 
@@ -90,7 +102,10 @@
     <tbody>
       <tr><td>Claude Code</td><td>Verified against 17 real hook-payload fixtures</td><td>Yes</td></tr>
       <tr><td>Antigravity CLI</td><td>Verified against 12 real hook-payload fixtures</td><td>Unverified — treat as best-effort</td></tr>
-      <tr><td>Codex CLI</td><td>Verified against 6 real hook-payload fixtures; needs a one-time trust approval in Codex's own TUI</td><td>Notify-only</td></tr>
+      <!-- When the Codex fixture work lands (real hook payloads captured and
+           verified), re-derive this row's Status cell from README's "A note
+           on Codex CLI" section instead of leaving this wording in place. -->
+      <tr><td>Codex CLI</td><td>Unverified — hooks parse but have never fired against a real session; zero payloads captured</td><td>Notify-only</td></tr>
     </tbody>
   </table>
   <p class="fine">Statuses are honest, not aspirational — the details live in the <a href="https://github.com/fsevenm/dasbo-island#supported-agents">README</a>.</p>
@@ -103,7 +118,7 @@
 
 <section id="install">
   <h2>Install</h2>
-  <p>Requires GNOME Shell 46, X11 or Wayland. The extensions.gnome.org listing is under review — until it lands, install from source:</p>
+  <p>Requires GNOME Shell 46, X11 or Wayland. Not yet on extensions.gnome.org — for now, install from source:</p>
   <pre><code>git clone https://github.com/fsevenm/dasbo-island.git
 cd dasbo-island &amp;&amp; make install
 gnome-extensions enable dasbo-island@ayubaswad.gmail.com</code></pre>

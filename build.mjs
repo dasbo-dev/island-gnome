@@ -48,4 +48,4 @@ await cp('site/index.html', 'dist-site/index.html')
 await cp('site/site.css', 'dist-site/site.css')
 await cp('src/icons', 'dist-site/icons', { recursive: true })
 
-console.log('built dist/')
+console.log('built dist/ and dist-site/')

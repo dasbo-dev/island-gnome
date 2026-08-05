@@ -11,6 +11,7 @@
   --surface: #2e3138;
   --line: rgba(255, 255, 255, 0.08);
   --blue: #3584e4;
+  color-scheme: dark;
 }
 
 body {
@@ -21,6 +22,15 @@ body {
 }
 
 a { color: #62a0ea; }
+
+/* A pale, high-contrast ring: it reads against both the blue Allow button
+   (#3584e4) and the dark surfaces (#2e3138, #14161b) everything else sits
+   on, which a dark UA-default ring — drawn because the page never declared
+   color-scheme — would not. */
+:focus-visible {
+  outline: 2px solid #f6f5f4;
+  outline-offset: 2px;
+}
 
 /* ---- fake top bar ---- */
 .topbar {
@@ -89,7 +99,10 @@ main { max-width: 780px; margin: 0 auto; padding: 0 20px; }
 .project { font-weight: 700; }
 .meta { margin-left: auto; display: inline-flex; gap: 10px; color: var(--fg-dim); font-size: 0.8rem; }
 .activity { margin: 4px 0 0 2px; color: var(--fg-dim); }
-.activity.hint { opacity: 0.6; font-style: italic; }
+/* 0.8, not the 0.6 an earlier pass used: opacity multiplies onto --fg-dim's
+   own contrast against --surface, and 0.6 landed at ~3.3:1 — under WCAG AA's
+   4.5:1 for body text. 0.8 clears it (~4.6:1). */
+.activity.hint { opacity: 0.8; font-style: italic; }
 .row.state-error .activity { color: #e01b24; }
 .controls { display: flex; gap: 8px; margin-top: 8px; }
 .controls button {
@@ -100,7 +113,8 @@ main { max-width: 780px; margin: 0 auto; padding: 0 20px; }
 .controls .deny { background: rgba(255, 255, 255, 0.08); }
 .tasks { list-style: none; margin: 8px 0 0; padding: 0 0 0 4px; font-size: 0.82rem; }
 .tasks .task { padding: 1px 0; color: var(--fg-dim); }
-.tasks .task.completed { opacity: 0.55; }
+/* Same AA fix as .activity.hint above: 0.55 was ~3.1:1 against --surface. */
+.tasks .task.completed { opacity: 0.8; }
 .tasks .task.in_progress { color: var(--fg); }
 
 /* ---- content sections ---- */
@@ -121,6 +135,7 @@ h2 { font-size: 1.6rem; margin-bottom: 24px; text-align: center; }
 #agents th { color: var(--fg-dim); font-weight: 700; }
 .fine { margin-top: 12px; color: var(--fg-dim); font-size: 0.85rem; text-align: center; }
 #failopen p { max-width: 560px; margin: 0 auto; text-align: center; color: var(--fg-dim); line-height: 1.6; }
+#install p { margin-bottom: 16px; }
 #install pre {
   background: #14161b; border: 1px solid var(--line); border-radius: 10px;
   padding: 16px; overflow-x: auto; font-size: 0.88rem;

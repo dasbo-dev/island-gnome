@@ -9,19 +9,17 @@ import { gridPose, tickIntervalMs } from '../src/core/grid.js'
 import { activityText } from '../src/core/activity.js'
 import { formatElapsed } from '../src/core/format.js'
 import { summarize } from '../src/core/tasks.js'
+import { adapters } from '../src/core/adapters/index.js'
 import type { Session, SessionState } from '../src/core/types.js'
 import { LOOP_MS, TIMELINE, storeAt } from './timeline.js'
 
-const AGENT_NAME: Record<Session['agent'], string> = {
-  claude: 'Claude Code',
-  codex: 'Codex',
-  antigravity: 'Antigravity',
-}
-
+// Mirrors src/shell/island.ts's own STATE_WORD exactly — the pill's word for
+// a pending permission must read the same on this page as it does in the
+// real extension.
 const STATE_WORD: Record<SessionState, string> = {
   idle: 'idle',
   running: 'working',
-  waiting: 'needs you',
+  waiting: 'waiting',
   error: 'error',
   done: 'done',
 }
@@ -83,7 +81,7 @@ function chip(agent: Session['agent']): HTMLElement {
   const img = document.createElement('img')
   img.src = `icons/${agent}.svg`
   img.alt = ''
-  c.append(img, el('span', 'chip-name', AGENT_NAME[agent]))
+  c.append(img, el('span', 'chip-name', adapters[agent].shortName))
   return c
 }
 
@@ -261,18 +259,28 @@ const STRIP_STATES: SessionState[] = ['idle', 'running', 'waiting', 'error', 'do
 
 if (pillGrid && pillLabel && rowsBox) {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    // One representative still: the permission moment, mid-loop.
+    // One representative still: the permission moment, mid-loop. The virtual
+    // clock stays pinned at 9_500 forever — nothing here runs a timer — but
+    // the Allow/Deny buttons `syncRows` wires are real, so clicking one must
+    // still repaint. `render` is the only thing that does that, and it is
+    // called solely from `store.subscribe`, never from a timer: reduced
+    // motion means no animation, not no interactivity, and a click has to
+    // produce exactly one synchronous repaint, not a ticking one.
     const store = storeAt(9_500)
-    const sessions = store.list()
-    const state = pillState(sessions)
-    paint(pillGrid, state, 0)
-    // Derived from pillState, like the animated branch below, rather than a
-    // literal 'needs you': the timeline's permission window or pillState's
-    // own precedence could move, and this is the one path a reduced-motion
-    // viewer has no animation to cross-check against — it must not be able to
-    // show one state's grid beside another state's word.
-    pillLabel.textContent = `${sessions.length} · ${STATE_WORD[state]}`
-    syncRows(rowsBox, () => store, 9_500)
+    const render = (): void => {
+      const sessions = store.list()
+      const state = pillState(sessions)
+      paint(pillGrid, state, 0)
+      // Derived from pillState, like the animated branch below, rather than a
+      // literal 'waiting': the timeline's permission window or pillState's
+      // own precedence could move, and this is the one path a reduced-motion
+      // viewer has no animation to cross-check against — it must not be able to
+      // show one state's grid beside another state's word.
+      pillLabel.textContent = `${sessions.length} · ${STATE_WORD[state]}`
+      syncRows(rowsBox, () => store, 9_500)
+    }
+    store.subscribe(render)
+    render()
     stripGrids.forEach((g, i) => {
       const state = STRIP_STATES[i]!
       paint(g, state, state === 'done' ? 300 : 0)
