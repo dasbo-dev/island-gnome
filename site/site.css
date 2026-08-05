@@ -1,0 +1,128 @@
+/* Dasbo Island landing page — a GNOME desktop at night.
+   State colours mirror stylesheet.css exactly:
+   waiting #f5c211, error #e01b24, done #57e389, base fill #f6f5f4. */
+
+* { box-sizing: border-box; margin: 0; }
+
+:root {
+  --fg: #f6f5f4;
+  --fg-dim: #b8b4b0;
+  --bg: #1c1f26;
+  --surface: #2e3138;
+  --line: rgba(255, 255, 255, 0.08);
+  --blue: #3584e4;
+}
+
+body {
+  font-family: "Cantarell", "Adwaita Sans", system-ui, sans-serif;
+  color: var(--fg);
+  background: radial-gradient(ellipse at 50% -20%, #2c3a4f 0%, var(--bg) 60%);
+  min-height: 100vh;
+}
+
+a { color: #62a0ea; }
+
+/* ---- fake top bar ---- */
+.topbar {
+  position: sticky; top: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 34px; padding: 0 12px;
+  background: rgba(0, 0, 0, 0.85);
+  font-size: 0.85rem; font-weight: 700;
+}
+.pill {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 3px 11px; border-radius: 99px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.pill-label { font-size: 0.8rem; font-weight: 700; }
+
+/* ---- the 2×2 grid ---- */
+.grid {
+  display: inline-grid;
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-areas: "tl tr" "bl br";
+  gap: 2px; width: 14px; height: 14px;
+  color: var(--fg);
+}
+/* Chase order in markup is tl, tr, br, bl — matches GridPose.alpha. */
+.grid .block:nth-child(1) { grid-area: tl; }
+.grid .block:nth-child(2) { grid-area: tr; }
+.grid .block:nth-child(3) { grid-area: br; }
+.grid .block:nth-child(4) { grid-area: bl; }
+.block { background: currentColor; border-radius: 1.5px; }
+.grid.accent.state-waiting { color: #f5c211; }
+.grid.accent.state-error   { color: #e01b24; }
+.grid.accent.state-done    { color: #57e389; }
+
+/* ---- hero ---- */
+main { max-width: 780px; margin: 0 auto; padding: 0 20px; }
+.hero { padding: 64px 0 24px; text-align: center; }
+.hero h1 { font-size: clamp(2rem, 6vw, 3.2rem); line-height: 1.1; }
+.hero .sub { max-width: 620px; margin: 20px auto 0; color: var(--fg-dim); font-size: 1.1rem; line-height: 1.5; }
+.cta { margin: 28px 0; display: flex; gap: 12px; justify-content: center; }
+.button {
+  display: inline-block; padding: 10px 22px; border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1); color: var(--fg);
+  text-decoration: none; font-weight: 700;
+}
+.button.primary { background: var(--blue); }
+.demo-note { margin-top: 14px; color: var(--fg-dim); font-size: 0.85rem; }
+.demo-note code { color: var(--fg); }
+
+/* ---- popup ---- */
+.popup {
+  width: min(440px, 100%); margin: 8px auto 0; padding: 8px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 16px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  text-align: left; font-size: 0.9rem;
+}
+.row { padding: 8px 10px; border-radius: 10px; }
+.row + .row { margin-top: 2px; }
+.row-head { display: flex; align-items: center; gap: 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: 99px;
+  background: rgba(127, 127, 127, 0.18); font-size: 0.78rem;
+}
+.chip img { width: 13px; height: 13px; }
+.project { font-weight: 700; }
+.meta { margin-left: auto; display: inline-flex; gap: 10px; color: var(--fg-dim); font-size: 0.8rem; }
+.activity { margin: 4px 0 0 2px; color: var(--fg-dim); }
+.activity.hint { opacity: 0.6; font-style: italic; }
+.row.state-error .activity { color: #e01b24; }
+.controls { display: flex; gap: 8px; margin-top: 8px; }
+.controls button {
+  flex: 1; padding: 6px 0; border: 0; border-radius: 8px;
+  font: inherit; font-weight: 700; color: var(--fg); cursor: pointer;
+}
+.controls .allow { background: var(--blue); }
+.controls .deny { background: rgba(255, 255, 255, 0.08); }
+.tasks { list-style: none; margin: 8px 0 0; padding: 0 0 0 4px; font-size: 0.82rem; }
+.tasks .task { padding: 1px 0; color: var(--fg-dim); }
+.tasks .task.completed { opacity: 0.55; }
+.tasks .task.in_progress { color: var(--fg); }
+
+/* ---- content sections ---- */
+section { padding: 48px 0; border-top: 1px solid var(--line); }
+.hero + #states, .hero { border-top: 0; }
+h2 { font-size: 1.6rem; margin-bottom: 24px; text-align: center; }
+.strip { display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; }
+.strip figure { text-align: center; width: 128px; }
+.strip .grid { width: 40px; height: 40px; gap: 5px; }
+.strip .block { border-radius: 4px; }
+.strip figcaption { margin-top: 10px; font-size: 0.82rem; color: var(--fg-dim); }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.card { background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+.card h3 { font-size: 1rem; margin-bottom: 8px; }
+.card p { color: var(--fg-dim); font-size: 0.9rem; line-height: 1.5; }
+#agents table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+#agents th, #agents td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+#agents th { color: var(--fg-dim); font-weight: 700; }
+.fine { margin-top: 12px; color: var(--fg-dim); font-size: 0.85rem; text-align: center; }
+#failopen p { max-width: 560px; margin: 0 auto; text-align: center; color: var(--fg-dim); line-height: 1.6; }
+#install pre {
+  background: #14161b; border: 1px solid var(--line); border-radius: 10px;
+  padding: 16px; overflow-x: auto; font-size: 0.88rem;
+}
+footer { padding: 32px 20px 48px; text-align: center; color: var(--fg-dim); font-size: 0.85rem; }
