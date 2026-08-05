@@ -71,14 +71,17 @@
   <!-- Each grid below is a still frame of gridPose(state, phase) from
        src/core/grid.ts, at one representative phase per state (see the
        final-review-fixes report for which): idle@0ms, running@200ms (the
-       same chase position the hero pill above already uses), waiting@700ms
-       (the dim half of its blink), error@0ms (unchanged — already correct),
+       same chase position the hero pill above already uses), waiting@0ms
+       (the lit half — the dim half is a legible pose too, but it reads as
+       an unlit swatch under a caption about blinking, and it would disagree
+       with what the reduced-motion path paints for the same figure),
+       error@0ms (unchanged — already correct),
        done@150ms (mid-stagger). This is the no-JS fallback, so it has to be
        a real pose, not a guess. -->
   <div class="strip">
     <figure><span class="grid state-idle"><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.45"></span></span><figcaption><strong>Resting</strong> — one block breathes</figcaption></figure>
     <figure><span class="grid state-running"><span class="block" style="opacity:.6"></span><span class="block" style="opacity:1"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span></span><figcaption><strong>Working</strong> — a light runs clockwise</figcaption></figure>
-    <figure><span class="grid state-waiting accent"><span class="block" style="opacity:.16"></span><span class="block" style="opacity:.16"></span><span class="block" style="opacity:.16"></span><span class="block" style="opacity:.16"></span></span><figcaption><strong>Needs you</strong> — all four blink</figcaption></figure>
+    <figure><span class="grid state-waiting accent"><span class="block"></span><span class="block"></span><span class="block"></span><span class="block"></span></span><figcaption><strong>Needs you</strong> — all four blink</figcaption></figure>
     <figure><span class="grid state-error accent"><span class="block"></span><span class="block" style="opacity:.16"></span><span class="block"></span><span class="block" style="opacity:.16"></span></span><figcaption><strong>Error</strong> — a diagonal pair holds</figcaption></figure>
     <figure><span class="grid state-done accent"><span class="block"></span><span class="block"></span><span class="block" style="opacity:0"></span><span class="block" style="opacity:0"></span></span><figcaption><strong>Done</strong> — a green stagger</figcaption></figure>
   </div>
