@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Browser, not GNOME: the ambient gnome-shell types declare `global` in a
+    // way that has nothing to do with a web page, and the DOM lib is needed
+    // here and nowhere else in the repo.
+    "types": [],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
+  },
+  "include": ["site/**/*.ts"]
+}

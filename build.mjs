@@ -35,6 +35,15 @@ if (existsSync('hooks')) {
 // ---- landing page (dist-site/, deployed to GitHub Pages; see site/) ----
 await rm('dist-site', { recursive: true, force: true })
 await mkdir('dist-site', { recursive: true })
+await build({
+  ...common,
+  platform: 'browser',
+  external: [],
+  minify: true,
+  sourcemap: false,
+  entryPoints: ['site/demo.ts'],
+  outfile: 'dist-site/demo.js',
+})
 await cp('site/index.html', 'dist-site/index.html')
 await cp('site/site.css', 'dist-site/site.css')
 await cp('src/icons', 'dist-site/icons', { recursive: true })
