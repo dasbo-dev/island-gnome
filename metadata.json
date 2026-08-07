@@ -6,6 +6,6 @@
   "session-modes": ["user"],
   "settings-schema": "org.gnome.shell.extensions.dasbo-island",
   "gettext-domain": "dasbo-island",
-  "url": "https://github.com/ayubaswad/dasbo-island",
+  "url": "https://github.com/dasbo-dev/island-gnome",
   "version-name": "0.1.0"
 }
