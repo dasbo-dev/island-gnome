@@ -22,7 +22,7 @@ Three edits. No new behaviour, no new user-facing option.
 ### 1. `src/core/prefsWindow.ts` (new)
 
 ```ts
-export const PREFS_WINDOW = { width: 600, height: 700 } as const
+export const PREFS_WINDOW = { width: 600, height: 760 } as const
 ```
 
 The numbers live in `src/core` rather than at the call site for the reason
@@ -31,9 +31,9 @@ vitest test in this repo can reach past, so a literal typed into
 `fillPreferencesWindow` ships unchecked. A record in core is importable by a
 real unit test.
 
-Height is 700 because the About page measures roughly 560–600px once the banner
-is trimmed, which leaves headroom for a row or two more without the Support
-group sliding back under the fold. Width is 600, the size a libadwaita
+Height is 760 because the About page measures roughly 675px of content plus a
+roughly 47px header bar once the banner is trimmed, and 760 clears the whole
+Support group, QR expander row included. Width is 600, the size a libadwaita
 preferences window of this shape settles at anyway, pinned so it stops varying
 with content.
 
@@ -45,7 +45,7 @@ any page.
 
 The *default* size, not a size request: a user who resizes the window keeps
 their size, and libadwaita's own `width-request`/`height-request` minimums still
-apply. On a screen too short for 700px, GTK4's `gtk_window_compute_default_size`
+apply. On a screen too short for 760px, GTK4's `gtk_window_compute_default_size`
 clamps the default against the monitor work area, so the window degrades to "as
 tall as fits" rather than running off-screen. That clamp is why this design does
 not compute a height from the monitor itself — the platform already does it, and
@@ -111,3 +111,10 @@ decoration and not its content.
 - Expanding the QR row by default. It would add ~230px and push the page back
   past the fold, undoing the fix.
 - Reordering or restyling the identity rows.
+- Scaling the constant for text-scale settings above 1x. `PREFS_WINDOW.height`
+  is absolute pixels, so under GNOME's 1.25x text scaling everything on the
+  page grows by roughly the same factor — about 900px needed — and the Support
+  group can drop below the fold again. A scale-aware height isn't feasible
+  here for the same reason a monitor-aware one already isn't: the platform
+  does not hand this code a number to compute from before the window is
+  mapped. This is a documented limitation, not a fix.
