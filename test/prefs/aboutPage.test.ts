@@ -19,6 +19,17 @@ describe('the About page', () => {
     expect([...positions].sort((a, b) => a - b)).toEqual(positions)
   })
 
+  it('opens the window at the size the core record names', () => {
+    // Without a default size the window opens at libadwaita's natural size,
+    // which was too short for the About page and put the Support group below
+    // the fold. Asserted against the record rather than a literal: a number
+    // typed in here typechecks perfectly and is invisible to
+    // test/core/prefsWindow.test.ts, so the bound that test enforces would
+    // quietly stop applying to the window the user actually sees.
+    expect(prefs).toContain('PREFS_WINDOW')
+    expect(prefs).toMatch(/set_default_size\(\s*PREFS_WINDOW\.width,\s*PREFS_WINDOW\.height\s*\)/)
+  })
+
   it('hard-codes no URL of its own', () => {
     // Every address on the page has to come from the record the other tests
     // can check. A literal here is invisible to test/core/about.test.ts.
