@@ -2,6 +2,7 @@ import St from 'gi://St'
 import Clutter from 'gi://Clutter'
 import GObject from 'gi://GObject'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
+import { logoIcon } from './logoIcon.js'
 
 export interface PopupHeaderCallbacks {
   onPrefs: () => void
@@ -17,9 +18,15 @@ export const PopupHeader = GObject.registerClass(
   class PopupHeader extends PopupMenu.PopupBaseMenuItem {
     private _cb!: PopupHeaderCallbacks
 
-    constructor(cb: PopupHeaderCallbacks) {
+    constructor(base: string, cb: PopupHeaderCallbacks) {
       super({ reactive: false, can_focus: false, style_class: 'dasbo-header dasbo-fixed-width' })
       this._cb = cb
+
+      // Null when the asset is missing, in which case the header is the text
+      // it has always been. .dasbo-header's 12px spacing separates it from
+      // the title; the popup's width is pinned at 30em, so the mark costs the
+      // title nothing.
+      const logo = logoIcon(base)
 
       const title = new St.Label({
         text: 'Dasbo Island',
@@ -43,6 +50,7 @@ export const PopupHeader = GObject.registerClass(
       })
       gear.connect('clicked', () => this._cb.onPrefs())
 
+      if (logo) this.add_child(logo)
       this.add_child(title)
       this.add_child(gear)
     }

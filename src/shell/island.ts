@@ -148,7 +148,7 @@ export const Island = GObject.registerClass(
       box.add_child(this._label)
       this.add_child(box)
 
-      this._header = new PopupHeader({
+      this._header = new PopupHeader(this._iconBase, {
         onPrefs: () => {
           // Close first: the preferences window takes focus, and a popup left
           // open behind it lingers until the next click somewhere else.
