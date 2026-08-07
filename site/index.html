@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dasbo Island — your coding agents, on the GNOME top bar</title>
-<meta name="description" content="A GNOME Shell extension that keeps every live Claude Code, Codex, and Antigravity session in the top bar — status at a glance, permissions answered inline, one click back to the terminal.">
+<meta name="description" content="A GNOME Shell extension that keeps every live Claude Code and Codex session in the top bar — status at a glance, permissions answered inline, one click back to the terminal.">
 <meta property="og:title" content="Dasbo Island — your coding agents, on the GNOME top bar">
-<meta property="og:description" content="A GNOME Shell extension that keeps every live Claude Code, Codex, and Antigravity session in the top bar — status at a glance, permissions answered inline, one click back to the terminal.">
+<meta property="og:description" content="A GNOME Shell extension that keeps every live Claude Code and Codex session in the top bar — status at a glance, permissions answered inline, one click back to the terminal.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://fsevenm.github.io/dasbo-island/">
 <meta name="twitter:card" content="summary">
@@ -29,7 +29,7 @@
 
 <section class="hero">
   <h1>Your coding agents, on the top&nbsp;bar.</h1>
-  <p class="sub">Dasbo Island is a GNOME Shell extension that keeps every live Claude&nbsp;Code, Codex, and Antigravity session in the top bar — status at a glance, permission prompts answered inline, and one click back to the terminal that is running the work.</p>
+  <p class="sub">Dasbo Island is a GNOME Shell extension that keeps every live Claude&nbsp;Code and Codex session in the top bar — status at a glance, permission prompts answered inline, and one click back to the terminal that is running the work.</p>
   <p class="cta">
     <a class="button primary" href="#install">Install</a>
     <a class="button" href="https://github.com/dasbo-dev/island-gnome">GitHub</a>
@@ -52,14 +52,6 @@
           <span class="meta"><span class="elapsed">2m</span></span>
         </div>
         <div class="activity">Bash · vitest run</div>
-      </div>
-      <div class="row state-idle">
-        <div class="row-head">
-          <span class="chip"><img src="icons/antigravity.svg" alt=""><span class="chip-name">Antigravity</span></span>
-          <span class="project">blog</span>
-          <span class="meta"><span class="elapsed">1m</span></span>
-        </div>
-        <div class="activity hint">idle</div>
       </div>
     </div>
   </div>
@@ -104,7 +96,6 @@
     <thead><tr><th>Agent</th><th>Status</th><th>Permission gating</th></tr></thead>
     <tbody>
       <tr><td>Claude Code</td><td>Verified against 17 real hook-payload fixtures</td><td>Yes</td></tr>
-      <tr><td>Antigravity CLI</td><td>Verified against 12 real hook-payload fixtures</td><td>Unverified — treat as best-effort</td></tr>
       <!-- Every cell in this table is re-derived from docs/limitations.md and
            the README's "Supported agents" table — never edited straight to a
            friendlier wording. This row said "never fired, zero payloads
@@ -113,6 +104,7 @@
     </tbody>
   </table>
   <p class="fine">Statuses are honest, not aspirational — the details live in the <a href="https://github.com/dasbo-dev/island-gnome#supported-agents">README</a>.</p>
+  <p class="fine">Planned: OpenCode, Cursor CLI, and Antigravity CLI are listed on the extension's Agents page as <em>Coming soon</em> — visible, not installable.</p>
 </section>
 
 <section id="failopen">

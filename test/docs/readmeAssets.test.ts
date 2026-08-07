@@ -6,7 +6,7 @@ describe('the hero mockup', () => {
 
   it('draws a row for every supported agent', () => {
     const svg = readFileSync(path, 'utf8')
-    for (const agent of ['Claude', 'Codex', 'Antigravity']) {
+    for (const agent of ['Claude', 'Codex']) {
       expect(svg, `${path} is missing the ${agent} row`).toContain(agent)
     }
   })

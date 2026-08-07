@@ -13,6 +13,7 @@ import {
 } from './core/install/plan.js'
 import { applyEdits, readFileOrNull } from './shell/applyEdits.js'
 import { adapters } from './core/adapters/index.js'
+import { AGENT_CATALOG } from './core/agentCatalog.js'
 import type { AgentId } from './core/types.js'
 import { aboutPage } from './prefs/about.js'
 import { PREFS_WINDOW } from './core/prefsWindow.js'
@@ -185,8 +186,18 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
       for (const refresh of refreshers) refresh()
     }
 
-    for (const id of ['claude', 'codex', 'antigravity'] as AgentId[]) {
-      const { row, refresh } = this._agentRow(id, env, settings, window, refreshAll)
+    // Both kinds of row live in this one group. A coming-soon agent's state
+    // belongs in its subtitle, beside "Hooks installed" and "Not installed",
+    // which is where a reader already looks to find out where a row stands —
+    // a group heading of its own would say the same thing further away.
+    for (const entry of AGENT_CATALOG) {
+      if (entry.status === 'coming-soon') {
+        group.add(this._comingSoonRow(entry.displayName))
+        continue
+      }
+      const { row, refresh } = this._agentRow(entry.id, env, settings, window, refreshAll)
+      // Only a real row registers a refresher: a coming-soon row reads no
+      // file, so there is nothing for refreshAll to re-read.
       refreshers.push(refresh)
       group.add(row)
     }
@@ -299,6 +310,36 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     row.add_suffix(uninstall)
 
     return { row, refresh }
+  }
+
+  /**
+   * An agent dasbo does not support yet: the same row, drawn inert.
+   *
+   * Every control is built and left insensitive rather than omitted, so the
+   * switch and the two buttons stay in their columns down the whole group —
+   * a row missing its suffixes would break the alignment and read as a
+   * different kind of thing entirely. The switch is deliberately wired to
+   * nothing: it is a picture of a control, not a control, and connecting it
+   * to `enabled-agents` would let a stray programmatic toggle write an id no
+   * adapter answers to.
+   */
+  private _comingSoonRow(displayName: string): Adw.ActionRow {
+    const row = new Adw.ActionRow({ title: displayName, subtitle: 'Coming soon' })
+
+    const enabled = new Gtk.Switch({
+      valign: Gtk.Align.CENTER,
+      active: false,
+      sensitive: false,
+      tooltip_text: 'Not supported yet',
+    })
+    const install = new Gtk.Button({ label: 'Install', valign: Gtk.Align.CENTER, sensitive: false })
+    const uninstall = new Gtk.Button({ label: 'Remove', valign: Gtk.Align.CENTER, sensitive: false })
+
+    row.add_suffix(enabled)
+    row.add_suffix(install)
+    row.add_suffix(uninstall)
+
+    return row
   }
 
   private _toast(window: Adw.PreferencesWindow, text: string): void {

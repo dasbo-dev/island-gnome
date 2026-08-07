@@ -59,8 +59,8 @@ Source: [github.com/dasbo-dev/island-gnome](https://github.com/dasbo-dev/island-
   allowed or denied from the popup, without switching to the terminal.
 - **One click back to the terminal.** Every session row knows the terminal
   running it and raises that window.
-- **Every agent in one place.** Claude Code, Codex CLI, and Antigravity CLI
-  sessions share the pill, each row led by a chip naming the agent.
+- **Every agent in one place.** Claude Code and Codex CLI sessions share the
+  pill, each row led by a chip naming the agent.
 - **Task-list progress.** When an agent keeps a task list, its row shows how
   far through it is and expands to the list itself.
 - **Cues you can hear.** A permission request, a question, a notification, and
@@ -158,10 +158,14 @@ on screen.
 |---|---|---|---|
 | Claude Code | `~/.claude/settings.json` | 17 real hook-payload fixtures | yes |
 | Codex CLI | `~/.codex/hooks.json` | 6 real fixtures (0.146.0) | no — [notify-only](docs/limitations.md#codex-has-no-permission-gate) |
-| Antigravity CLI (`agy`) | `~/.gemini/config/hooks.json` | 12 real fixtures | [unverified](docs/limitations.md#the-antigravity-permission-gate-may-fail-open) |
 
-Payload shapes for all three are documented in
+Payload shapes for both are documented in
 [docs/agent-dialects.md](docs/agent-dialects.md).
+
+**Planned:** OpenCode, Cursor CLI, and Antigravity CLI appear on the Agents
+page as *Coming soon* — listed, not installable. Antigravity has a complete
+adapter and 12 captured fixtures, but its permission decision path has never
+been exercised against a real payload, so it is not offered until it has been.
 
 ## Fail-open guarantee
 
@@ -174,16 +178,9 @@ as they would without it.
 This project says what it has not proven. The full account is in
 [docs/limitations.md](docs/limitations.md); in short:
 
-- **Antigravity's permission gate is unverified and may fail open.** No
-  fixture exercises a real permission round-trip, so the response shape is a
-  guess. If `agy` ignores it, **Deny** reports the tool as denied while it
-  executes anyway — a security control failing open, silently.
-  [Details](docs/limitations.md#the-antigravity-permission-gate-may-fail-open)
 - **Codex sessions cannot be gated through dasbo.** Its hooks are installed
   notify-only.
   [Details](docs/limitations.md#codex-has-no-permission-gate)
-- **Two of the four sound cues are structurally dead for Antigravity.**
-  [Details](docs/limitations.md#two-sound-cues-are-dead-for-antigravity)
 - **No cue has been confirmed audible on a live desktop.** The suite can pin
   the decision logic; nothing in it can listen.
   [Details](docs/limitations.md#no-cue-has-been-confirmed-audible)

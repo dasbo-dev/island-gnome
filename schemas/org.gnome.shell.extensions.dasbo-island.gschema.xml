@@ -49,7 +49,7 @@
       <description>How long the message replaces the row's activity line, and how long a popup opened for it stays open. Zero keeps the message until the next event from that session, and never closes the popup.</description>
     </key>
     <key name="enabled-agents" type="as">
-      <default>['claude','codex','antigravity']</default>
+      <default>['claude','codex']</default>
       <summary>Agent adapters that accept events</summary>
       <description>Independent of hook installation. An agent with no hooks installed simply never sends events.</description>
     </key>
