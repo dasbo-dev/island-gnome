@@ -169,13 +169,15 @@ gnome-shell ambient types.
 
 - Neither `fsevenm/dasbo-island` nor `ayubaswad/dasbo-island` appears in
   `metadata.json`, `README.md`, or `site/index.html`.
+- Each of those three files contains `dasbo-dev/island-gnome`, so the sweep
+  cannot be satisfied by deleting the links rather than correcting them.
 
 ## URL sweep
 
 | File | Change |
 | --- | --- |
 | `metadata.json` | `url` → `https://github.com/dasbo-dev/island-gnome` |
-| `README.md` | repository links → `dasbo-dev/island-gnome`; demo link unchanged |
+| `README.md` | holds no repository URL at all today — one is added under the title; demo link unchanged |
 | `site/index.html` | repository and clone links → `dasbo-dev/island-gnome`; Pages URL unchanged |
 
 ## Verification
