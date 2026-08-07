@@ -1,0 +1,71 @@
+name: Bug report
+description: Something in the extension behaves wrongly
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The shell log is usually the whole story. Please include it.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: input
+    id: shell
+    attributes:
+      label: GNOME Shell version
+      description: "Output of: gnome-shell --version"
+      placeholder: GNOME Shell 46.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: session
+    attributes:
+      label: Session type
+      options:
+        - Wayland
+        - X11
+    validations:
+      required: true
+
+  - type: dropdown
+    id: agent
+    attributes:
+      label: Which agent
+      options:
+        - Claude Code
+        - Codex CLI
+        - Antigravity CLI (agy)
+        - Not agent-specific
+    validations:
+      required: true
+
+  - type: input
+    id: agent-version
+    attributes:
+      label: Agent version
+      placeholder: codex 0.146.0
+
+  - type: input
+    id: extension-version
+    attributes:
+      label: Extension version
+      description: "The version-name in metadata.json, or the commit you built."
+      placeholder: 0.1.0
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Shell log
+      description: |
+        Run this, reproduce the problem, then paste what appears:
+        journalctl -f -o cat /usr/bin/gnome-shell
+      render: shell
+    validations:
+      required: true
