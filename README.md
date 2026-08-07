@@ -7,6 +7,8 @@ permission approval, and jump-back to the terminal running the session.
 demo on that page is the extension's real `src/core` state machine, bundled
 for the browser.
 
+Source: [github.com/dasbo-dev/island-gnome](https://github.com/dasbo-dev/island-gnome)
+
 Inspired by [open-vibe-island](https://github.com/Octane0411/open-vibe-island),
 rebuilt natively for GNOME Shell.
 

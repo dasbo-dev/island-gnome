@@ -28,6 +28,11 @@ await cp('schemas', 'dist/schemas', { recursive: true })
 // the chip just drops its mark — so test/shell/iconAssets.test.ts guards this
 // line.
 await cp('src/icons', 'dist/icons', { recursive: true })
+// The About page's QR is loaded by absolute path at
+// <extension.path>/assets/qr-code.png. Gtk.Picture given a missing file draws
+// nothing and reports nothing, so test/prefs/aboutAssets.test.ts guards this
+// line the same way iconAssets.test.ts guards the one above.
+await cp('src/assets', 'dist/assets', { recursive: true })
 if (existsSync('hooks')) {
   await cp('hooks', 'dist/hooks', { recursive: true })
 }
