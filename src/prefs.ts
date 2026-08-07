@@ -14,6 +14,7 @@ import {
 import { applyEdits, readFileOrNull } from './shell/applyEdits.js'
 import { adapters } from './core/adapters/index.js'
 import type { AgentId } from './core/types.js'
+import { aboutPage } from './prefs/about.js'
 
 export default class DasboIslandPreferences extends ExtensionPreferences {
   fillPreferencesWindow(window: Adw.PreferencesWindow): Promise<void> | void {
@@ -22,6 +23,15 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     window.add(this._appearancePage(settings))
     window.add(this._behaviourPage(settings))
     window.add(this._agentsPage(settings, window))
+    window.add(aboutPage(window, this.path, this._version()))
+  }
+
+  // Read from the extension's own metadata rather than a constant, so a
+  // release bump cannot leave the About page telling the user the wrong
+  // version. version-name is the human string ("0.1.0"); version is the
+  // integer e.g.o. uses, and is the fallback if version-name is ever dropped.
+  private _version(): string {
+    return String(this.metadata['version-name'] ?? this.metadata.version ?? 'unknown')
   }
 
   private _appearancePage(settings: Gio.Settings): Adw.PreferencesPage {
