@@ -17,25 +17,29 @@ export interface TimelineStep {
   apply: (store: SessionStore) => void
 }
 
-const IDS: Record<AgentId, string> = {
+/**
+ * The agents the demo drives. Narrower than `AgentId` on purpose: the page
+ * beside this demo lists the agents this build supports, and a session for one
+ * it does not would contradict the copy next to it.
+ */
+type DemoAgent = Extract<AgentId, 'claude' | 'codex'>
+
+const IDS: Record<DemoAgent, string> = {
   claude: 'demo-claude',
   codex: 'demo-codex',
-  antigravity: 'demo-agy',
 }
-const CWDS: Record<AgentId, string> = {
+const CWDS: Record<DemoAgent, string> = {
   claude: '/home/you/projects/rocket',
   codex: '/home/you/projects/website',
-  antigravity: '/home/you/projects/blog',
 }
-const PIDS: Record<AgentId, number> = { claude: 4242, codex: 4243, antigravity: 4244 }
+const PIDS: Record<DemoAgent, number> = { claude: 4242, codex: 4243 }
 
-export const KEYS: Record<AgentId, string> = {
+export const KEYS: Record<DemoAgent, string> = {
   claude: sessionKey('claude', IDS.claude),
   codex: sessionKey('codex', IDS.codex),
-  antigravity: sessionKey('antigravity', IDS.antigravity),
 }
 
-function ev(agent: AgentId, kind: EventKind, at: number, extra?: Partial<AgentEvent>): TimelineStep {
+function ev(agent: DemoAgent, kind: EventKind, at: number, extra?: Partial<AgentEvent>): TimelineStep {
   const e: AgentEvent = {
     agent,
     kind,
@@ -85,8 +89,6 @@ export const TIMELINE: TimelineStep[] = [
   ev('codex', 'prompt-submit', 3_000),
   ev('claude', 'tool-start', 3_400, { tool: 'Bash', detail: 'npm test -- countdown' }),
   tasks(4_200, 1, 1),
-  ev('antigravity', 'session-start', 5_000),
-  ev('antigravity', 'prompt-submit', 5_400),
   ev('claude', 'tool-end', 6_000),
   ev('codex', 'tool-start', 6_400, { tool: 'Bash', detail: 'vitest run' }),
   tasks(7_000, 2, 1),
@@ -106,8 +108,14 @@ export const TIMELINE: TimelineStep[] = [
   { at: 13_000, apply: (store) => store.clearPending(KEYS.claude) },
   tasks(13_400, 4, 1),
   ev('codex', 'tool-end', 15_000),
-  ev('antigravity', 'error', 16_000, { detail: 'hook payload rejected' }),
-  ev('antigravity', 'session-end', 19_000),
+  // The pill's `error` pose is one of the five the page claims to show, and
+  // this is the only event that reaches it. It moved here from a session that
+  // no longer exists; the retry two seconds later is what lets the pill leave
+  // the state again, since `error` outranks `running` in pillState and would
+  // otherwise hold the pill red until the loop ended.
+  ev('codex', 'error', 16_000, { detail: 'hook payload rejected' }),
+  ev('codex', 'tool-start', 18_000, { tool: 'Bash', detail: 'vitest run --retry 1' }),
+  ev('codex', 'tool-end', 20_000),
   ev('codex', 'turn-end', 21_000),
   tasks(22_000, 6, 0),
   ev('claude', 'turn-end', 22_400),

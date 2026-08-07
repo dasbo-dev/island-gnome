@@ -65,11 +65,12 @@
   <text class="ui dim" x="936" y="152" font-size="12" text-anchor="end">2m</text>
   <text class="ui dim" x="552" y="172" font-size="12">Bash · vitest run</text>
 
-  <!-- row 3: Antigravity, idle -->
+  <!-- row 3: a second Claude session, idle. Two sessions of one agent is the
+       ordinary case, and this row is what shows the idle state. -->
   <rect x="532" y="198" width="416" height="56" rx="8" fill="#ffffff" fill-opacity="0.05"/>
-  <circle cx="552" cy="216" r="7" fill="none" stroke="#4285f4" stroke-width="2"/>
-  <text class="ui bright" x="568" y="220" font-size="13">Antigravity</text>
-  <text class="ui dim" x="648" y="220" font-size="13">blog</text>
+  <circle cx="552" cy="216" r="7" fill="none" stroke="#d97757" stroke-width="2"/>
+  <text class="ui bright" x="568" y="220" font-size="13">Claude</text>
+  <text class="ui dim" x="624" y="220" font-size="13">blog</text>
   <text class="ui dim" x="936" y="220" font-size="12" text-anchor="end">1m</text>
   <text class="ui dim" x="552" y="240" font-size="12">idle</text>
 </svg>

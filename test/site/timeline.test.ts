@@ -23,9 +23,9 @@ describe('demo timeline', () => {
     expect(at(27_000)).toBe('done')
   })
 
-  it('shows all three agents at once mid-loop', () => {
+  it('shows both agents at once mid-loop', () => {
     expect(storeAt(6_000).list().map((s) => s.agent).sort())
-      .toEqual(['antigravity', 'claude', 'codex'])
+      .toEqual(['claude', 'codex'])
   })
 
   it('holds a permission the row can describe', () => {
