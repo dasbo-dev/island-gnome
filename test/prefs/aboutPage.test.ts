@@ -244,9 +244,14 @@ describe('the About page banner', () => {
     // and 24/12 margins it spent ~200px before the first row, and the Support
     // group at the bottom fell below the fold. An edit putting either number
     // back reintroduces that bug and breaks no other test.
+    //
+    // The two margins are matched as one adjacent pair rather than two
+    // separate toMatch calls: margin_bottom: 6 also appears on the Support
+    // button below, and an unanchored toMatch there would keep passing even
+    // if the banner box's own margin_bottom reverted to 12. Pairing it with
+    // margin_top: 12 — unique to the banner box — pins it to the right line.
     expect(page).toContain('image.pixel_size = 64')
-    expect(page).toMatch(/margin_top:\s*12,/)
-    expect(page).toMatch(/margin_bottom:\s*6,/)
+    expect(page).toMatch(/margin_top:\s*12,\s*margin_bottom:\s*6,/)
   })
 
   it('shows the name and version once each, in the banner', () => {
