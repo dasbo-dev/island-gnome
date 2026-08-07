@@ -129,11 +129,19 @@ they cannot reach.
   the comparison table, and both meta descriptions plus the lead paragraph
   drop it from the list of sessions dasbo tracks. The same "Planned" line the
   README gets is added below the comparison table.
-- `site/timeline.ts`: the demo drops to two sessions. Its per-agent constants
-  are keyed by `AgentId`, so removing the Antigravity entries from `IDS`,
-  `CWDS`, `PIDS`, the session-key map and the event list is the whole change.
-  The demo showing a session for an agent the page says is unsupported would
-  contradict the copy beside it.
+- `site/timeline.ts`: the demo drops to two sessions. A session for an agent
+  the page says is unsupported would contradict the copy beside it. The
+  per-agent constants are keyed by `AgentId`, so their type narrows to
+  `'claude' | 'codex'` as the Antigravity entries leave `IDS`, `CWDS`, `PIDS`
+  and `KEYS`.
+
+  One event cannot simply be dropped with the rest: the Antigravity `error` at
+  16s is what drives the pill through its `error` state, which the page claims
+  to demonstrate. It moves to the Codex session — `error` at 16s, then a
+  `tool-start`/`tool-end` pair at 18s and 20s that returns Codex to `running`
+  before the 19.5s checkpoint, since `error` outranks `running` in `pillState`
+  and would otherwise hold the pill red for the rest of the loop. The
+  Antigravity `session-end` at 19s is dropped outright; nothing depends on it.
 
 ### The hero mockup
 
