@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 400" width="1000" height="400" role="img">
+  <title>Mockup: the Dasbo Island pill in the GNOME top bar, its popup listing three live agent sessions, and the terminal running one of them</title>
+
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2b2440"/>
+      <stop offset="1" stop-color="#14131a"/>
+    </linearGradient>
+    <style>
+      .ui { font-family: Cantarell, "DejaVu Sans", "Segoe UI", sans-serif; }
+      .mono { font-family: ui-monospace, "DejaVu Sans Mono", "Courier New", monospace; }
+      .dim { fill: #b6b6bd; }
+      .bright { fill: #f2f2f5; }
+    </style>
+  </defs>
+
+  <rect width="1000" height="400" rx="12" fill="url(#wall)"/>
+
+  <!-- top bar -->
+  <path d="M0 12a12 12 0 0 1 12-12h976a12 12 0 0 1 12 12v24H0z" fill="#0b0b0d"/>
+  <text class="ui bright" x="20" y="24" font-size="13">Activities</text>
+  <text class="ui bright" x="452" y="24" font-size="13">Tue Aug 5  14:32</text>
+
+  <!-- pill, mid-working: one block lit, one trailing, two dim -->
+  <rect x="600" y="6" width="122" height="24" rx="12" fill="#ffffff" fill-opacity="0.13"/>
+  <rect x="611" y="12" width="5" height="5" rx="1.2" fill="#e9e9ec" fill-opacity="0.55"/>
+  <rect x="618" y="12" width="5" height="5" rx="1.2" fill="#e9e9ec"/>
+  <rect x="611" y="19" width="5" height="5" rx="1.2" fill="#e9e9ec" fill-opacity="0.3"/>
+  <rect x="618" y="19" width="5" height="5" rx="1.2" fill="#e9e9ec" fill-opacity="0.3"/>
+  <text class="ui bright" x="632" y="22" font-size="12">3 · working</text>
+
+  <!-- terminal the pill jumps back to -->
+  <rect x="40" y="96" width="440" height="256" rx="10" fill="#0f0f13" stroke="#2c2c33"/>
+  <path d="M40 106a10 10 0 0 1 10-10h420a10 10 0 0 1 10 10v18H40z" fill="#1d1d22"/>
+  <circle cx="58" cy="110" r="4" fill="#3a3a41"/>
+  <circle cx="72" cy="110" r="4" fill="#3a3a41"/>
+  <text class="ui dim" x="90" y="114" font-size="11">rocket — claude</text>
+  <text class="mono dim" x="60" y="152" font-size="12">$ claude</text>
+  <text class="mono" x="60" y="176" font-size="12" fill="#d97757">●</text>
+  <text class="mono bright" x="76" y="176" font-size="12">Bash(npm test -- countdown)</text>
+  <text class="mono dim" x="76" y="196" font-size="12">⎿  618 passed</text>
+  <text class="mono" x="60" y="222" font-size="12" fill="#d97757">●</text>
+  <text class="mono bright" x="76" y="222" font-size="12">Edit(src/core/pill.ts)</text>
+  <text class="mono dim" x="76" y="242" font-size="12">⎿  2 additions, 1 removal</text>
+  <text class="mono" x="60" y="268" font-size="12" fill="#d97757">●</text>
+  <text class="mono bright" x="76" y="268" font-size="12">Bash(npm test)</text>
+  <text class="mono dim" x="60" y="296" font-size="12">  running…</text>
+
+  <!-- popup -->
+  <rect x="520" y="48" width="440" height="220" rx="14" fill="#2b2b30" stroke="#3a3a41"/>
+
+  <!-- row 1: Claude, working -->
+  <rect x="532" y="62" width="416" height="56" rx="8" fill="#ffffff" fill-opacity="0.05"/>
+  <circle cx="552" cy="80" r="7" fill="none" stroke="#d97757" stroke-width="2"/>
+  <text class="ui bright" x="568" y="84" font-size="13">Claude</text>
+  <text class="ui dim" x="624" y="84" font-size="13">rocket</text>
+  <text class="ui dim" x="936" y="84" font-size="12" text-anchor="end">2/6   4m</text>
+  <text class="ui dim" x="552" y="104" font-size="12">Bash · npm test -- countdown</text>
+
+  <!-- row 2: Codex, working -->
+  <rect x="532" y="130" width="416" height="56" rx="8" fill="#ffffff" fill-opacity="0.05"/>
+  <circle cx="552" cy="148" r="7" fill="none" stroke="#9e9e9e" stroke-width="2"/>
+  <text class="ui bright" x="568" y="152" font-size="13">Codex</text>
+  <text class="ui dim" x="620" y="152" font-size="13">website</text>
+  <text class="ui dim" x="936" y="152" font-size="12" text-anchor="end">2m</text>
+  <text class="ui dim" x="552" y="172" font-size="12">Bash · vitest run</text>
+
+  <!-- row 3: Antigravity, idle -->
+  <rect x="532" y="198" width="416" height="56" rx="8" fill="#ffffff" fill-opacity="0.05"/>
+  <circle cx="552" cy="216" r="7" fill="none" stroke="#4285f4" stroke-width="2"/>
+  <text class="ui bright" x="568" y="220" font-size="13">Antigravity</text>
+  <text class="ui dim" x="648" y="220" font-size="13">blog</text>
+  <text class="ui dim" x="936" y="220" font-size="12" text-anchor="end">1m</text>
+  <text class="ui dim" x="552" y="240" font-size="12">idle</text>
+</svg>
