@@ -15,7 +15,7 @@ export function aboutPage(
 ): Adw.PreferencesPage {
   const page = new Adw.PreferencesPage({ title: 'About', icon_name: 'help-about-symbolic' })
 
-  page.add(_banner(extensionPath, version))
+  page.add(_banner(window, extensionPath, version))
   page.add(_identity(window))
   page.add(_support(window, extensionPath))
 
@@ -24,7 +24,7 @@ export function aboutPage(
 
 // The page's identity, shown the way GNOME's own about windows show it: the
 // mark, the name, the version. Everything below it is a row.
-function _banner(extensionPath: string, version: string): Adw.PreferencesGroup {
+function _banner(window: Adw.PreferencesWindow, extensionPath: string, version: string): Adw.PreferencesGroup {
   const group = new Adw.PreferencesGroup()
 
   const box = new Gtk.Box({
@@ -55,7 +55,16 @@ function _banner(extensionPath: string, version: string): Adw.PreferencesGroup {
       // Keep the mark already on screen if the other variant is missing.
       if (next.query_exists(null)) image.gicon = Gio.FileIcon.new(next)
     })
-    image.connect('destroy', () => manager.disconnect(handler))
+    // Scoped to the window's destroy, not the image's. GtkWidget::destroy is
+    // emitted from dispose, which only runs once every reference is gone —
+    // and this handler's closure holds its own reference to `image`, kept
+    // alive for as long as the connection sits on Adw.StyleManager.get_default(),
+    // a process-lifetime singleton. An image-scoped disconnect could
+    // therefore never fire: the image and the handler would both outlive the
+    // window that made them. gtk_window_destroy runs dispose on the window
+    // regardless of outstanding refs, so its destroy signal really does fire
+    // when the preferences window closes.
+    window.connect('destroy', () => manager.disconnect(handler))
 
     box.append(image)
   }

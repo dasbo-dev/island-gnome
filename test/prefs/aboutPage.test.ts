@@ -190,11 +190,42 @@ describe('the About page banner', () => {
   })
 
   it('survives a missing logo instead of drawing an empty box', () => {
-    // Three query_exists calls now: the logo when the banner is built, the
-    // logo again when the theme flips, and the QR down in _support. The
-    // middle one is the easiest to drop — losing it points the image at a
-    // path that may not exist and blanks a banner that was fine a moment ago.
-    expect(page.match(/query_exists/g) ?? []).toHaveLength(3)
+    // The guard that decides whether to build the image at all: without it,
+    // a missing asset would hand Gtk.Image a path that isn't there.
+    expect(page).toContain('if (file.query_exists(null))')
+  })
+
+  it('re-checks the file exists when the theme flips', () => {
+    // The easiest query_exists of the three to drop — losing it points the
+    // image at a path that may not exist and blanks a banner that was fine a
+    // moment ago. Anchored inside the handler body, not just anywhere in the
+    // file, so a check that moved elsewhere still fails this.
+    const handler = /notify::dark'[\s\S]*?\}\)/.exec(page)
+    expect(handler, 'no notify::dark handler found').not.toBeNull()
+    expect(handler?.[0]).toContain('next.query_exists(null)')
+  })
+
+  it('scopes the theme-handler disconnect to the window, not the image', () => {
+    // GtkWidget::destroy fires from dispose, and the handler's own closure
+    // keeps the image alive through the process-lifetime style manager — so
+    // an image-scoped disconnect can never run. The window is explicitly
+    // disposed when it closes, so its destroy really fires.
+    expect(page).toMatch(/window\.connect\('destroy'/)
+    expect(page).not.toMatch(/image\.connect\('destroy'/)
+  })
+
+  it('does not invert the variant it asks for', () => {
+    // An inverted variant is invisible on both themes rather than merely
+    // wrong-looking, so it is the one mistake here that no eye catches.
+    expect(page).not.toMatch(/_logoFile\([^,)]+,\s*!/)
+    expect(page).not.toMatch(/logoAsset\(\s*!/)
+  })
+
+  it('puts the mark in the box, above the name', () => {
+    const image = page.indexOf('box.append(image)')
+    const name = page.indexOf('box.append(name)')
+    expect(image, 'the banner never appends the image').toBeGreaterThan(-1)
+    expect(image).toBeLessThan(name)
   })
 
   it('shows the name and version once each, in the banner', () => {

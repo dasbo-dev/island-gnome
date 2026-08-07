@@ -49,6 +49,11 @@ describe('the popup header logo', () => {
     expect(logo, 'the issue asked for the mark before the label').toBeLessThan(title)
   })
 
+  it('does not invert the variant it asks for', () => {
+    expect(icon).not.toMatch(/logoAsset\(\s*!/)
+    expect(icon).not.toMatch(/prefersDark\([^)]*\)\s*===\s*false/)
+  })
+
   it('gets the extension path from Island rather than reaching for it', () => {
     // A widget that resolves its own dependencies is the thing the comment
     // above _iconBase in island.ts rejects.
