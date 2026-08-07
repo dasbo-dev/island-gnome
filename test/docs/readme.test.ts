@@ -50,24 +50,35 @@ describe('the README', () => {
     )
   })
 
+  // The table lists agents dasbo cannot install yet, so every row has to say
+  // which it is. A row with no marker reads as available, and a reader would
+  // go to the preferences page looking for a button that is disabled.
+  it('marks every agent in the table as shipped or coming soon', () => {
+    const table = readme
+      .slice(readme.indexOf('## Supported agents'), readme.indexOf('## Fail-open guarantee'))
+      .split('\n')
+      .filter((line) => line.startsWith('| ') && !line.startsWith('| Agent |'))
+    expect(table.length, 'the supported-agents table lost its rows').toBeGreaterThan(4)
+    for (const row of table) {
+      expect(row, `no availability marker in: ${row}`).toMatch(/\| (yes|coming soon) \|/)
+    }
+  })
+
   // Antigravity's permission gate has never been exercised against a real
-  // payload, so this build does not offer to install its hooks. A support
-  // table that still lists it would send a reader looking for a button that
-  // is not there.
-  it('does not present Antigravity as a supported agent', () => {
-    const supported = readme.slice(
-      readme.indexOf('## Supported agents'),
-      readme.indexOf('## Fail-open guarantee')
-    )
-    expect(supported, 'the supported-agents table must not list Antigravity')
-      .not.toContain('| Antigravity')
+  // payload, so this build does not offer to install its hooks. Presenting it
+  // as available would send a reader looking for a button that is disabled.
+  it('does not offer Antigravity as an agent you can install today', () => {
+    const row = readme.split('\n').find((line) => line.startsWith('| Antigravity'))
+    expect(row, 'the table lost its Antigravity row').toBeDefined()
+    expect(row, 'Antigravity must be marked coming soon').toContain('| coming soon |')
   })
 
   it('says which agents are planned', () => {
-    expect(readme).toMatch(/Planned/)
     for (const agent of ['OpenCode', 'Cursor CLI', 'Antigravity CLI']) {
-      expect(readme, `the planned list is missing ${agent}`).toContain(agent)
+      expect(readme, `the table is missing ${agent}`).toContain(agent)
     }
+    expect(readme, 'the table needs a note explaining what coming soon means')
+      .toMatch(/coming soon.+ agent has a row/s)
   })
 
   it('links the full limitations page', () => {

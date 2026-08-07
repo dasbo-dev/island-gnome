@@ -154,18 +154,22 @@ on screen.
 
 ## Supported agents
 
-| Agent | Config touched | Status reporting | Permission gating |
-|---|---|---|---|
-| Claude Code | `~/.claude/settings.json` | 17 real hook-payload fixtures | yes |
-| Codex CLI | `~/.codex/hooks.json` | 6 real fixtures (0.146.0) | no — [notify-only](docs/limitations.md#codex-has-no-permission-gate) |
+| Agent | In this build | Config touched | Status reporting | Permission gating |
+|---|---|---|---|---|
+| Claude Code | yes | `~/.claude/settings.json` | 17 real hook-payload fixtures | yes |
+| Codex CLI | yes | `~/.codex/hooks.json` | 6 real fixtures (0.146.0) | no — [notify-only](docs/limitations.md#codex-has-no-permission-gate) |
+| OpenCode | coming soon | — | — | — |
+| Cursor CLI | coming soon | — | — | — |
+| Antigravity CLI (`agy`) | coming soon | `~/.gemini/config/hooks.json` | 12 real fixtures | unverified |
 
-Payload shapes for both are documented in
+A **coming soon** agent has a row on the preferences Agents page with its
+toggle and both buttons disabled: listed, not installable. Antigravity is the
+odd one — it has a complete adapter and 12 captured fixtures, but no fixture
+exercises a real permission round-trip, so its decision path stays unverified
+and the hooks are not offered until it has been.
+
+Payload shapes for the agents dasbo already speaks are documented in
 [docs/agent-dialects.md](docs/agent-dialects.md).
-
-**Planned:** OpenCode, Cursor CLI, and Antigravity CLI appear on the Agents
-page as *Coming soon* — listed, not installable. Antigravity has a complete
-adapter and 12 captured fixtures, but its permission decision path has never
-been exercised against a real payload, so it is not offered until it has been.
 
 ## Fail-open guarantee
 
