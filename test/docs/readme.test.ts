@@ -4,15 +4,22 @@ import { readFileSync } from 'node:fs'
 const readme = readFileSync('README.md', 'utf8')
 
 describe('the README', () => {
-  it('switches the logo on the reader theme', () => {
-    expect(readme).toContain('prefers-color-scheme: dark')
-    expect(readme).toContain('docs/assets/logo-dark.svg')
-    expect(readme).toContain('docs/assets/logo-light.svg')
+  // Checking only that both filenames appear would pass with the variants
+  // swapped, which is the failure this pair exists to prevent: the dark mark
+  // is near-white, so on a light page it renders as nothing at all.
+  it('switches the logo on the reader theme, dark variant on the dark source', () => {
+    expect(readme).toMatch(
+      /<source\s+media="\(prefers-color-scheme: dark\)"\s+srcset="docs\/assets\/logo-dark\.svg"/
+    )
+    expect(readme).toMatch(/<img\s+src="docs\/assets\/logo-light\.svg"/)
   })
 
-  it('shows the hero and admits it is a mockup', () => {
+  // The word has to be in the alt text, not merely somewhere on the page: an
+  // <img>'s alt overrides the SVG's own <title>, so a caption alone leaves a
+  // screen-reader user told this is a photograph of the running extension.
+  it('shows the hero and admits in its alt text that it is a mockup', () => {
     expect(readme).toContain('docs/assets/hero.svg')
-    expect(readme.toLowerCase()).toContain('mockup')
+    expect(readme).toMatch(/!\[[^\]]*mockup/i)
   })
 
   it('has the sections a first-time reader scans for', () => {
@@ -22,6 +29,7 @@ describe('the README', () => {
       '## Install',
       '## How it works',
       '## Supported agents',
+      '## Fail-open guarantee',
       '## Status and known limitations',
       '## Development',
       '## Contributing',

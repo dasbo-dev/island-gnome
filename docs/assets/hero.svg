@@ -19,7 +19,7 @@
   <!-- top bar -->
   <path d="M0 12a12 12 0 0 1 12-12h976a12 12 0 0 1 12 12v24H0z" fill="#0b0b0d"/>
   <text class="ui bright" x="20" y="24" font-size="13">Activities</text>
-  <text class="ui bright" x="452" y="24" font-size="13">Tue Aug 5  14:32</text>
+  <text class="ui bright" x="452" y="24" font-size="13">Wed Aug 5  14:32</text>
 
   <!-- pill, mid-working: one block lit, one trailing, two dim -->
   <rect x="600" y="6" width="122" height="24" rx="12" fill="#ffffff" fill-opacity="0.13"/>

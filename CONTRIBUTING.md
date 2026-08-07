@@ -42,7 +42,7 @@ tools/fake-agent.js perm   # drive the UI without a real agent
 ## The gates
 
 Both must pass before a pull request can be merged, and CI runs them on every
-push and pull request:
+pull request, and on pushes to `master`:
 
 ```bash
 npm test

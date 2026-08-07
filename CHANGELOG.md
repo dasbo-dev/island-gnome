@@ -43,3 +43,5 @@ Nothing has been tagged yet. Everything below is on `master`.
 - The About page's QR picture is pinned with a minimum size rather than a
   clamp, and its `UriLauncher` receiver is bound so it cannot be collected
   mid-launch.
+
+[Unreleased]: https://github.com/dasbo-dev/island-gnome/commits/master

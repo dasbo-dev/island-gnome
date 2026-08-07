@@ -42,8 +42,9 @@ rely on it as a security control. Full account:
 [docs/limitations.md](docs/limitations.md#the-antigravity-permission-gate-may-fail-open).
 
 Codex CLI has no permission gate through this extension at all; its hooks are
-notify-only. Claude Code's gate is the only one verified against real
-payloads.
+notify-only. Claude Code's gate is the one this project treats as working; its
+dialect is verified against 17 captured payloads, though no permission
+round-trip has been captured for any agent.
 
 ---
 

@@ -14,13 +14,14 @@
 [![GNOME Shell 46](https://img.shields.io/badge/GNOME%20Shell-46-4a86cf.svg)](https://release.gnome.org/46/)
 
 [Live demo](https://fsevenm.github.io/dasbo-island/) ·
-[Documentation](docs/) ·
+[Agent dialects](docs/agent-dialects.md) ·
+[Limitations](docs/limitations.md) ·
 [Contributing](CONTRIBUTING.md) ·
 [Changelog](CHANGELOG.md)
 
 </div>
 
-![The Dasbo Island pill in the GNOME top bar, its popup listing three live agent sessions, and the terminal running one of them](docs/assets/hero.svg)
+![A mockup of the Dasbo Island pill in the GNOME top bar, its popup listing three live agent sessions, and the terminal running one of them](docs/assets/hero.svg)
 
 <sub>A mockup, not a screen capture — the extension drawn as it appears. <a href="https://fsevenm.github.io/dasbo-island/">The live demo</a> runs the real state machine in your browser.</sub>
 
@@ -42,6 +43,7 @@ Source: [github.com/dasbo-dev/island-gnome](https://github.com/dasbo-dev/island-
 - [Install](#install)
 - [How it works](#how-it-works)
 - [Supported agents](#supported-agents)
+- [Fail-open guarantee](#fail-open-guarantee)
 - [Status and known limitations](#status-and-known-limitations)
 - [Development](#development)
 - [Contributing](#contributing)
@@ -160,7 +162,7 @@ on screen.
 Payload shapes for all three are documented in
 [docs/agent-dialects.md](docs/agent-dialects.md).
 
-### Fail-open guarantee
+## Fail-open guarantee
 
 The hook helper exits 0 with empty stdout on every error path. If this
 extension is disabled, crashed, or never installed, your agents behave exactly
@@ -187,6 +189,11 @@ This project says what it has not proven. The full account is in
 - **Claude Code's `SessionEnd` and `Notification` handling is inferred**
   rather than captured.
   [Details](docs/limitations.md#claude-codes-sessionend-and-notification-are-inferred)
+- **Codex hooks written by any earlier dasbo release never fired.** They used a
+  form Codex parses without complaint and ignores. **Update** in the
+  preferences replaces them — this is a format change, not a missing event, so
+  the row offers Update even when nothing about your install has moved.
+  [Details](docs/limitations.md#codex-hooks-written-before-01460-never-fired)
 
 ## Development
 
