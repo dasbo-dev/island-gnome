@@ -103,10 +103,11 @@ function _qrRow(file: Gio.File): Adw.PreferencesRow {
   const picture = Gtk.Picture.new_for_file(file)
   picture.can_shrink = true
   // A minimum size request, not a clamp: with can_shrink true the picture's
-  // own minimum is 0, and a clamp only caps the maximum an allocation can
-  // grow to — it grants nothing on its own, so a 0-minimum child measures
-  // (0, 0) inside one and gets allocated no pixels. set_size_request raises
-  // the *minimum*, which is what actually forces a non-zero allocation.
+  // own minimum is 0, and AdwClampLayout reports the child's minimum as its
+  // own natural size in both orientations — maximum-size never enters
+  // measurement, so the clamp grants nothing on its own and a 0-minimum
+  // child still measures (0, 0) inside one. set_size_request raises the
+  // *minimum*, which is what actually forces a non-zero allocation.
   picture.set_size_request(200, 200)
   box.append(picture)
 

@@ -62,9 +62,15 @@ describe('the About page', () => {
     // silently does nothing. These are negative assertions rather than a
     // regex for one exact idiom, so an equivalent bound invocation (e.g.
     // `(launcher as unknown as { launch: Launch }).launch(...)`) still
-    // passes — only the two ways of actually detaching the receiver fail.
+    // passes — but there are more than two ways to detach the receiver, and
+    // the assertion below catches the likeliest one.
     expect(page).not.toMatch(/const launch = launcher\.launch/)
     expect(page).not.toMatch(/^\s*launch\(/m)
+    // The narrow function-type cast is the receiver-preserving idiom the
+    // comment above `_open` explains; deleting just `.call(launcher, ` from
+    // it leaves `(launcher.launch as unknown as Launch)(window, ...)`, which
+    // still typechecks and still throws synchronously on every click.
+    expect(page).not.toMatch(/as unknown as Launch\)\s*\(/)
   })
 
   it('survives a missing QR file instead of drawing an empty box', () => {
@@ -72,12 +78,28 @@ describe('the About page', () => {
   })
 
   it('falls back to a plain Donate row when there is no QR file', () => {
-    expect(page).toMatch(/_linkRow\(window, 'Donate', ABOUT\.supportUrl\)/)
+    // Anchored to the else branch, not just the string's presence: a Donate
+    // row added unconditionally — alongside the expander, the misleading
+    // double-affordance the comment above this branch rejects — would still
+    // leave the bare call in the file and pass a presence-only check.
+    const elseBranch = /\}\s*else\s*\{([\s\S]*?)\n  \}/.exec(page)
+    expect(elseBranch, 'no else branch found after the QR file check').not.toBeNull()
+    expect(elseBranch?.[1]).toMatch(/_linkRow\(window, 'Donate', ABOUT\.supportUrl\)/)
   })
 
   it('offers the QR behind an expander, as the issue asked', () => {
     expect(page).toContain('Adw.ExpanderRow')
     expect(page).toMatch(/Show QR code/)
+  })
+
+  it('gives the QR picture a minimum size instead of a clamp', () => {
+    // An earlier attempt wrapped the picture in an Adw.Clamp instead of
+    // calling set_size_request: AdwClampLayout reports the child's minimum
+    // as its own natural size, so the picture's 0 minimum (can_shrink is
+    // true) measured (0, 0) inside one — an invisible QR with a fully green
+    // suite, since nothing here built or inspected the actual widget tree.
+    expect(page).toContain('set_size_request(200, 200)')
+    expect(page).not.toContain('Adw.Clamp')
   })
 })
 
