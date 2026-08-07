@@ -33,6 +33,8 @@ Nothing has been tagged yet. Everything below is on `master`.
   `src/core` state machine in the browser.
 - Contribution, security, and code-of-conduct documentation, issue and
   pull-request templates, and a CI workflow.
+- The project mark in the popup header and at the top of the preferences
+  About page, in the variant matching the current light or dark theme.
 
 ### Fixed
 

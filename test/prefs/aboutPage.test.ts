@@ -39,8 +39,16 @@ describe('the About page', () => {
     expect(page).toContain('pill')
   })
 
-  it('puts support last, after the information', () => {
-    expect(page.indexOf("title: 'Support'")).toBeGreaterThan(page.indexOf("title: 'Dasbo Island'"))
+  it('puts the banner first, then the information, then support', () => {
+    // Anchored on the page.add calls rather than on the group titles: the
+    // banner has no title (the name is a title-1 label inside it) and the
+    // identity group lost the one this assertion used to key on.
+    const banner = page.indexOf('page.add(_banner(')
+    const identity = page.indexOf('page.add(_identity(')
+    const support = page.indexOf('page.add(_support(')
+    expect(banner, 'the page never adds a banner').toBeGreaterThan(-1)
+    expect(identity).toBeGreaterThan(banner)
+    expect(support).toBeGreaterThan(identity)
   })
 
   it('gives link rows the adw- prefixed icon, not the icon-theme-dependent one', () => {
@@ -149,5 +157,84 @@ describe('the About page path', () => {
 describe('the About facts reach the page', () => {
   it('exports what prefs.ts imports', () => {
     expect(ABOUT.author).toBe('fsevenm')
+  })
+})
+
+describe('the About page banner', () => {
+  const page = readFileSync('src/prefs/about.ts', 'utf8')
+
+  it('names no asset of its own', () => {
+    expect(page, 'the path belongs in src/core/logo.ts').not.toMatch(/logo-(light|dark)\.svg/)
+    expect(page).toContain('logoAsset(')
+  })
+
+  it('chooses the variant from the style manager, not the raw setting', () => {
+    // Adw.StyleManager.dark is the better answer inside a GTK application: it
+    // also accounts for a dark style the application itself forced, which the
+    // colour-scheme string alone does not report.
+    expect(page).toContain('Adw.StyleManager.get_default()')
+    expect(page).not.toContain('org.gnome.desktop.interface')
+  })
+
+  it('follows a theme change and drops the handler with the widget', () => {
+    expect(page).toContain("connect('notify::dark'")
+    expect(page).toContain('disconnect(')
+  })
+
+  it('sizes the mark with pixel_size rather than wrapping a Picture', () => {
+    // Gtk.Image's pixel_size IS its minimum size, so it cannot collapse the
+    // way the QR did when it was wrapped in a clamp — the measured 200x0
+    // allocation the comment in _qrRow describes.
+    expect(page).toContain('pixel_size = 96')
+    expect(page).not.toMatch(/Gtk\.Picture[\s\S]*title-1/)
+  })
+
+  it('survives a missing logo instead of drawing an empty box', () => {
+    // The guard that decides whether to build the image at all: without it,
+    // a missing asset would hand Gtk.Image a path that isn't there.
+    expect(page).toContain('if (file.query_exists(null))')
+  })
+
+  it('re-checks the file exists when the theme flips', () => {
+    // The easiest query_exists of the three to drop — losing it points the
+    // image at a path that may not exist and blanks a banner that was fine a
+    // moment ago. Anchored inside the handler body, not just anywhere in the
+    // file, so a check that moved elsewhere still fails this.
+    const handler = /notify::dark'[\s\S]*?\}\)/.exec(page)
+    expect(handler, 'no notify::dark handler found').not.toBeNull()
+    expect(handler?.[0]).toContain('next.query_exists(null)')
+  })
+
+  it('scopes the theme-handler disconnect to the window, not the image', () => {
+    // GtkWidget::destroy fires from dispose, and the handler's own closure
+    // keeps the image alive through the process-lifetime style manager — so
+    // an image-scoped disconnect can never run. The window is explicitly
+    // disposed when it closes, so its destroy really fires.
+    expect(page).toMatch(/window\.connect\('destroy'/)
+    expect(page).not.toMatch(/image\.connect\('destroy'/)
+  })
+
+  it('does not invert the variant it asks for', () => {
+    // An inverted variant is invisible on both themes rather than merely
+    // wrong-looking, so it is the one mistake here that no eye catches.
+    expect(page).not.toMatch(/_logoFile\([^,)]+,\s*!/)
+    expect(page).not.toMatch(/logoAsset\(\s*!/)
+  })
+
+  it('puts the mark in the box, above the name', () => {
+    const image = page.indexOf('box.append(image)')
+    const name = page.indexOf('box.append(name)')
+    expect(image, 'the banner never appends the image').toBeGreaterThan(-1)
+    expect(image).toBeLessThan(name)
+  })
+
+  it('shows the name and version once each, in the banner', () => {
+    // Both moved out of the identity group. Leaving either behind puts the
+    // same fact on the page twice, which reads as an oversight.
+    expect(page, 'the identity group should no longer title itself').not.toContain(
+      "title: 'Dasbo Island'"
+    )
+    expect(page, 'the Version row moved into the banner').not.toContain("title: 'Version'")
+    expect(page).toContain('title-1')
   })
 })

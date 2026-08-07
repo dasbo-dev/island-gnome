@@ -2,6 +2,7 @@ import Adw from 'gi://Adw'
 import Gtk from 'gi://Gtk'
 import Gio from 'gi://Gio'
 import { ABOUT } from '../core/about.js'
+import { logoAsset } from '../core/logo.js'
 
 // The identity page: who wrote this, where it lives, how to say thanks.
 // Everything it renders comes from ABOUT or from its arguments, so the strings
@@ -14,17 +15,86 @@ export function aboutPage(
 ): Adw.PreferencesPage {
   const page = new Adw.PreferencesPage({ title: 'About', icon_name: 'help-about-symbolic' })
 
-  page.add(_identity(window, version))
+  page.add(_banner(window, extensionPath, version))
+  page.add(_identity(window))
   page.add(_support(window, extensionPath))
 
   return page
 }
 
-function _identity(window: Adw.PreferencesWindow, version: string): Adw.PreferencesGroup {
-  const group = new Adw.PreferencesGroup({ title: 'Dasbo Island' })
+// The page's identity, shown the way GNOME's own about windows show it: the
+// mark, the name, the version. Everything below it is a row.
+function _banner(window: Adw.PreferencesWindow, extensionPath: string, version: string): Adw.PreferencesGroup {
+  const group = new Adw.PreferencesGroup()
+
+  const box = new Gtk.Box({
+    orientation: Gtk.Orientation.VERTICAL,
+    spacing: 6,
+    margin_top: 24,
+    margin_bottom: 12,
+    halign: Gtk.Align.CENTER,
+  })
+
+  const manager = Adw.StyleManager.get_default()
+  const file = _logoFile(extensionPath, manager.dark)
+  // The same check the QR makes below, for the same reason: a Gtk.Image handed
+  // a path that isn't there draws nothing and reports nothing. Without the
+  // image the name and version still render, so a missing asset costs the page
+  // a decoration rather than its content.
+  if (file.query_exists(null)) {
+    // Gtk.Image with pixel_size, not the Picture widget _qrRow uses below:
+    // pixel_size *is* the image's minimum size, so it cannot collapse the way
+    // the QR did inside a clamp (see the note there).
+    const image = Gtk.Image.new_from_gicon(Gio.FileIcon.new(file))
+    image.pixel_size = 96
+
+    // The preferences window outlives a theme switch, so the variant is
+    // re-resolved rather than fixed at build time.
+    const handler = manager.connect('notify::dark', () => {
+      const next = _logoFile(extensionPath, manager.dark)
+      // Keep the mark already on screen if the other variant is missing.
+      if (next.query_exists(null)) image.gicon = Gio.FileIcon.new(next)
+    })
+    // Scoped to the window's destroy, not the image's. GtkWidget::destroy is
+    // emitted from dispose, which only runs once every reference is gone —
+    // and this handler's closure holds its own reference to `image`, kept
+    // alive for as long as the connection sits on Adw.StyleManager.get_default(),
+    // a process-lifetime singleton. An image-scoped disconnect could
+    // therefore never fire: the image and the handler would both outlive the
+    // window that made them. gtk_window_destroy runs dispose on the window
+    // regardless of outstanding refs, so its destroy signal really does fire
+    // when the preferences window closes.
+    window.connect('destroy', () => manager.disconnect(handler))
+
+    box.append(image)
+  }
+
+  const name = new Gtk.Label({ label: 'Dasbo Island' })
+  name.add_css_class('title-1')
+  box.append(name)
+
+  const versionLabel = new Gtk.Label({ label: version })
+  versionLabel.add_css_class('dim-label')
+  box.append(versionLabel)
+
+  const row = new Adw.PreferencesRow({ activatable: false, selectable: false })
+  row.set_child(box)
+  group.add(row)
+
+  return group
+}
+
+function _logoFile(extensionPath: string, dark: boolean): Gio.File {
+  return Gio.File.new_for_path(`${extensionPath}/${logoAsset(dark)}`)
+}
+
+// The name and version live in the banner above, so this group carries only
+// the facts that have nowhere else to go — and no title, which would repeat
+// the name a second time on the same page.
+function _identity(window: Adw.PreferencesWindow): Adw.PreferencesGroup {
+  const group = new Adw.PreferencesGroup()
 
   group.add(new Adw.ActionRow({ title: 'Author', subtitle: ABOUT.author }))
-  group.add(new Adw.ActionRow({ title: 'Version', subtitle: version }))
   group.add(new Adw.ActionRow({ title: 'Licence', subtitle: ABOUT.license }))
   group.add(_linkRow(window, 'GitHub', ABOUT.repoUrl))
   group.add(_linkRow(window, 'Report an issue', ABOUT.issuesUrl))

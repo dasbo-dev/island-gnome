@@ -1,8 +1,8 @@
 <div align="center">
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
-  <img src="docs/assets/logo-light.svg" alt="" width="120">
+  <source media="(prefers-color-scheme: dark)" srcset="src/assets/logo-dark.svg">
+  <img src="src/assets/logo-light.svg" alt="" width="120">
 </picture>
 
 # Dasbo Island
