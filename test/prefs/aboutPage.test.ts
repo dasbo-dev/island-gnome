@@ -49,24 +49,30 @@ describe('the About page', () => {
   })
 
   it('resolves the launch through launch_finish', () => {
-    // Satisfied by any mention of launch_finish, including a call on the
-    // wrong object — but combined with the receiver check below, the two
-    // together rule out both ways this can quietly do nothing.
-    expect(page).toContain('launch_finish')
+    // Anchored to the actual call rather than the bare identifier: the name
+    // launch_finish also appears in an explanatory comment above it, so a
+    // deleted callback body would still leave the bare string in the file.
+    expect(page).toContain('launcher.launch_finish(result)')
   })
 
   it('does not detach launch from its receiver', () => {
     // launcher.launch is a GJS prototype method: pulled off its instance and
     // invoked bare (`const launch = launcher.launch; launch(...)`), it throws
     // synchronously outside any try/catch, and every click on a link row
-    // silently does nothing. `.call(launcher, ...)` — or an equivalent bound
-    // invocation — keeps the receiver attached.
+    // silently does nothing. These are negative assertions rather than a
+    // regex for one exact idiom, so an equivalent bound invocation (e.g.
+    // `(launcher as unknown as { launch: Launch }).launch(...)`) still
+    // passes — only the two ways of actually detaching the receiver fail.
     expect(page).not.toMatch(/const launch = launcher\.launch/)
-    expect(page).toMatch(/launcher\.launch as unknown as \w+\)\.call\(launcher,/)
+    expect(page).not.toMatch(/^\s*launch\(/m)
   })
 
   it('survives a missing QR file instead of drawing an empty box', () => {
     expect(page).toContain('query_exists')
+  })
+
+  it('falls back to a plain Donate row when there is no QR file', () => {
+    expect(page).toMatch(/_linkRow\(window, 'Donate', ABOUT\.supportUrl\)/)
   })
 
   it('offers the QR behind an expander, as the issue asked', () => {

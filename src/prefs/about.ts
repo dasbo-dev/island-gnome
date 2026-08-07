@@ -48,7 +48,7 @@ function _linkRow(window: Adw.PreferencesWindow, title: string, uri: string): Ad
 function _support(window: Adw.PreferencesWindow, extensionPath: string): Adw.PreferencesGroup {
   const group = new Adw.PreferencesGroup({
     title: 'Support',
-    description: 'Dasbo Island is free and GPL-licenced. If it saves you time, a coffee keeps it going.',
+    description: 'Dasbo Island is free and GPL-licensed. If it saves you time, a coffee keeps it going.',
   })
 
   // The page's visual weight. Everything above this is a plain row, so the
@@ -102,14 +102,13 @@ function _qrRow(file: Gio.File): Adw.PreferencesRow {
 
   const picture = Gtk.Picture.new_for_file(file)
   picture.can_shrink = true
-  // set_size_request only raises a widget's minimum size; Gtk.Picture's
-  // natural size stays the image's intrinsic 700x700 regardless, and inside
-  // the page's clamp that natural size is what gets allocated — forcing the
-  // expander open to roughly the height of the whole window. Adw.Clamp caps
-  // the natural width instead, and Picture's aspect-ratio preservation keeps
-  // the (square) image square as its height follows.
-  const clamp = new Adw.Clamp({ maximum_size: 200, child: picture })
-  box.append(clamp)
+  // A minimum size request, not a clamp: with can_shrink true the picture's
+  // own minimum is 0, and a clamp only caps the maximum an allocation can
+  // grow to — it grants nothing on its own, so a 0-minimum child measures
+  // (0, 0) inside one and gets allocated no pixels. set_size_request raises
+  // the *minimum*, which is what actually forces a non-zero allocation.
+  picture.set_size_request(200, 200)
+  box.append(picture)
 
   const label = new Gtk.Label({ label: _display(ABOUT.supportUrl), selectable: true })
   label.add_css_class('dim-label')
