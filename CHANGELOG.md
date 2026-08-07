@@ -18,9 +18,15 @@ Nothing has been tagged yet. Everything below is on `master`.
   time, and current activity.
 - Inline permission approval, and a click-through that raises the terminal
   running a session.
-- Hook install, update, and removal for Claude Code, Codex CLI, and
-  Antigravity CLI, preserving other tools' entries and writing a `.dasbo.bak`
-  backup before the first change.
+- Hook install, update, and removal for Claude Code and Codex CLI, preserving
+  other tools' entries and writing a `.dasbo.bak` backup before the first
+  change.
+- An Agents page listing OpenCode, Cursor CLI, and Antigravity CLI as *Coming
+  soon*: shown with their controls insensitive, so the roadmap is visible
+  without implying the hooks can be installed. Antigravity's adapter and its
+  12 captured fixtures remain in the tree; its permission decision path has
+  never been exercised against a real payload, so this release does not offer
+  to install it.
 - Task-list progress on each session row, with an expander showing the list
   itself. Claude Code's list is read from `~/.claude/tasks/<session-id>/`.
 - Waiting-on-you messages surfaced on the row, with a configurable delay and
