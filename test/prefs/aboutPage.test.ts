@@ -19,6 +19,17 @@ describe('the About page', () => {
     expect([...positions].sort((a, b) => a - b)).toEqual(positions)
   })
 
+  it('opens the window at the size the core record names', () => {
+    // Without a default size the window opens at libadwaita's natural size,
+    // which was too short for the About page and put the Support group below
+    // the fold. Asserted against the record rather than a literal: a number
+    // typed in here typechecks perfectly and is invisible to
+    // test/core/prefsWindow.test.ts, so the bound that test enforces would
+    // quietly stop applying to the window the user actually sees.
+    expect(prefs).toContain('PREFS_WINDOW')
+    expect(prefs).toMatch(/set_default_size\(\s*PREFS_WINDOW\.width,\s*PREFS_WINDOW\.height\s*\)/)
+  })
+
   it('hard-codes no URL of its own', () => {
     // Every address on the page has to come from the record the other tests
     // can check. A literal here is invisible to test/core/about.test.ts.
@@ -184,8 +195,10 @@ describe('the About page banner', () => {
   it('sizes the mark with pixel_size rather than wrapping a Picture', () => {
     // Gtk.Image's pixel_size IS its minimum size, so it cannot collapse the
     // way the QR did when it was wrapped in a clamp — the measured 200x0
-    // allocation the comment in _qrRow describes.
-    expect(page).toContain('pixel_size = 96')
+    // allocation the comment in _qrRow describes. The number itself is
+    // incidental to this test — 'keeps the banner within its height budget'
+    // above owns that value — so this only pins the mechanism.
+    expect(page).toMatch(/pixel_size = \d+/)
     expect(page).not.toMatch(/Gtk\.Picture[\s\S]*title-1/)
   })
 
@@ -226,6 +239,26 @@ describe('the About page banner', () => {
     const name = page.indexOf('box.append(name)')
     expect(image, 'the banner never appends the image').toBeGreaterThan(-1)
     expect(image).toBeLessThan(name)
+  })
+
+  it('keeps the banner within its height budget', () => {
+    // The banner is what the rest of the page has to fit underneath. At 96px
+    // and 24/12 margins it spent ~200px before the first row, and the Support
+    // group at the bottom fell below the fold. An edit putting either number
+    // back reintroduces that bug and breaks no other test.
+    //
+    // Anchored to the banner's own Gtk.Box construction — the first one in
+    // this file, ahead of _qrRow's — rather than a single adjacent-pair
+    // regex: margin_bottom: 6 also appears on the Support button below, so a
+    // pattern matching margin_top and margin_bottom as a fixed-order pair
+    // would both misattribute to the wrong widget and be a false positive on
+    // a harmless property reorder within the banner's own box. Matching each
+    // margin separately inside the captured box body survives both.
+    const box = /const box = new Gtk\.Box\(\{([\s\S]*?)\}\)/.exec(page)
+    expect(box, 'no Gtk.Box construction found').not.toBeNull()
+    expect(box?.[1]).toMatch(/margin_top:\s*12,/)
+    expect(box?.[1]).toMatch(/margin_bottom:\s*6,/)
+    expect(page).toContain('image.pixel_size = 64')
   })
 
   it('shows the name and version once each, in the banner', () => {
