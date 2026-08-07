@@ -9,9 +9,9 @@ describe('the README', () => {
   // is near-white, so on a light page it renders as nothing at all.
   it('switches the logo on the reader theme, dark variant on the dark source', () => {
     expect(readme).toMatch(
-      /<source\s+media="\(prefers-color-scheme: dark\)"\s+srcset="docs\/assets\/logo-dark\.svg"/
+      /<source\s+media="\(prefers-color-scheme: dark\)"\s+srcset="src\/assets\/logo-dark\.svg"/
     )
-    expect(readme).toMatch(/<img\s+src="docs\/assets\/logo-light\.svg"/)
+    expect(readme).toMatch(/<img\s+src="src\/assets\/logo-light\.svg"/)
   })
 
   // The word has to be in the alt text, not merely somewhere on the page: an
