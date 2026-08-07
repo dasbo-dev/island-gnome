@@ -27,11 +27,15 @@ export function aboutPage(
 function _banner(window: Adw.PreferencesWindow, extensionPath: string, version: string): Adw.PreferencesGroup {
   const group = new Adw.PreferencesGroup()
 
+  // Tight margins and a 64px mark below, not the 96/24/12 this started at:
+  // the banner is the page's height budget, and everything under it — four
+  // identity rows and the Support group — has to fit in what is left. See
+  // docs/superpowers/specs/2026-08-07-taller-settings-window-design.md.
   const box = new Gtk.Box({
     orientation: Gtk.Orientation.VERTICAL,
     spacing: 6,
-    margin_top: 24,
-    margin_bottom: 12,
+    margin_top: 12,
+    margin_bottom: 6,
     halign: Gtk.Align.CENTER,
   })
 
@@ -46,7 +50,7 @@ function _banner(window: Adw.PreferencesWindow, extensionPath: string, version: 
     // pixel_size *is* the image's minimum size, so it cannot collapse the way
     // the QR did inside a clamp (see the note there).
     const image = Gtk.Image.new_from_gicon(Gio.FileIcon.new(file))
-    image.pixel_size = 96
+    image.pixel_size = 64
 
     // The preferences window outlives a theme switch, so the variant is
     // re-resolved rather than fixed at build time.
