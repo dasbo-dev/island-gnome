@@ -43,6 +43,26 @@ describe('the About page', () => {
     expect(page.indexOf("title: 'Support'")).toBeGreaterThan(page.indexOf("title: 'Dasbo Island'"))
   })
 
+  it('gives link rows the adw- prefixed icon, not the icon-theme-dependent one', () => {
+    // external-link-symbolic isn't a stock Adwaita icon; it shipped once and
+    // was caught only by eye, on a machine where Yaru happened to provide a
+    // copy. adw-external-link-symbolic ships in libadwaita's own GResource,
+    // so it renders everywhere.
+    expect(page).toContain('adw-external-link-symbolic')
+  })
+
+  it('lays the coffee button out full width', () => {
+    const button = /new Gtk\.Button\(\{([\s\S]*?)\}\)/.exec(page)
+    expect(button, 'no Gtk.Button construction found').not.toBeNull()
+    expect(button?.[1]).toContain('halign: Gtk.Align.FILL')
+  })
+
+  it('puts the coffee button before the QR expander in Support', () => {
+    // The group's order is a deliberate design decision: the ask leads, the
+    // QR sits behind it as progressive disclosure.
+    expect(page.indexOf('group.add(buttonRow)')).toBeLessThan(page.indexOf('group.add(expander)'))
+  })
+
   it('opens links through Gtk.UriLauncher, not the deprecated show_uri', () => {
     expect(page).toContain('Gtk.UriLauncher')
     expect(page).not.toContain('show_uri')
@@ -92,14 +112,19 @@ describe('the About page', () => {
     expect(page).toMatch(/Show QR code/)
   })
 
-  it('gives the QR picture a minimum size instead of a clamp', () => {
+  it('gives the QR picture a minimum size request', () => {
     // An earlier attempt wrapped the picture in an Adw.Clamp instead of
     // calling set_size_request: AdwClampLayout reports the child's minimum
     // as its own natural size, so the picture's 0 minimum (can_shrink is
     // true) measured (0, 0) inside one — an invisible QR with a fully green
     // suite, since nothing here built or inspected the actual widget tree.
+    // What actually matters is the minimum size request; a bare clamp is
+    // what loses it. So the negative half below is narrowed to a clamp
+    // *constructed* in the source, not any mention of the class — a comment
+    // naming it, or a clamp combined with set_size_request (which does keep
+    // the allocation non-zero), must not fail this test.
     expect(page).toContain('set_size_request(200, 200)')
-    expect(page).not.toContain('Adw.Clamp')
+    expect(page).not.toMatch(/new Adw\.Clamp/)
   })
 })
 

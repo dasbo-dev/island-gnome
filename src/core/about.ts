@@ -1,7 +1,9 @@
-// The identity the preferences window shows. Kept here rather than beside the
-// page that renders it because src/prefs pulls in GJS bindings that no test
-// in this repo can reach past — a typo in the donation URL would ship
-// silently. test/core/about.test.ts is what makes these strings checkable.
+/**
+ * The identity the preferences window shows. Kept here rather than beside the
+ * page that renders it because src/prefs pulls in GJS bindings that no test
+ * in this repo can reach past — a typo in the donation URL would ship
+ * silently. test/core/about.test.ts is what makes these strings checkable.
+ */
 export const ABOUT = {
   author: 'fsevenm',
   repoUrl: 'https://github.com/dasbo-dev/island-gnome',

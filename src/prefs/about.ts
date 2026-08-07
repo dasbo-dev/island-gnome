@@ -105,9 +105,11 @@ function _qrRow(file: Gio.File): Adw.PreferencesRow {
   // A minimum size request, not a clamp. can_shrink drops the picture's own
   // minimum to 0, and a clamp caps what a child may grow to without ever
   // granting it size — wrapping this picture in one was measured allocating
-  // 0x0 against real GTK 4.14, an invisible QR with a green test suite.
+  // 200×0 against real GTK 4.14: the width held, but the height collapsed to
+  // the picture's zero minimum, an invisible QR with a green test suite.
   // set_size_request raises the *minimum*, which is what forces a non-zero
-  // allocation. test/prefs/aboutPage.test.ts pins both halves of that.
+  // allocation in both dimensions. test/prefs/aboutPage.test.ts pins both
+  // halves of that.
   picture.set_size_request(200, 200)
   box.append(picture)
 

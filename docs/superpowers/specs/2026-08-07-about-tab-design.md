@@ -38,7 +38,7 @@ Information first, the ask last.
 | --- | --- | --- |
 | Author | `Adw.ActionRow` | `fsevenm` |
 | Version | `Adw.ActionRow` | `metadata['version-name']` — `0.1.0` today |
-| License | `Adw.ActionRow` | `GPL-3.0-or-later` |
+| Licence | `Adw.ActionRow` | `GPL-3.0-or-later` |
 | GitHub | activatable `Adw.ActionRow` | `github.com/dasbo-dev/island-gnome` |
 | Report an issue | activatable `Adw.ActionRow` | `github.com/dasbo-dev/island-gnome/issues` |
 
@@ -115,10 +115,10 @@ to read.
 Gains an import and one line in `fillPreferencesWindow`:
 
 ```ts
-window.add(aboutPage(window, this.path, this._versionLabel()))
+window.add(aboutPage(window, this.path, this._version()))
 ```
 
-The three existing page builders are untouched. `_versionLabel()` is a small
+The three existing page builders are untouched. `_version()` is a small
 private method holding the `version-name` fallback described above.
 
 ## Asset
@@ -134,9 +134,10 @@ A missing QR file is the interesting one: `Gtk.Picture` given a path that does
 not exist renders an empty widget and reports nothing, which is exactly the
 silent-death trap the agent chip marks already have. Two defences:
 
-1. The expander stats the file before building the `Gtk.Picture`. If it is
-   absent, the expander's child is the URL as selectable text and nothing
-   else — a degraded panel rather than a blank one.
+1. The page stats the file before building the expander at all. If it is
+   absent, the expander never appears — a plain activatable `Donate` row
+   carrying the same URL takes its place, rather than a panel that promises
+   a QR and reveals nothing but a dim address.
 2. A build test pins the `cp('src/assets', 'dist/assets')` line, so deleting
    it fails CI rather than shipping.
 
