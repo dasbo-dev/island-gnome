@@ -195,8 +195,10 @@ describe('the About page banner', () => {
   it('sizes the mark with pixel_size rather than wrapping a Picture', () => {
     // Gtk.Image's pixel_size IS its minimum size, so it cannot collapse the
     // way the QR did when it was wrapped in a clamp — the measured 200x0
-    // allocation the comment in _qrRow describes.
-    expect(page).toContain('pixel_size = 64')
+    // allocation the comment in _qrRow describes. The number itself is
+    // incidental to this test — 'keeps the banner within its height budget'
+    // above owns that value — so this only pins the mechanism.
+    expect(page).toMatch(/pixel_size = \d+/)
     expect(page).not.toMatch(/Gtk\.Picture[\s\S]*title-1/)
   })
 
@@ -245,13 +247,18 @@ describe('the About page banner', () => {
     // group at the bottom fell below the fold. An edit putting either number
     // back reintroduces that bug and breaks no other test.
     //
-    // The two margins are matched as one adjacent pair rather than two
-    // separate toMatch calls: margin_bottom: 6 also appears on the Support
-    // button below, and an unanchored toMatch there would keep passing even
-    // if the banner box's own margin_bottom reverted to 12. Pairing it with
-    // margin_top: 12 — unique to the banner box — pins it to the right line.
+    // Anchored to the banner's own Gtk.Box construction — the first one in
+    // this file, ahead of _qrRow's — rather than a single adjacent-pair
+    // regex: margin_bottom: 6 also appears on the Support button below, so a
+    // pattern matching margin_top and margin_bottom as a fixed-order pair
+    // would both misattribute to the wrong widget and be a false positive on
+    // a harmless property reorder within the banner's own box. Matching each
+    // margin separately inside the captured box body survives both.
+    const box = /const box = new Gtk\.Box\(\{([\s\S]*?)\}\)/.exec(page)
+    expect(box, 'no Gtk.Box construction found').not.toBeNull()
+    expect(box?.[1]).toMatch(/margin_top:\s*12,/)
+    expect(box?.[1]).toMatch(/margin_bottom:\s*6,/)
     expect(page).toContain('image.pixel_size = 64')
-    expect(page).toMatch(/margin_top:\s*12,\s*margin_bottom:\s*6,/)
   })
 
   it('shows the name and version once each, in the banner', () => {
