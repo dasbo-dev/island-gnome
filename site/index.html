@@ -93,18 +93,21 @@
 <section id="agents">
   <h2>Supported agents</h2>
   <table>
-    <thead><tr><th>Agent</th><th>Status</th><th>Permission gating</th></tr></thead>
+    <thead><tr><th>Agent</th><th>In this build</th><th>Status</th><th>Permission gating</th></tr></thead>
     <tbody>
-      <tr><td>Claude Code</td><td>Verified against 17 real hook-payload fixtures</td><td>Yes</td></tr>
+      <tr><td>Claude Code</td><td>Yes</td><td>Verified against 17 real hook-payload fixtures</td><td>Yes</td></tr>
       <!-- Every cell in this table is re-derived from docs/limitations.md and
            the README's "Supported agents" table — never edited straight to a
            friendlier wording. This row said "never fired, zero payloads
            captured" long after test/fixtures/codex/ held six captures. -->
-      <tr><td>Codex CLI</td><td>Verified against 6 real hook-payload fixtures (0.146.0)</td><td>Notify-only</td></tr>
+      <tr><td>Codex CLI</td><td>Yes</td><td>Verified against 6 real hook-payload fixtures (0.146.0)</td><td>Notify-only</td></tr>
+      <tr><td>OpenCode</td><td>Coming soon</td><td>—</td><td>—</td></tr>
+      <tr><td>Cursor CLI</td><td>Coming soon</td><td>—</td><td>—</td></tr>
+      <tr><td>Antigravity CLI</td><td>Coming soon</td><td>Verified against 12 real hook-payload fixtures</td><td>Unverified</td></tr>
     </tbody>
   </table>
   <p class="fine">Statuses are honest, not aspirational — the details live in the <a href="https://github.com/dasbo-dev/island-gnome#supported-agents">README</a>.</p>
-  <p class="fine">Planned: OpenCode, Cursor CLI, and Antigravity CLI are listed on the extension's Agents page as <em>Coming soon</em> — visible, not installable.</p>
+  <p class="fine">A <em>coming soon</em> agent has a row on the extension's Agents page with its toggle and both buttons disabled: visible, not installable.</p>
 </section>
 
 <section id="failopen">
