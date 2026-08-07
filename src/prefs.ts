@@ -21,11 +21,14 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
   fillPreferencesWindow(window: Adw.PreferencesWindow): Promise<void> | void {
     const settings = this.getSettings()
 
-    // The default size, not a size request: a user who resizes the window
-    // keeps their size, and libadwaita's own minimums still apply. Neither the
-    // shell's ExtensionPrefsDialog nor libadwaita sets one, so without this
-    // the window opened at its natural size — too short for the About page,
-    // whose Support group ended up below the fold.
+    // The default size, not a size request: it only sets the size the window
+    // opens at for this one showing, and libadwaita's own minimums still
+    // apply. Nothing persists it — the shell builds a fresh
+    // ExtensionPrefsDialog on every open and drops it on close, so a resize
+    // lasts only as long as this window stays open. Neither the shell nor
+    // libadwaita sets a default size itself, so without this the window
+    // opened at its natural size — too short for the About page, whose
+    // Support group ended up below the fold.
     window.set_default_size(PREFS_WINDOW.width, PREFS_WINDOW.height)
 
     window.add(this._appearancePage(settings))
