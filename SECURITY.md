@@ -36,18 +36,15 @@ control that fails open fails **permissive**.
 
 ## Known open issue
 
-**Antigravity CLI's permission gate is unverified, which is why this build
-does not install its hooks.** Clicking Deny might report a tool as denied
-while it executes anyway, so the agent is listed on the Agents page as
-*Coming soon* rather than offered for installation. Its adapter remains in
-the tree and is not reachable from the UI.
-
 Codex CLI has no permission gate through this extension at all; its hooks are
 installed
 [notify-only](docs/limitations.md#codex-has-no-permission-gate).
 Claude Code's gate is the one this project treats as working; its
 dialect is verified against 17 captured payloads, though no permission
 round-trip has been captured for any agent.
+
+No other agent's hooks can be installed from this build, so no other agent's
+decision path is reachable.
 
 ---
 

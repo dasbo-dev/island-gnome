@@ -64,9 +64,8 @@ describe('the README', () => {
     }
   })
 
-  // Antigravity's permission gate has never been exercised against a real
-  // payload, so this build does not offer to install its hooks. Presenting it
-  // as available would send a reader looking for a button that is disabled.
+  // This build does not offer Antigravity's hooks. Presenting it as available
+  // would send a reader looking for a button that is disabled.
   it('does not offer Antigravity as an agent you can install today', () => {
     const row = readme.split('\n').find((line) => line.startsWith('| Antigravity'))
     expect(row, 'the table lost its Antigravity row').toBeDefined()

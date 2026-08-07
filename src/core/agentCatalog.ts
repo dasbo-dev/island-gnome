@@ -22,10 +22,8 @@ export type CatalogEntry =
  * hooks this build can install, then the roadmap.
  *
  * This is the only place the roadmap is written down. Antigravity sits in the
- * second group despite having a complete adapter and twelve captured fixtures
- * — its permission decision path has never been exercised against a real
- * payload, so shipping it as supported would overstate what the extension
- * does. The adapter stays in the tree for the release that turns it back on.
+ * second group despite having an adapter in the tree: this build does not
+ * offer its hooks, and the adapter stays for the release that turns it on.
  */
 export const AGENT_CATALOG: readonly CatalogEntry[] = [
   { id: 'claude', status: 'supported' },

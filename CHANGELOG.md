@@ -23,10 +23,7 @@ Nothing has been tagged yet. Everything below is on `master`.
   change.
 - An Agents page listing OpenCode, Cursor CLI, and Antigravity CLI as *Coming
   soon*: shown with their controls insensitive, so the roadmap is visible
-  without implying the hooks can be installed. Antigravity's adapter and its
-  12 captured fixtures remain in the tree; its permission decision path has
-  never been exercised against a real payload, so this release does not offer
-  to install it.
+  without implying the hooks can be installed.
 - Task-list progress on each session row, with an expander showing the list
   itself. Claude Code's list is read from `~/.claude/tasks/<session-id>/`.
 - Waiting-on-you messages surfaced on the row, with a configurable delay and
