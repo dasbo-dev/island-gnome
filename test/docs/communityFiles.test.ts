@@ -10,7 +10,7 @@ const REQUIRED: Record<string, string[]> = {
   'SECURITY.md': ['ayubaswad@gmail.com', 'docs/limitations.md'],
   'CHANGELOG.md': ['Keep a Changelog', '[Unreleased]'],
   '.github/ISSUE_TEMPLATE/bug_report.yml': ['GNOME Shell', 'Wayland', 'journalctl'],
-  '.github/ISSUE_TEMPLATE/feature_request.yml': ['name:', 'description:'],
+  '.github/ISSUE_TEMPLATE/feature_request.yml': ['extension'],
   '.github/ISSUE_TEMPLATE/config.yml': ['blank_issues_enabled: false'],
   '.github/PULL_REQUEST_TEMPLATE.md': ['npm test', 'npm run typecheck'],
 }
