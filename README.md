@@ -47,6 +47,7 @@ Source: [github.com/dasbo-dev/island-gnome](https://github.com/dasbo-dev/island-
 - [Status and known limitations](#status-and-known-limitations)
 - [Development](#development)
 - [Contributing](#contributing)
+- [Support](#support)
 - [License](#license)
 - [Credits](#credits)
 
@@ -221,6 +222,12 @@ close the moment someone produces one. Start with
 [CONTRIBUTING.md](CONTRIBUTING.md); participation is covered by the
 [Code of Conduct](CODE_OF_CONDUCT.md).
 
+## Support
+
+Dasbo Island is free and GPL-licensed, and stays that way. If it saves you a
+window switch or two, you can [buy me a coffee](https://buymeacoffee.com/fsevenm).
+The extension's About tab carries the same link, with a QR code.
+
 ## License
 
 [GPL-3.0-or-later](LICENSE).
@@ -230,6 +237,4 @@ close the moment someone produces one. Start with
 Inspired by [open-vibe-island](https://github.com/Octane0411/open-vibe-island),
 rebuilt natively for GNOME Shell.
 
-Built by [fsevenm](https://github.com/fsevenm). If it saves you a window
-switch or two, you can
-[buy me a coffee](https://buymeacoffee.com/fsevenm).
+Built by [fsevenm](https://github.com/fsevenm).
