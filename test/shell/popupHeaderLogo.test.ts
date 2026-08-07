@@ -50,8 +50,12 @@ describe('the popup header logo', () => {
   })
 
   it('does not invert the variant it asks for', () => {
+    // The variant is chosen at _gicon(base, prefersDark(...)).
+    // Catch inversions: direct negation of prefersDark, ! in _gicon's
+    // second argument, or negation inside logoAsset() within _gicon.
+    expect(icon).not.toMatch(/!prefersDark\(/)
+    expect(icon).not.toMatch(/_gicon\([^,)]+,\s*!/)
     expect(icon).not.toMatch(/logoAsset\(\s*!/)
-    expect(icon).not.toMatch(/prefersDark\([^)]*\)\s*===\s*false/)
   })
 
   it('gets the extension path from Island rather than reaching for it', () => {
