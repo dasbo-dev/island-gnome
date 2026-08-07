@@ -48,6 +48,23 @@ describe('the About page', () => {
     expect(page).not.toContain('show_uri')
   })
 
+  it('resolves the launch through launch_finish', () => {
+    // Satisfied by any mention of launch_finish, including a call on the
+    // wrong object — but combined with the receiver check below, the two
+    // together rule out both ways this can quietly do nothing.
+    expect(page).toContain('launch_finish')
+  })
+
+  it('does not detach launch from its receiver', () => {
+    // launcher.launch is a GJS prototype method: pulled off its instance and
+    // invoked bare (`const launch = launcher.launch; launch(...)`), it throws
+    // synchronously outside any try/catch, and every click on a link row
+    // silently does nothing. `.call(launcher, ...)` — or an equivalent bound
+    // invocation — keeps the receiver attached.
+    expect(page).not.toMatch(/const launch = launcher\.launch/)
+    expect(page).toMatch(/launcher\.launch as unknown as \w+\)\.call\(launcher,/)
+  })
+
   it('survives a missing QR file instead of drawing an empty box', () => {
     expect(page).toContain('query_exists')
   })
@@ -55,6 +72,24 @@ describe('the About page', () => {
   it('offers the QR behind an expander, as the issue asked', () => {
     expect(page).toContain('Adw.ExpanderRow')
     expect(page).toMatch(/Show QR code/)
+  })
+})
+
+describe('the About page version', () => {
+  const prefs = readFileSync('src/prefs.ts', 'utf8')
+
+  it('reads the version from the extension metadata, not a literal', () => {
+    // A regression to a hard-coded '0.1.0' would still pass every other test
+    // in this suite; this is the only thing that would catch it.
+    expect(prefs).toContain("metadata['version-name']")
+  })
+})
+
+describe('the About page path', () => {
+  const prefs = readFileSync('src/prefs.ts', 'utf8')
+
+  it('passes this.path to aboutPage, so the QR asset can be found', () => {
+    expect(prefs).toMatch(/aboutPage\([^)]*this\.path/)
   })
 })
 
