@@ -1,0 +1,102 @@
+# Contributing to Dasbo Island
+
+Thanks for looking. This is a GNOME Shell extension written in TypeScript and
+bundled with esbuild; everything that can be tested without a running GNOME
+session is tested with Vitest.
+
+## What is most useful
+
+**Captured hook payloads.** Several gaps in
+[docs/limitations.md](docs/limitations.md) close the moment someone produces a
+real payload — the Antigravity permission round-trip above all. A fixture is
+worth more here than a patch.
+
+**Bug reports with a shell log.** See the issue template; the log is usually
+the whole story.
+
+**Patches.** Small and focused, please.
+
+## Setup
+
+```bash
+git clone https://github.com/dasbo-dev/island-gnome.git
+cd island-gnome
+npm install
+```
+
+No GNOME session is needed to run the tests. To try the extension itself you
+need GNOME Shell 46:
+
+```bash
+make install
+gnome-extensions enable dasbo-island@ayubaswad.gmail.com
+```
+
+Reload the shell after installing: `Alt`+`F2`, `r`, `Enter` on X11; log out and
+back in on Wayland.
+
+```bash
+tools/fake-agent.js perm   # drive the UI without a real agent
+```
+
+## The gates
+
+Both must pass before a pull request can be merged, and CI runs them on every
+pull request, and on pushes to `master`:
+
+```bash
+npm test
+npm run typecheck
+```
+
+`node build.mjs` must also succeed — it builds `dist/` and the landing page in
+`dist-site/`.
+
+## Rules worth knowing before you start
+
+**`src/core/` must never import `gi://` or `resource://`.** That directory is
+the part of the extension the test suite can reach; the moment it pulls in a
+GJS binding, it stops being testable outside a live shell.
+`test/core/purity.test.ts` enforces this and will fail your build.
+
+**Assets are loaded by absolute path at runtime, and a missing one is
+silent.** A chip with no mark just renders a bare name; a `Gtk.Picture` given
+a missing file draws nothing and reports nothing. `test/shell/iconAssets.test.ts`
+and `test/prefs/aboutAssets.test.ts` guard the `build.mjs` copy lines that
+ship them. If you add an asset, add its guard.
+
+**Documentation is tested too.** `test/repoUrls.test.ts` sweeps for stale
+repository slugs, and `test/docs/` guards the README's structure, the logo
+files, and the limitations page. A restructure that drops a warning fails the
+suite.
+
+## Adding an agent
+
+Adapters live in `src/core/adapters/`. Each one translates its agent's hook
+dialect into the extension's own events.
+[docs/agent-dialects.md](docs/agent-dialects.md) documents the three that
+exist; the fixtures behind them are in `test/fixtures/`.
+
+An adapter written without captured fixtures is a guess, and this project
+labels guesses as such — see the Antigravity entry in
+[docs/limitations.md](docs/limitations.md) for what that looks like in
+practice.
+
+## Commits and pull requests
+
+Conventional commits, matching the existing log:
+
+```
+feat(prefs): add the About tab with author, links, and support QR
+fix: point every repository URL at dasbo-dev/island-gnome
+docs: state only the measured fact about the clamp
+test(prefs): guard the detached-receiver and QR-sizing regressions
+build: ship src/assets alongside the extension
+```
+
+Say what changed and why in the pull-request description, and note anything
+you could not verify. Unverified is fine here. Unlabelled is not.
+
+## Code of Conduct
+
+Participation is covered by the [Code of Conduct](CODE_OF_CONDUCT.md).

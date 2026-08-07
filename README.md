@@ -1,20 +1,74 @@
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+  <img src="docs/assets/logo-light.svg" alt="" width="120">
+</picture>
+
 # Dasbo Island
 
-Live AI coding-agent sessions in the GNOME top bar: status at a glance, inline
-permission approval, and jump-back to the terminal running the session.
+**Your AI coding agents, live on the GNOME top bar.**
 
-**[See the pill run live →](https://fsevenm.github.io/dasbo-island/)** — the
-demo on that page is the extension's real `src/core` state machine, bundled
-for the browser.
+[![CI](https://github.com/dasbo-dev/island-gnome/actions/workflows/ci.yml/badge.svg)](https://github.com/dasbo-dev/island-gnome/actions/workflows/ci.yml)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
+[![GNOME Shell 46](https://img.shields.io/badge/GNOME%20Shell-46-4a86cf.svg)](https://release.gnome.org/46/)
+
+[Live demo](https://fsevenm.github.io/dasbo-island/) ·
+[Agent dialects](docs/agent-dialects.md) ·
+[Limitations](docs/limitations.md) ·
+[Contributing](CONTRIBUTING.md) ·
+[Changelog](CHANGELOG.md)
+
+</div>
+
+![A mockup of the Dasbo Island pill in the GNOME top bar, its popup listing three live agent sessions, and the terminal running one of them](docs/assets/hero.svg)
+
+<sub>A mockup, not a screen capture — the extension drawn as it appears. <a href="https://fsevenm.github.io/dasbo-island/">The live demo</a> runs the real state machine in your browser.</sub>
+
+## What it is
+
+Dasbo Island is a GNOME Shell extension that keeps every live AI coding-agent
+session in the top bar: status at a glance, permission prompts answered
+inline, and one click back to the terminal running the work.
+
+The demo linked above is not a video. It is the extension's own `src/core`
+state machine, bundled for the browser.
 
 Source: [github.com/dasbo-dev/island-gnome](https://github.com/dasbo-dev/island-gnome)
 
-Inspired by [open-vibe-island](https://github.com/Octane0411/open-vibe-island),
-rebuilt natively for GNOME Shell.
+## Contents
+
+- [Features](#features)
+- [Requirements](#requirements)
+- [Install](#install)
+- [How it works](#how-it-works)
+- [Supported agents](#supported-agents)
+- [Fail-open guarantee](#fail-open-guarantee)
+- [Status and known limitations](#status-and-known-limitations)
+- [Development](#development)
+- [Contributing](#contributing)
+- [License](#license)
+- [Credits](#credits)
+
+## Features
+
+- **Status at a glance.** A pill in the top bar reflects the busiest session —
+  working, waiting on you, errored, or finished — without opening anything.
+- **Answer permissions where you are.** A tool waiting for approval can be
+  allowed or denied from the popup, without switching to the terminal.
+- **One click back to the terminal.** Every session row knows the terminal
+  running it and raises that window.
+- **Every agent in one place.** Claude Code, Codex CLI, and Antigravity CLI
+  sessions share the pill, each row led by a chip naming the agent.
+- **Task-list progress.** When an agent keeps a task list, its row shows how
+  far through it is and expands to the list itself.
+- **Cues you can hear.** A permission request, a question, a notification, and
+  a finished session each get their own sound from your desktop's sound theme.
 
 ## Requirements
 
-GNOME Shell 46. X11 or Wayland.
+- GNOME Shell 46
+- X11 or Wayland
 
 ## Install
 
@@ -23,17 +77,31 @@ make install
 gnome-extensions enable dasbo-island@ayubaswad.gmail.com
 ```
 
-On X11 press `Alt+F2`, type `r`, press Enter. On Wayland, log out and back in.
+Then reload the shell. On X11 press `Alt`+`F2`, type `r`, press `Enter`. On
+Wayland, log out and back in.
 
-Then open the preferences and install hooks for each agent you use:
+Open the preferences and install the hooks for each agent you use:
 
 ```bash
 gnome-extensions prefs dasbo-island@ayubaswad.gmail.com
 ```
 
 Whenever the pill is visible, the preferences window is one click away: click
-the pill, then the gear in the popup's header. (The pill stays hidden while no
-session is running unless you enable **Always show the pill**.)
+the pill, then the gear in the popup's header. The pill stays hidden while no
+session is running unless you enable **Always show the pill**.
+
+> [!IMPORTANT]
+> **Codex CLI needs one more step.** Installing the hooks is not enough on its
+> own. Codex will not run a hook it has not been told to trust: it stores that
+> decision per hook config, and the review that grants it happens only in
+> Codex's own interactive TUI. After Install (or Update), start `codex` once
+> and approve the hook review. Until you do, the hooks sit in the file and
+> never fire, and no Codex session reaches the island.
+
+Hook installation preserves entries belonging to other tools and writes a
+`.dasbo.bak` backup before its first change.
+
+## How it works
 
 The pill shows a 2×2 grid that reflects the busiest session: three blocks dim
 with one slowly breathing at rest, a light travelling clockwise while an agent
@@ -70,83 +138,62 @@ you close it yourself.
 
 Each of those moments also makes a sound: a permission request, an agent's
 question, a notification, and a session finishing, each with its own cue. The
-sounds come from your desktop's sound theme rather than from this extension, so
-they match everything else on the system, and they stay silent when GNOME's own
-event sounds are off. Unlike the popup, sound is not suppressed by a fullscreen
-window — that is when the pill is least visible and the sound is most useful.
-One switch in the preferences turns all four off. GNOME's Do Not Disturb
-silences GNOME's own notification sounds, not these cues — the island is not a
-notification service, and a blocked agent is waiting on you either way.
+sounds come from your desktop's sound theme rather than from this extension,
+so they match everything else on the system, and they stay silent when GNOME's
+own event sounds are off. Unlike the popup, sound is not suppressed by a
+fullscreen window — that is when the pill is least visible and the sound is
+most useful. One switch in the preferences turns all four off. GNOME's Do Not
+Disturb silences GNOME's own notification sounds, not these cues — the island
+is not a notification service, and a blocked agent is waiting on you either
+way.
 
-Whether GNOME's own `event-sounds` setting is honoured by mutter's sound player
-has not been verified; this extension checks the key itself before playing, so
-the setting is respected either way. Nor has anyone confirmed that any of the
-four cues is actually audible on a live desktop — the test suite can pin the
-decision logic and the wiring, but nothing in it can listen.
-
-Panel box and position changes apply immediately,
-with no reload; note that extensions replacing the top bar, such as Dash to
-Panel, decide where each box ends up on screen.
+Panel box and position changes apply immediately, with no reload. Extensions
+that replace the top bar, such as Dash to Panel, decide where each box ends up
+on screen.
 
 ## Supported agents
 
-| Agent | Config touched | Status | Permission gating |
+| Agent | Config touched | Status reporting | Permission gating |
 |---|---|---|---|
-| Claude Code | `~/.claude/settings.json` | verified against 17 real hook-payload fixtures; SessionEnd and Notification are inferred — see docs/agent-dialects.md | yes |
-| Antigravity CLI (`agy`) | `~/.gemini/config/hooks.json` | verified against 12 real hook-payload fixtures | unverified — see notes |
-| Codex CLI | `~/.codex/hooks.json` | verified against 6 real hook-payload fixtures (0.146.0); needs a one-time trust approval — see below | no — see notes |
+| Claude Code | `~/.claude/settings.json` | 17 real hook-payload fixtures | yes |
+| Codex CLI | `~/.codex/hooks.json` | 6 real fixtures (0.146.0) | no — [notify-only](docs/limitations.md#codex-has-no-permission-gate) |
+| Antigravity CLI (`agy`) | `~/.gemini/config/hooks.json` | 12 real fixtures | [unverified](docs/limitations.md#the-antigravity-permission-gate-may-fail-open) |
 
-Hook installation preserves entries belonging to other tools and writes a
-`.dasbo.bak` backup before its first change.
-
-### A note on Codex CLI
-
-**Installing the hooks is not enough on its own.** Codex will not run a hook it
-has not been told to trust: it stores that decision per hook config, and the
-review that grants it only happens in Codex's own interactive TUI. After
-Install (or Update), start `codex` once and approve the hook review. Until you
-do, the hooks sit in the file and never fire, and no Codex session reaches the
-island.
-
-Codex 0.146.0 speaks Claude's hook dialect — an event-keyed map under `hooks`,
-PascalCase event names, `hook_event_name`/`session_id`/`cwd`/`tool_name`
-payloads. Every dasbo release before this one wrote the older named-hook form
-(`{"dasbo-island": {"command": …, "events": ["session.start", …]}}`), which
-Codex parses without complaint and never fires; Update replaces it. Six events
-are installed — `SessionStart`, `UserPromptSubmit`, `PreToolUse`,
-`PostToolUse`, `Stop`, `SessionEnd` — all captured firing, fixtures in
-`test/fixtures/codex/`.
-
-Codex has **no permission gate through dasbo**: its `PreToolUse` hook rejects
-an `allow` or `ask` decision outright, and approvals ride a separate
-`PermissionRequest` event that dasbo does not wire, so every Codex hook is
-installed notify-only. `codexAdapter.encodeDecision` is exercised by unit tests
-and never reached from a real Codex session.
-
-### A note on Antigravity CLI
-
-Status reporting (session start, tool start/end, stop) is verified against 12
-real captured hook-payload fixtures. The **permission decision path is
-unverified**: no fixture exercises a real Antigravity permission round-trip,
-and `docs/agent-dialects.md` documents payload shapes but never a response
-schema, so `antigravityAdapter.encodeDecision`'s `{permissionDecision,
-permissionDecisionReason}` shape is a guess. If `agy` ignores an unrecognised
-stdout shape, clicking Deny reports the tool as denied while it executes
-anyway — a security control failing open, silently. Treat the Antigravity
-permission gate as best-effort and unverified until someone confirms it
-against a real payload.
-
-Two of the four sounds above can never play for Antigravity. Its adapter maps
-no `session-end` and no `notification` event, so an `agy` session can never
-reach the `done` state through an event and never carries a notice — the
-`complete` and `message-new-instant` cues are structurally dead for this
-agent, not merely unverified.
+Payload shapes for all three are documented in
+[docs/agent-dialects.md](docs/agent-dialects.md).
 
 ## Fail-open guarantee
 
-The hook helper exits 0 with empty stdout on every error path. If this extension
-is disabled, crashed, or never installed, your agents behave exactly as they
-would without it.
+The hook helper exits 0 with empty stdout on every error path. If this
+extension is disabled, crashed, or never installed, your agents behave exactly
+as they would without it.
+
+## Status and known limitations
+
+This project says what it has not proven. The full account is in
+[docs/limitations.md](docs/limitations.md); in short:
+
+- **Antigravity's permission gate is unverified and may fail open.** No
+  fixture exercises a real permission round-trip, so the response shape is a
+  guess. If `agy` ignores it, **Deny** reports the tool as denied while it
+  executes anyway — a security control failing open, silently.
+  [Details](docs/limitations.md#the-antigravity-permission-gate-may-fail-open)
+- **Codex sessions cannot be gated through dasbo.** Its hooks are installed
+  notify-only.
+  [Details](docs/limitations.md#codex-has-no-permission-gate)
+- **Two of the four sound cues are structurally dead for Antigravity.**
+  [Details](docs/limitations.md#two-sound-cues-are-dead-for-antigravity)
+- **No cue has been confirmed audible on a live desktop.** The suite can pin
+  the decision logic; nothing in it can listen.
+  [Details](docs/limitations.md#no-cue-has-been-confirmed-audible)
+- **Claude Code's `SessionEnd` and `Notification` handling is inferred**
+  rather than captured.
+  [Details](docs/limitations.md#claude-codes-sessionend-and-notification-are-inferred)
+- **Codex hooks written by any earlier dasbo release never fired.** They used a
+  form Codex parses without complaint and ignores. **Update** in the
+  preferences replaces them — this is a format change, not a missing event, so
+  the row offers Update even when nothing about your install has moved.
+  [Details](docs/limitations.md#codex-hooks-written-before-01460-never-fired)
 
 ## Development
 
@@ -158,12 +205,31 @@ make install
 tools/fake-agent.js perm   # drive the UI without a real agent
 ```
 
-`src/core/` must never import `gi://` or `resource://`. A test enforces this.
+`src/core/` must never import `gi://` or `resource://`.
+`test/core/purity.test.ts` enforces this.
 
-`node build.mjs` also writes the landing page to `dist-site/`; preview it with
-`python3 -m http.server -d dist-site 8080`. Pushes to master deploy it to
-GitHub Pages via `.github/workflows/site.yml`.
+`node build.mjs` writes both the extension into `dist/` and the landing page
+into `dist-site/`; preview the latter with
+`python3 -m http.server -d dist-site 8080`. Pushes to `master` deploy it to
+GitHub Pages via [`.github/workflows/site.yml`](.github/workflows/site.yml).
+
+## Contributing
+
+Bug reports, fixtures from real agent sessions, and pull requests are all
+welcome — captured payloads especially, since several of the gaps on this page
+close the moment someone produces one. Start with
+[CONTRIBUTING.md](CONTRIBUTING.md); participation is covered by the
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
-GPL-3.0-or-later.
+[GPL-3.0-or-later](LICENSE).
+
+## Credits
+
+Inspired by [open-vibe-island](https://github.com/Octane0411/open-vibe-island),
+rebuilt natively for GNOME Shell.
+
+Built by [fsevenm](https://github.com/fsevenm). If it saves you a window
+switch or two, you can
+[buy me a coffee](https://buymeacoffee.com/fsevenm).

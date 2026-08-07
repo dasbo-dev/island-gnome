@@ -16,7 +16,7 @@
 
 <header class="topbar">
   <span class="activities">Activities</span>
-  <span class="clock">Tue Aug 5 14:32</span>
+  <span class="clock">Wed Aug 5 14:32</span>
   <span id="pill" class="pill">
     <span class="grid state-running">
       <span class="block" style="opacity:.6"></span><span class="block" style="opacity:1"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span>
@@ -105,10 +105,11 @@
     <tbody>
       <tr><td>Claude Code</td><td>Verified against 17 real hook-payload fixtures</td><td>Yes</td></tr>
       <tr><td>Antigravity CLI</td><td>Verified against 12 real hook-payload fixtures</td><td>Unverified — treat as best-effort</td></tr>
-      <!-- When the Codex fixture work lands (real hook payloads captured and
-           verified), re-derive this row's Status cell from README's "A note
-           on Codex CLI" section instead of leaving this wording in place. -->
-      <tr><td>Codex CLI</td><td>Unverified — hooks parse but have never fired against a real session; zero payloads captured</td><td>Notify-only</td></tr>
+      <!-- Every cell in this table is re-derived from docs/limitations.md and
+           the README's "Supported agents" table — never edited straight to a
+           friendlier wording. This row said "never fired, zero payloads
+           captured" long after test/fixtures/codex/ held six captures. -->
+      <tr><td>Codex CLI</td><td>Verified against 6 real hook-payload fixtures (0.146.0)</td><td>Notify-only</td></tr>
     </tbody>
   </table>
   <p class="fine">Statuses are honest, not aspirational — the details live in the <a href="https://github.com/dasbo-dev/island-gnome#supported-agents">README</a>.</p>

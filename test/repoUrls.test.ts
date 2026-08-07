@@ -8,7 +8,14 @@ import { ABOUT } from '../src/core/about.js'
 //
 // The Pages URL fsevenm.github.io/dasbo-island is deliberately NOT swept —
 // the site is still served from there. Only the repository moved.
-const FILES = ['metadata.json', 'README.md', 'site/index.html']
+const FILES = [
+  'metadata.json',
+  'README.md',
+  'site/index.html',
+  'CONTRIBUTING.md',
+  'SECURITY.md',
+  '.github/ISSUE_TEMPLATE/config.yml',
+]
 const STALE = ['fsevenm/dasbo-island', 'ayubaswad/dasbo-island']
 
 describe('the repository URL', () => {
