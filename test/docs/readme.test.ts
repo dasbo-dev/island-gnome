@@ -40,17 +40,34 @@ describe('the README', () => {
     }
   })
 
-  // Two warnings changed what a user does with their hands, so relocating
-  // them to docs/limitations.md alone would be a regression: a reader can
-  // install Antigravity hooks straight from the Install section without ever
-  // opening the linked page.
-  it('keeps the two warnings that change what a user does', () => {
+  // The Codex trust step changes what a user does with their hands, so
+  // relocating it to docs/limitations.md alone would be a regression: a
+  // reader can install Codex hooks straight from the Install section without
+  // ever opening the linked page.
+  it('keeps the warning that changes what a user does', () => {
     expect(readme, 'the Codex trust step must stay in the README').toContain(
       'approve the hook review'
     )
-    expect(readme, 'the Antigravity fail-open warning must stay in the README').toContain(
-      'failing open'
+  })
+
+  // Antigravity's permission gate has never been exercised against a real
+  // payload, so this build does not offer to install its hooks. A support
+  // table that still lists it would send a reader looking for a button that
+  // is not there.
+  it('does not present Antigravity as a supported agent', () => {
+    const supported = readme.slice(
+      readme.indexOf('## Supported agents'),
+      readme.indexOf('## Fail-open guarantee')
     )
+    expect(supported, 'the supported-agents table must not list Antigravity')
+      .not.toContain('| Antigravity')
+  })
+
+  it('says which agents are planned', () => {
+    expect(readme).toMatch(/Planned/)
+    for (const agent of ['OpenCode', 'Cursor CLI', 'Antigravity CLI']) {
+      expect(readme, `the planned list is missing ${agent}`).toContain(agent)
+    }
   })
 
   it('links the full limitations page', () => {

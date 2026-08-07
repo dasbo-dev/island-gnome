@@ -2,29 +2,13 @@
 
 Everything on this page is something the project knows it has not proven. It
 is kept separate from the [README](../README.md) so the front page stays
-readable, not to keep it quiet — the two warnings that change what a user
-should actually do, the Codex trust step and the Antigravity permission gate,
-are stated in the README as well.
+readable, not to keep it quiet — the warning that changes what a user should
+actually do, the Codex trust step, is stated in the README as well.
 
 For the payload shapes behind all of this, see
 [agent-dialects.md](agent-dialects.md).
 
 ## Permissions
-
-### The Antigravity permission gate may fail open
-
-Status reporting for Antigravity CLI — session start, tool start and end,
-stop — is verified against 12 real captured hook-payload fixtures. The
-**permission decision path is not**. No fixture exercises a real Antigravity
-permission round-trip, and `agent-dialects.md` documents payload shapes
-but never a response schema, so the `{permissionDecision,
-permissionDecisionReason}` shape that `antigravityAdapter.encodeDecision`
-emits is a guess.
-
-If `agy` ignores an unrecognised stdout shape, clicking **Deny** reports the
-tool as denied while it executes anyway — a security control failing open,
-silently. Treat the Antigravity permission gate as best-effort and unverified
-until someone confirms it against a real payload.
 
 ### Codex has no permission gate
 
@@ -34,13 +18,6 @@ Every Codex hook is therefore installed notify-only. `codexAdapter.encodeDecisio
 is exercised by unit tests and is never reached from a real Codex session.
 
 ## Sound
-
-### Two sound cues are dead for Antigravity
-
-Antigravity's adapter maps no `session-end` and no `notification` event, so an
-`agy` session can never reach the `done` state through an event and never
-carries a notice. The `complete` and `message-new-instant` cues are
-structurally dead for this agent, not merely unverified.
 
 ### No cue has been confirmed audible
 
