@@ -160,13 +160,10 @@ on screen.
 | Codex CLI | yes | `~/.codex/hooks.json` | 6 real fixtures (0.146.0) | no — [notify-only](docs/limitations.md#codex-has-no-permission-gate) |
 | OpenCode | coming soon | — | — | — |
 | Cursor CLI | coming soon | — | — | — |
-| Antigravity CLI (`agy`) | coming soon | `~/.gemini/config/hooks.json` | 12 real fixtures | unverified |
+| Antigravity CLI | coming soon | — | — | — |
 
 A **coming soon** agent has a row on the preferences Agents page with its
-toggle and both buttons disabled: listed, not installable. Antigravity is the
-odd one — it has a complete adapter and 12 captured fixtures, but no fixture
-exercises a real permission round-trip, so its decision path stays unverified
-and the hooks are not offered until it has been.
+toggle and both buttons disabled: listed, not installable.
 
 Payload shapes for the agents dasbo already speaks are documented in
 [docs/agent-dialects.md](docs/agent-dialects.md).
