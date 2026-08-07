@@ -44,8 +44,10 @@ with content.
 any page.
 
 The *default* size, not a size request: a user who resizes the window keeps
-their size, and libadwaita's own `width-request`/`height-request` minimums still
-apply. On a screen too short for 760px, GTK4's `gtk_window_compute_default_size`
+their size for as long as it stays open, and libadwaita's own
+`width-request`/`height-request` minimums still apply. Nothing persists that
+resize — the shell builds a fresh `ExtensionPrefsDialog` on every open and drops
+it on close. On a screen too short for 760px, GTK4's `gtk_window_compute_default_size`
 clamps the default against the monitor work area, so the window degrades to "as
 tall as fits" rather than running off-screen. That clamp is why this design does
 not compute a height from the monitor itself — the platform already does it, and
