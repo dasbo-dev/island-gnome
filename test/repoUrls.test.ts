@@ -6,8 +6,9 @@ import { ABOUT } from '../src/core/about.js'
 // They were all wrong at once before this sweep, which is exactly how that
 // failure mode works: nobody notices a link they never click.
 //
-// The Pages URL fsevenm.github.io/dasbo-island is deliberately NOT swept —
-// the site is still served from there. Only the repository moved.
+// Pages has since followed the repository: the site is served from
+// dasbo-dev.github.io/island-gnome, and the old fsevenm.github.io/dasbo-island
+// URL is gone from the tree. The last case in this file is what keeps it gone.
 const FILES = [
   'metadata.json',
   'README.md',
@@ -37,5 +38,15 @@ describe('the repository URL', () => {
 
   it('agrees with the record the About page renders', () => {
     expect(ABOUT.repoUrl).toBe('https://github.com/dasbo-dev/island-gnome')
+  })
+
+  // Pages moved after the repository did, and a page that names two hosts
+  // sends crawlers one canonical and readers another.
+  it('has no reference left to the old Pages host', () => {
+    for (const file of [...FILES, 'site/doc-template.html', 'site/sitemap.xml', 'site/robots.txt']) {
+      expect(readFileSync(file, 'utf8'), `${file} still points at the old Pages host`).not.toContain(
+        'fsevenm.github.io'
+      )
+    }
   })
 })

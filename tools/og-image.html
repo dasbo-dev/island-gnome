@@ -1,0 +1,29 @@
+<!doctype html>
+<!-- Source for site/og-image.png. Rendered once by hand, not in CI:
+     the deploy runner has no rasteriser, and this file changes once a year.
+     Re-render with the command in
+     docs/superpowers/plans/2026-08-10-landing-page-copy.md. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; box-sizing: border-box; }
+  body {
+    width: 1200px; height: 630px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 28px; padding: 48px;
+    background: radial-gradient(ellipse at 50% -20%, #2c3a4f 0%, #1c1f26 60%);
+    font-family: "Cantarell", system-ui, sans-serif; color: #f6f5f4;
+  }
+  /* 44px, not 54: at 54 the headline wraps and the mockup below it loses
+     the breathing room that makes it readable at thumbnail size. */
+  h1 { font-size: 44px; letter-spacing: -0.5px; white-space: nowrap; }
+  p { font-size: 24px; color: #b8b4b0; }
+  img { width: 860px; }
+</style>
+</head>
+<body>
+  <h1>Your coding agents, on the GNOME top bar.</h1>
+  <p>Claude Code and Codex sessions, live in the panel.</p>
+  <img src="../docs/assets/hero.svg" alt="">
+</body>
+</html>

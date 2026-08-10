@@ -57,6 +57,12 @@ await build({
 })
 await cp('site/index.html', 'dist-site/index.html')
 await cp('site/site.css', 'dist-site/site.css')
+// Crawl files and icons. Copied rather than generated: robots.txt and
+// sitemap.xml are three lines each, and the two PNGs are rendered by hand
+// from tools/*.html because the deploy runner has no rasteriser.
+for (const file of ['robots.txt', 'sitemap.xml', '404.html', 'og-image.png', 'favicon.svg', 'apple-touch-icon.png']) {
+  await cp(`site/${file}`, `dist-site/${file}`)
+}
 await cp('src/icons', 'dist-site/icons', { recursive: true })
 
 // docs/*.md published as pages of the site, so the agent table can link its

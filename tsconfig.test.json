@@ -6,7 +6,12 @@
     // in one Program, where Node's declaration wins and every Shell.Global
     // member access fails with TS7017. Tests only reach src/core, which the
     // purity guard keeps free of gi:// and resource:// entirely.
-    "types": ["node"]
+    "types": ["node"],
+    // site/docPages.mjs is plain JS because build.mjs imports it directly and
+    // node cannot run TypeScript. allowJs lets tsc infer its types from the
+    // source rather than treating the import as `any`; checkJs stays off, so
+    // the module itself is not type-checked, only its consumers.
+    "allowJs": true
   },
-  "include": ["test/**/*.ts"]
+  "include": ["test/**/*.ts", "site/docPages.mjs"]
 }

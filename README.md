@@ -13,7 +13,7 @@
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
 [![GNOME Shell 46](https://img.shields.io/badge/GNOME%20Shell-46-4a86cf.svg)](https://release.gnome.org/46/)
 
-[Live demo](https://fsevenm.github.io/dasbo-island/) ·
+[Live demo](https://dasbo-dev.github.io/island-gnome/) ·
 [Agent dialects](docs/agent-dialects.md) ·
 [Limitations](docs/limitations.md) ·
 [Contributing](CONTRIBUTING.md) ·
@@ -23,7 +23,7 @@
 
 ![A mockup of the Dasbo Island pill in the GNOME top bar, its popup listing three live agent sessions, and the terminal running one of them](docs/assets/hero.svg)
 
-<sub>A mockup, not a screen capture — the extension drawn as it appears. <a href="https://fsevenm.github.io/dasbo-island/">The live demo</a> runs the real state machine in your browser.</sub>
+<sub>A mockup, not a screen capture — the extension drawn as it appears. <a href="https://dasbo-dev.github.io/island-gnome/">The live demo</a> runs the real state machine in your browser.</sub>
 
 ## What it is
 

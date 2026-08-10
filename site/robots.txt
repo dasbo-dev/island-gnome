@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://dasbo-dev.github.io/island-gnome/sitemap.xml
