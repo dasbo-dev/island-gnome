@@ -56,9 +56,10 @@
   <h1>Your coding agents, on the GNOME top&nbsp;bar.</h1>
   <p class="sub">Dasbo Island is a GNOME Shell extension that keeps every live Claude&nbsp;Code and Codex session in the top bar: status at a glance, Claude&nbsp;Code permission prompts answered inline, and one click back to the terminal that's running the work.</p>
   <p class="cta">
-    <a class="button primary" href="#install">Install</a>
+    <a class="button primary" href="#install">Install from source</a>
     <a class="button" href="https://github.com/dasbo-dev/island-gnome">GitHub</a>
   </p>
+  <p class="fine">Verified against 17 real Claude&nbsp;Code hook payloads and 6 from Codex. Free and GPL-3.0-or-later. GNOME Shell 46 only; 47 and 48 support is planned.</p>
 
   <div class="popup">
     <div id="popup-rows">
@@ -137,7 +138,9 @@
 
 <section id="failopen">
   <h2>Fail-open, guaranteed.</h2>
-  <p>The hook helper exits 0 with empty stdout on every error path. If the island is disabled, crashed, or never installed, your agents behave exactly as they would without it — a session can never hang on this extension.</p>
+  <p>The hook helper exits 0 with empty stdout on every error path. If the island is disabled, crashed, or never installed, your agents behave exactly as they would without it. A session can never hang on this extension.</p>
+  <p>Nothing leaves your machine. Hook payloads travel from the agent to the extension over your session's D-Bus; the extension makes no network calls and collects no telemetry.</p>
+  <p class="cta"><a class="button primary" href="#install">Install from source</a></p>
 </section>
 
 <section id="install">
@@ -150,6 +153,7 @@ make install
 # X11: log out and back in before the next line
 gnome-extensions enable dasbo-island@ayubaswad.gmail.com</code></pre>
   <p class="fine">Then open the preferences and install hooks for each agent you use:<br><code>gnome-extensions prefs dasbo-island@ayubaswad.gmail.com</code></p>
+  <p class="fine">Changed your mind? Remove the hooks from that same preferences page, then <code>make uninstall</code>.</p>
 </section>
 
 <section id="support">

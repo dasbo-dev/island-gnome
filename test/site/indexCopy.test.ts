@@ -60,4 +60,42 @@ describe('the landing page copy', () => {
     expect(html).toContain('limitations.html#claude-codes-sessionend-and-notification-are-inferred')
     expect(html).toContain('limitations.html#codex-hooks-written-before-01460-never-fired')
   })
+
+  // C5. The extension installs hooks into ~/.claude/settings.json and
+  // watches every live session. The page never said where that data goes.
+  // Verified against the source before it was written: no fetch, no
+  // libsoup, no curl — the hook helper speaks session D-Bus and nothing else.
+  it('answers the privacy question it raises', () => {
+    expect(html).toContain('Nothing leaves your machine.')
+    expect(html).toContain('makes no network calls and collects no telemetry')
+  })
+
+  // C6. For an unsigned extension installed from source, "here is how to
+  // remove it" lowers the bar to trying it.
+  it('says how to remove it', () => {
+    expect(html).toContain('make uninstall')
+  })
+
+  // C8. The button said Install and landed the reader on "not yet on
+  // extensions.gnome.org" plus a git clone.
+  it('labels the CTA with what actually happens', () => {
+    expect(html).toContain('>Install from source<')
+  })
+
+  // C7. The most convinced reader on the page — the one who got through the
+  // fail-open guarantee — was handed a footer.
+  it('repeats the CTA after the objection handling', () => {
+    const failopen = html.match(/<section id="failopen">([\s\S]*?)<\/section>/)?.[1] ?? ''
+    expect(failopen).toContain('href="#install"')
+  })
+
+  // C9 and C12. The strongest proof the project owns was a table cell in the
+  // fourth section, and the hardest constraint it has was one line above a
+  // command block.
+  it('puts the proof and the version limit above the fold', () => {
+    const hero = html.match(/<section class="hero">([\s\S]*?)<div class="popup">/)?.[1] ?? ''
+    expect(hero).toContain('17 real Claude&nbsp;Code hook payloads')
+    expect(hero).toContain('GNOME Shell 46 only')
+    expect(hero).toContain('47 and 48 support is planned')
+  })
 })
