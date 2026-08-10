@@ -9,6 +9,7 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 import type { SessionStore } from '../core/store.js'
 import type { Session, SessionState } from '../core/types.js'
+import { STATE_WORD } from '../core/vocabulary.js'
 import { SessionRow } from './sessionRow.js'
 import { PermissionControls } from './permissionRow.js'
 import { QuestionPanel } from './questionPanel.js'
@@ -30,14 +31,6 @@ import type { SoundPlayer } from './soundPlayer.js'
  */
 type MenuWithOpenSignal = PopupMenu.PopupMenu & {
   connect(sigName: 'open-state-changed', callback: (menu: unknown, open: boolean) => void): number
-}
-
-const STATE_WORD: Record<SessionState, string> = {
-  idle: 'idle',
-  running: 'working',
-  waiting: 'waiting',
-  error: 'error',
-  done: 'done',
 }
 
 export const Island = GObject.registerClass(

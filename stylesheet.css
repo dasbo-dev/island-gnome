@@ -27,11 +27,11 @@
 .dasbo-dot.state-error   { background-color: #e01b24; }
 .dasbo-dot.state-done    { background-color: #57e389; }
 
-/* Fixed so the pill never resizes the top bar. 8em fits the widest realistic
-   content, "100 · waiting"; anything longer ellipsizes (see island.ts). */
+/* Fixed so the island never resizes the top bar. 8.5em fits the widest realistic
+   content, "100 · thinking"; anything longer ellipsizes (see island.ts). */
 .dasbo-pill-label {
   font-size: 0.9em;
-  width: 8em;
+  width: 8.5em;
 }
 
 .dasbo-row-project {

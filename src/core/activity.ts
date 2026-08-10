@@ -1,4 +1,5 @@
 import { truncateDetail } from './format.js'
+import { activityPlaceholder } from './vocabulary.js'
 import type { Session } from './types.js'
 
 /** What the session row's activity label says, and whether it is a placeholder. */
@@ -52,9 +53,9 @@ export function noticeVisible(session: Session, now: number): boolean {
  * leaves `currentTool` alone for an error, so an errored tool event still
  * renders as `<tool> · <error text>`.
  *
- * There is deliberately no branch that prints `session.state`. The pill renders
- * `running` as "working" (STATE_WORD in island.ts), so a row falling back to the
- * raw word made the same session read two ways at once.
+ * There is deliberately no branch that prints `session.state`. The island and
+ * this function read one table (`core/vocabulary.ts`), so a row falling back to
+ * the raw word can no longer make the same session read two ways at once.
  *
  * The catch-all at the end returns 'error' for any state that isn't
  * `running`/`idle`/`done` — safe only because `store.ts` enforces that
@@ -114,8 +115,8 @@ export function activityText(session: Session, now: number): Activity {
   if (tool) return { text: tool, hint: false }
   if (detail) return { text: truncateDetail(detail), hint: false }
 
-  if (session.state === 'running') return { text: 'thinking…', hint: true }
-  if (session.state === 'idle') return { text: 'idle', hint: true }
-  if (session.state === 'done') return { text: 'done', hint: false }
-  return { text: 'error', hint: false }
+  if (session.state === 'running') return { text: activityPlaceholder('running'), hint: true }
+  if (session.state === 'idle') return { text: activityPlaceholder('idle'), hint: true }
+  if (session.state === 'done') return { text: activityPlaceholder('done'), hint: false }
+  return { text: activityPlaceholder('error'), hint: false }
 }
