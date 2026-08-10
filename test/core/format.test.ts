@@ -67,4 +67,26 @@ describe('truncateDetail', () => {
   it('collapses internal runs of whitespace and trims the ends', () => {
     expect(truncateDetail('  rm   -rf    build  ')).toBe('rm -rf build')
   })
+
+  it('breaks at the last space before the limit rather than mid-word', () => {
+    const s = `${'word '.repeat(30)}finalword`
+    const out = truncateDetail(s, 40)
+    expect(out.endsWith('…')).toBe(true)
+    expect(out.length).toBeLessThanOrEqual(40)
+    expect(out).toBe('word word word word word word word …')
+  })
+
+  // A path or a URL has no space to break at, and an ellipsis alone tells the
+  // reader nothing. The hard cut is still the right answer there.
+  it('falls back to a hard cut when there is no space to break at', () => {
+    const s = 'a'.repeat(200)
+    const out = truncateDetail(s, 40)
+    expect(out.length).toBe(40)
+    expect(out).toBe(`${'a'.repeat(39)}…`)
+  })
+
+  it('does not break at a space that is past the limit', () => {
+    const s = `${'a'.repeat(100)} tail`
+    expect(truncateDetail(s, 40)).toBe(`${'a'.repeat(39)}…`)
+  })
 })
