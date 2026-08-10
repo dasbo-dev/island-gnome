@@ -16,6 +16,7 @@ import { AGENT_CATALOG, type CatalogEntry } from './core/agentCatalog.js'
 import { installRowText, installToast } from './core/install/messages.js'
 import { aboutPage } from './prefs/about.js'
 import { PREFS_WINDOW } from './core/prefsWindow.js'
+import { PREFS_LABEL } from './core/vocabulary.js'
 
 export default class DasboIslandPreferences extends ExtensionPreferences {
   fillPreferencesWindow(window: Adw.PreferencesWindow): Promise<void> | void {
@@ -53,7 +54,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     })
 
     const position = new Adw.ComboRow({
-      title: 'Panel box',
+      title: PREFS_LABEL['panel-position']!,
       subtitle: 'Where the island sits in the top bar',
       model: Gtk.StringList.new(['Left', 'Center', 'Right']),
     })
@@ -65,14 +66,14 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     group.add(position)
 
     const index = new Adw.SpinRow({
-      title: 'Position within the box',
+      title: PREFS_LABEL['panel-index']!,
       adjustment: new Gtk.Adjustment({ lower: 0, upper: 20, step_increment: 1 }),
     })
     settings.bind('panel-index', index, 'value', 0)
     group.add(index)
 
     const alwaysShow = new Adw.SwitchRow({
-      title: 'Always show the island',
+      title: PREFS_LABEL['always-show']!,
       subtitle: 'Keep the island visible even when no agent session is active',
     })
     settings.bind('always-show', alwaysShow, 'active', 0)
@@ -89,7 +90,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     })
 
     const chipDisplay = new Adw.ComboRow({
-      title: 'Agent chip',
+      title: PREFS_LABEL['agent-chip-display']!,
       subtitle: 'What the tag at the head of each row shows',
       model: Gtk.StringList.new(['Logo only', 'Logo and name', 'Name only']),
     })
@@ -112,7 +113,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     const group = new Adw.PreferencesGroup({ title: 'Permissions' })
 
     const timeout = new Adw.SpinRow({
-      title: 'Permission timeout',
+      title: PREFS_LABEL['permission-timeout']!,
       subtitle: 'Seconds before falling through to the agent’s own prompt. Zero waits indefinitely.',
       adjustment: new Gtk.Adjustment({ lower: 0, upper: 3600, step_increment: 5 }),
     })
@@ -120,7 +121,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     group.add(timeout)
 
     const autoOpen = new Adw.SwitchRow({
-      title: 'Open the popup automatically',
+      title: PREFS_LABEL['auto-open-on-permission']!,
       subtitle: 'Suppressed while a fullscreen window is on the primary monitor',
     })
     settings.bind('auto-open-on-permission', autoOpen, 'active', 0)
@@ -134,7 +135,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     const sessions = new Adw.PreferencesGroup({ title: 'Sessions' })
 
     const questionTimeout = new Adw.SpinRow({
-      title: 'Question timeout',
+      title: PREFS_LABEL['question-timeout']!,
       subtitle: 'Seconds before an agent’s question falls through to its own picker. Zero waits indefinitely.',
       adjustment: new Gtk.Adjustment({ lower: 0, upper: 3600, step_increment: 15 }),
     })
@@ -142,7 +143,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     sessions.add(questionTimeout)
 
     const linger = new Adw.SpinRow({
-      title: 'Keep finished sessions visible',
+      title: PREFS_LABEL['done-linger']!,
       subtitle: 'Seconds a completed session stays in the list',
       adjustment: new Gtk.Adjustment({ lower: 0, upper: 300, step_increment: 5 }),
     })
@@ -157,14 +158,14 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     })
 
     const notificationPopup = new Adw.SwitchRow({
-      title: 'Open the popup on a notification',
+      title: PREFS_LABEL['notification-popup']!,
       subtitle: 'Suppressed while a fullscreen window is on the primary monitor',
     })
     settings.bind('notification-popup', notificationPopup, 'active', 0)
     notifications.add(notificationPopup)
 
     const notificationSeconds = new Adw.SpinRow({
-      title: 'Keep a notification visible',
+      title: PREFS_LABEL['notification-seconds']!,
       subtitle: 'Seconds the message stays on the row. Zero keeps it until the agent does something else.',
       adjustment: new Gtk.Adjustment({ lower: 0, upper: 300, step_increment: 1 }),
     })
@@ -172,7 +173,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     notifications.add(notificationSeconds)
 
     const notificationSounds = new Adw.SwitchRow({
-      title: 'Play a sound',
+      title: PREFS_LABEL['notification-sounds']!,
       subtitle: 'When an agent needs you, or finishes',
     })
     settings.bind('notification-sounds', notificationSounds, 'active', 0)

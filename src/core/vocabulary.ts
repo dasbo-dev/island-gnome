@@ -50,3 +50,35 @@ export const NO_SESSIONS = 'No sessions'
 export function activityPlaceholder(state: SessionState): string {
   return state === 'running' ? `${STATE_WORD.running}…` : STATE_WORD[state]
 }
+
+/**
+ * The label each setting carries in the preferences window, keyed by its
+ * GSettings key.
+ *
+ * The gschema restates these as `<summary>`, and the two copies had drifted:
+ * one called the top-bar object a pill while the window that showed it had
+ * been renamed. XML and TypeScript cannot share a constant, so this table is
+ * the single source and `test/core/schemaLabels.test.ts` is what holds the
+ * schema to it.
+ *
+ * Every key in the schema appears here, including the two with no row of their
+ * own: `enabled-agents` is written by the per-agent switches, and
+ * `welcome-shown` is internal state. Their labels are authored here rather than
+ * mirrored from a row, and the completeness is what lets the test fail on a new
+ * key that was added without one.
+ */
+export const PREFS_LABEL: Record<string, string> = {
+  'panel-position': 'Panel box',
+  'panel-index': 'Position within the box',
+  'always-show': 'Always show the island',
+  'permission-timeout': 'Permission timeout',
+  'question-timeout': 'Question timeout',
+  'auto-open-on-permission': 'Open the popup automatically',
+  'notification-popup': 'Open the popup on a notification',
+  'notification-seconds': 'Keep a notification visible',
+  'notification-sounds': 'Play a sound',
+  'enabled-agents': 'Agents Dasbo Island accepts events from',
+  'done-linger': 'Keep finished sessions visible',
+  'agent-chip-display': 'Agent chip',
+  'welcome-shown': 'First-run notification shown',
+}

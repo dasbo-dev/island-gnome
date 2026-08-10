@@ -9,59 +9,59 @@
         <choice value="right"/>
       </choices>
       <default>'center'</default>
-      <summary>Panel box for the island pill</summary>
-      <description>Which top bar box the pill is placed in.</description>
+      <summary>Panel box</summary>
+      <description>Which top bar box the island is placed in. Extensions that replace the top bar, such as Dash to Panel, decide where each box lands on screen.</description>
     </key>
     <key name="panel-index" type="i">
       <default>0</default>
-      <summary>Ordering index within the panel box</summary>
-      <description>Position of the pill inside the chosen top bar box.</description>
+      <summary>Position within the box</summary>
+      <description>Position of the island inside the chosen top bar box.</description>
     </key>
     <key name="always-show" type="b">
       <default>false</default>
-      <summary>Show the pill with zero sessions</summary>
-      <description>When false the pill is hidden entirely while no agent session is active.</description>
+      <summary>Always show the island</summary>
+      <description>Keeps the island in the top bar even when no agent session is active. When false it is hidden entirely.</description>
     </key>
     <key name="permission-timeout" type="i">
       <default>30</default>
-      <summary>Permission prompt timeout in seconds</summary>
-      <description>Seconds to wait for a decision before falling through to the agent's own prompt. Zero waits indefinitely.</description>
+      <summary>Permission timeout</summary>
+      <description>Seconds to wait for a decision before falling through to the agent’s own prompt. Zero waits indefinitely.</description>
     </key>
     <key name="question-timeout" type="i">
       <default>120</default>
-      <summary>Agent question timeout in seconds</summary>
-      <description>Seconds to wait for an answer before falling through to the agent's own picker. Longer than the permission timeout because a question has to be read. Zero waits indefinitely.</description>
+      <summary>Question timeout</summary>
+      <description>Seconds to wait for an answer before falling through to the agent’s own picker. Longer than the permission timeout because a question has to be read. Zero waits indefinitely.</description>
     </key>
     <key name="auto-open-on-permission" type="b">
       <default>true</default>
-      <summary>Auto-expand the popup on a permission request</summary>
-      <description>Suppressed while a fullscreen window is on the primary monitor.</description>
+      <summary>Open the popup automatically</summary>
+      <description>Expands the popup when an agent asks for permission. Suppressed while a fullscreen window is on the primary monitor.</description>
     </key>
     <key name="notification-popup" type="b">
       <default>true</default>
-      <summary>Open the popup when an agent raises a notification</summary>
-      <description>Suppressed while a fullscreen window is on the primary monitor.</description>
+      <summary>Open the popup on a notification</summary>
+      <description>Opens the popup when an agent raises a notification. Suppressed while a fullscreen window is on the primary monitor.</description>
     </key>
     <key name="notification-seconds" type="i">
       <range min="0" max="300"/>
       <default>5</default>
-      <summary>Seconds a notification stays on the row</summary>
-      <description>How long the message replaces the row's activity line, and how long a popup opened for it stays open. Zero keeps the message until the next event from that session, and never closes the popup.</description>
+      <summary>Keep a notification visible</summary>
+      <description>How long the message replaces the row’s activity line, and how long a popup opened for it stays open. Zero keeps the message until the next event from that session, and never closes the popup.</description>
     </key>
     <key name="enabled-agents" type="as">
       <default>['claude','codex']</default>
-      <summary>Agent adapters that accept events</summary>
-      <description>Independent of hook installation. An agent with no hooks installed simply never sends events.</description>
+      <summary>Agents Dasbo Island accepts events from</summary>
+      <description>Which agents Dasbo Island accepts events from. Independent of hook installation — an agent with no hooks installed never sends events.</description>
     </key>
     <key name="done-linger" type="i">
       <default>10</default>
-      <summary>Seconds a finished session stays visible</summary>
+      <summary>Keep finished sessions visible</summary>
       <description>How long a session in the done state remains in the popup before it is dropped.</description>
     </key>
     <key name="notification-sounds" type="b">
       <default>true</default>
-      <summary>Play a sound for events that need you</summary>
-      <description>A permission request, an agent's question, a notification, and a session finishing. Sounds come from the desktop's sound theme, and stay silent when the system's own event sounds are off.</description>
+      <summary>Play a sound</summary>
+      <description>Plays a sound for a permission request, an agent’s question, a notification, and a session finishing. Sounds come from the desktop’s sound theme, and stay silent when the system’s own event sounds are off.</description>
     </key>
     <key name="agent-chip-display" type="s">
       <choices>
@@ -70,8 +70,8 @@
         <choice value="name"/>
       </choices>
       <default>'logo-name'</default>
-      <summary>What the agent chip on a session row shows</summary>
-      <description>The mark alone, the mark with a short name, or the name alone. A row whose mark is missing shows the name whatever this says.</description>
+      <summary>Agent chip</summary>
+      <description>What the tag at the head of each session row shows: the mark alone, the mark with a short name, or the name alone. A row whose mark is missing shows the name whatever this says.</description>
     </key>
     <key name="welcome-shown" type="b">
       <default>false</default>
