@@ -56,8 +56,8 @@ export function activityPlaceholder(state: SessionState): string {
  * GSettings key.
  *
  * The gschema restates these as `<summary>`, and the two copies had drifted:
- * one called the top-bar object a pill while the window that showed it had
- * been renamed. XML and TypeScript cannot share a constant, so this table is
+ * one still called the top-bar object by a name the window had stopped
+ * using. XML and TypeScript cannot share a constant, so this table is
  * the single source and `test/core/schemaLabels.test.ts` is what holds the
  * schema to it.
  *

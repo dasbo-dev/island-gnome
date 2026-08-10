@@ -25,7 +25,7 @@ type PanelWithBoxes = typeof Main.panel & {
  *
  * An unknown box NAME falls back to the right box, matching what
  * `addToStatusArea` does with one. A missing box ACTOR is a different
- * condition — a future Shell renaming these private fields — and the pill
+ * condition — a future Shell renaming these private fields — and the island
  * stays where it is rather than being orphaned: unparenting it first and only
  * then discovering there is nowhere to put it would leave it invisible until
  * the extension was re-enabled.
@@ -37,7 +37,7 @@ export function placeInPanelBox(container: Clutter.Actor, box: string, index: nu
   if (!target) {
     // Silence here would make every position change an invisible no-op with
     // nothing to go on.
-    console.warn(`dasbo-island: panel box "${box}" is missing; leaving the pill where it is`)
+    console.warn(`dasbo-island: panel box "${box}" is missing; leaving the island where it is`)
     return
   }
   const parent = container.get_parent()

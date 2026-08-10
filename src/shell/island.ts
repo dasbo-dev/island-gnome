@@ -133,7 +133,7 @@ export const Island = GObject.registerClass(
         style_class: 'dasbo-pill-label',
         y_align: Clutter.ActorAlign.CENTER,
       })
-      // The label's width is pinned in the stylesheet so the pill cannot resize
+      // The label's width is pinned in the stylesheet so the island cannot resize
       // the top bar. St's CSS engine has no `text-overflow`, so the ellipsis has
       // to be set on the ClutterText — the same lesson as the opacity note in
       // popupHeader.ts. Without it, overlong content is clipped mid-glyph.
@@ -220,7 +220,7 @@ export const Island = GObject.registerClass(
       )
 
       // Fullscreen is not a store event, so refresh() never runs for it. The
-      // pill is invisible under a fullscreen window; animating it there is
+      // island is invisible under a fullscreen window; animating it there is
       // pure waste.
       this._fullscreenId = global.display.connect('in-fullscreen-changed', () =>
         this._applyPause()
@@ -316,7 +316,7 @@ export const Island = GObject.registerClass(
     /** Called by the D-Bus service after a permission row has been registered. */
     notifyPermissionOpened(kind: 'permission' | 'question'): void {
       // First, above even the notice-timer reset: sound is deliberately
-      // independent of every popup rule below it. In fullscreen the pill is
+      // independent of every popup rule below it. In fullscreen the island is
       // invisible and the popup is suppressed, which is exactly when the sound
       // is the only signal left — and unlike the popup, it covers nothing.
       this._sound.play(kind)
@@ -813,7 +813,7 @@ export const Island = GObject.registerClass(
       this._rebuildRows()
       const sessions = this._store.list()
 
-      // Above the early return below, deliberately: with the pill hidden and no
+      // Above the early return below, deliberately: with the island hidden and no
       // sessions, that return would leave the snapshot stale and the next
       // visible refresh would replay finishes already sounded. Silent when
       // nothing moved, which is what makes the always-show handler and the

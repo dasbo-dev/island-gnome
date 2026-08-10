@@ -289,8 +289,9 @@ export class SessionStore {
       case 'tool-end':
         // Not idle: the agent keeps thinking and streaming between tool calls,
         // and Claude fires PostToolUse after every one of them. Downgrading here
-        // made the pill strobe working/idle once per tool. The absence of
-        // currentTool is what the row reads as "thinking".
+        // made the island strobe between its running and idle words once per
+        // tool. The absence of currentTool is what the row reads as a
+        // placeholder.
         kindState = 'running'
         s.currentTool = undefined
         s.detail = undefined
@@ -329,7 +330,7 @@ export class SessionStore {
     // parallel tool batch (which Claude Code issues routinely) can deliver a
     // tool-end or stop for one tool while another tool's permission on the
     // same session is still held open. Losing 'waiting' here would make the
-    // pill lie about a session that is actually blocked on the user.
+    // island lie about a session that is actually blocked on the user.
     if (s.pendingPermission || s.pendingQuestion) {
       // Remember what this event meant so clearPending can settle to it, rather
       // than reconstructing a state from flags — which loses 'error' entirely
@@ -470,7 +471,7 @@ export class SessionStore {
       }
       // `pid` is the agent process, not the hook — the D-Bus handlers resolve it
       // through resolveAgent while the hook is still blocked in its call — so
-      // this is a real liveness test. It is the only thing that clears the pill
+      // this is a real liveness test. It is the only thing that clears the island
       // for an agent with no session-end event, or a Claude install predating the
       // SessionEnd hook. Guarded on pid > 0 because resolveAgent returns pid 0
       // when it cannot read /proc or cannot identify the agent, and pidAlive(0)
