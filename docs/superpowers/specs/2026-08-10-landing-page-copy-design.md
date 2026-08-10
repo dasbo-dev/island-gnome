@@ -128,7 +128,11 @@ fixture-count cells link to the limitations page, which carries the caveat that
 ### Head, crawl, and search
 
 - **S1, S1b:** self-referencing canonical, and `og:url` corrected, both to
-  `https://dasbo-dev.github.io/island-gnome/`. README's demo link follows.
+  `https://dasbo-dev.github.io/island-gnome/`. README's two demo links follow,
+  and so does the now-stale comment in `test/repoUrls.test.ts:9`, which exempts
+  the old Pages host from its sweep on the grounds that the site is still
+  served from there. It is not; the exemption becomes an assertion that no
+  reference to it survives.
 - **S2:** `robots.txt` referencing the sitemap; `sitemap.xml` listing all three
   published pages.
 - **S3:** `og-image.png` at 1200×630 rendered from `docs/assets/hero.svg`,
@@ -217,17 +221,19 @@ that gets written from memory, so it gets run rather than reasoned about.
 
 ## Work order
 
-Five commits on one branch, each independently sensible:
+Commits on one branch, each independently sensible:
 
-1. **Correctness** — C1, C2, C13, C14. Ships first, smallest diff, removes the
-   two findings that actively mislead.
-2. **Head and crawl** — S1, S1b, S2, S3, S4, S5, S9, S10, C3, plus the
+1. **Correctness** — C1, C2. Ships first, smallest diff, removes the two
+   findings that actively mislead.
+2. **Docs pages** — S6: the `marked` dependency, the render step, the shared
+   template, and its tests. Ahead of the table fix, because C13's link needs a
+   page to point at; a link written against a file that does not exist yet is
+   broken at the moment it is written.
+3. **Table honesty** — C13, C14, plus the link-integrity test.
+4. **Head and crawl** — S1, S1b, S2, S3, S4, S5, S7/C4, S9, S10, C3, plus the
    committed image assets and their `build.mjs` copies.
-3. **Trust and conversion** — C5, C6, C7, C8, C9, C12.
-4. **Message and line level** — S7/C4, then C10, C11, C15, C16, C17, C18, C20,
-   C22, C23.
-5. **Docs pages** — S6: the `marked` dependency, the render step, the shared
-   template, the internal links, and both new tests.
+5. **Trust and conversion** — C5, C6, C7, C8, C9, C12.
+6. **Message and line level** — C10, C11, C15, C16, C17, C18, C20, C22, C23.
 
 `CHANGELOG.md` gets an entry, matching how the repository has handled
 documentation changes.
