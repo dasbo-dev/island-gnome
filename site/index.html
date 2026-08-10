@@ -29,7 +29,7 @@
 
 <section class="hero">
   <h1>Your coding agents, on the top&nbsp;bar.</h1>
-  <p class="sub">Dasbo Island is a GNOME Shell extension that keeps every live Claude&nbsp;Code and Codex session in the top bar — status at a glance, permission prompts answered inline, and one click back to the terminal that is running the work.</p>
+  <p class="sub">Dasbo Island is a GNOME Shell extension that keeps every live Claude&nbsp;Code and Codex session in the top bar: status at a glance, Claude&nbsp;Code permission prompts answered inline, and one click back to the terminal that's running the work.</p>
   <p class="cta">
     <a class="button primary" href="#install">Install</a>
     <a class="button" href="https://github.com/dasbo-dev/island-gnome">GitHub</a>
@@ -82,7 +82,7 @@
 <section id="features">
   <h2>Built for the moment an agent needs a human.</h2>
   <div class="cards">
-    <div class="card"><h3>Answer permissions from the bar</h3><p>An agent asking to run a command blinks the pill. Allow or deny from the popup — no hunting through terminal windows for the one that is stuck.</p></div>
+    <div class="card"><h3>Answer permissions from the bar</h3><p>A Claude&nbsp;Code agent asking to run a command blinks the pill. Allow or deny from the popup, with no hunting through terminal windows for the one that's stuck. Codex sessions notify but can't be answered from the bar.</p></div>
     <div class="card"><h3>Jump back to the session</h3><p>Click a session row and land in the window the session started in.</p></div>
     <div class="card"><h3>Watch the plan tick over</h3><p>Agents that keep a task list show progress — 3/10 beside the clock — and the expander opens the list itself, one line per task.</p></div>
     <div class="card"><h3>Hear when you're needed</h3><p>Permission requests, questions, notifications, and finishes each have a cue from your desktop's own sound theme. A fullscreen window doesn't mute them — that is when the pill is least visible and the sound most useful.</p></div>
@@ -117,9 +117,12 @@
 
 <section id="install">
   <h2>Install</h2>
-  <p>Requires GNOME Shell 46, X11 or Wayland. Not yet on extensions.gnome.org — for now, install from source:</p>
+  <p>GNOME Shell 46 only, X11 or Wayland. Building needs Node 22 and <code>glib-compile-schemas</code> (<code>libglib2.0-bin</code> on Debian and Ubuntu, <code>glib2-devel</code> on Fedora). It isn't on extensions.gnome.org yet, so for now install from source:</p>
   <pre><code>git clone https://github.com/dasbo-dev/island-gnome.git
-cd island-gnome &amp;&amp; make install
+cd island-gnome
+npm ci
+make install
+# X11: log out and back in before the next line
 gnome-extensions enable dasbo-island@ayubaswad.gmail.com</code></pre>
   <p class="fine">Then open the preferences and install hooks for each agent you use:<br><code>gnome-extensions prefs dasbo-island@ayubaswad.gmail.com</code></p>
 </section>
