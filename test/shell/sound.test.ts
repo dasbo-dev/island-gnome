@@ -34,7 +34,7 @@ describe('the notification-sounds setting', () => {
   })
 
   it('sits in the Notifications group, beside the other notification rows', () => {
-    const group = prefs.indexOf("new Adw.PreferencesGroup({ title: 'Notifications' })")
+    const group = prefs.indexOf("title: 'Notifications',")
     const row = prefs.indexOf("settings.bind('notification-sounds'")
     // 'private _agentsPage', not '_agentsPage': the call in
     // fillPreferencesWindow comes first in the file and would put this bound
@@ -45,11 +45,15 @@ describe('the notification-sounds setting', () => {
     expect(row).toBeLessThan(nextPage)
   })
 
+  // The caveat lives on the Notifications group rather than the row: at 137
+  // characters it wrapped an Adw.ActionRow subtitle to three lines, making one
+  // row twice the height of its neighbours. It is still told to the user, one
+  // level up, where a caveat about the whole group belongs.
   it('tells the user the sound follows the desktop, and can be off system-wide', () => {
-    const row = prefs.slice(prefs.indexOf('notificationSounds'))
-    const subtitle = row.slice(0, row.indexOf('})'))
-    expect(subtitle).toMatch(/sound theme/)
-    expect(subtitle).toMatch(/system sounds/)
+    const group = prefs.slice(prefs.indexOf("title: 'Notifications',"))
+    const description = group.slice(0, group.indexOf('})'))
+    expect(description).toMatch(/sound theme/)
+    expect(description).toMatch(/system sounds/)
   })
 })
 

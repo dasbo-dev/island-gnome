@@ -76,7 +76,7 @@ export class PermissionTable {
     const id = `perm-${++this.counter}`
 
     if (!this.store.get(req.sessionKey)) {
-      resolve({ kind: 'fallthrough', reason: 'Unknown session' })
+      resolve({ kind: 'fallthrough', reason: 'Dasbo Island didn’t recognise this session' })
       return id
     }
 
@@ -137,7 +137,7 @@ export class PermissionTable {
     this.draining = true
     try {
       for (const id of [...queue]) {
-        this.finish(id, { kind: 'fallthrough', reason: 'Session reaped' })
+        this.finish(id, { kind: 'fallthrough', reason: 'Dasbo Island lost track of this session' })
       }
     } finally {
       this.draining = false
@@ -177,7 +177,7 @@ export class PermissionTable {
     // time out before the user has had any chance to see it.
     if (entry.timeoutSeconds > 0) {
       entry.timerId = this.timers.setTimeout(
-        () => this.finish(entry.id, { kind: 'fallthrough', reason: 'Timed out' }),
+        () => this.finish(entry.id, { kind: 'fallthrough', reason: 'Dasbo Island timed out waiting for an answer' }),
         entry.timeoutSeconds * 1000
       )
     }

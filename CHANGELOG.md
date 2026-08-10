@@ -12,8 +12,8 @@ Nothing has been tagged yet. Everything below is on `master`.
 
 ### Added
 
-- A top-bar pill whose 2×2 grid reflects the busiest session: idle, working,
-  waiting on a permission, errored, or finished.
+- A top-bar island whose 2×2 grid reflects the busiest session: idle,
+  thinking, waiting on a permission, errored, or finished.
 - A popup listing every live session with its agent chip, project, elapsed
   time, and current activity.
 - Inline permission approval, and a click-through that raises the terminal
@@ -41,6 +41,17 @@ Nothing has been tagged yet. Everything below is on `master`.
 
 ### Changed
 
+- Every string the extension shows was reviewed against the DIS-9 copy audit.
+  The store description now names the agents and scopes inline permission
+  approval to Claude Code, which is the only agent that has it; a Codex row
+  says its hooks are notifications only. The top-bar indicator is called the
+  island everywhere, and one running session reads *thinking* on both the
+  island and the row rather than *working* on one and *thinking* on the other.
+  Failure messages say what happened, why, and what to do, with the underlying
+  exception going to the journal instead of a toast. The popup's empty state
+  points a user with no hooks at Settings, and a one-time notification does the
+  same on first enable. Allow, Deny, Always allow, Jump and the row expander
+  carry accessible names.
 - The landing page declares a canonical URL, a sitemap, a `robots.txt`, a
   favicon, a 1200×630 share card and `SoftwareApplication` structured data,
   all resolving against `https://dasbo-dev.github.io/island-gnome/`.

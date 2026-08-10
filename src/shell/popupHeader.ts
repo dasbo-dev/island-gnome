@@ -1,8 +1,10 @@
 import St from 'gi://St'
 import Clutter from 'gi://Clutter'
 import GObject from 'gi://GObject'
+import Pango from 'gi://Pango'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 import { logoIcon } from './logoIcon.js'
+import { emptyState } from '../core/emptyState.js'
 
 export interface PopupHeaderCallbacks {
   onPrefs: () => void
@@ -57,18 +59,30 @@ export const PopupHeader = GObject.registerClass(
   }
 )
 
-/** Shown in place of the session rows while the store is empty. */
+/**
+ * Shown in place of the session rows while the store is empty.
+ *
+ * Takes the answer rather than working it out: reading the install state means
+ * reading files, and a widget that reaches for its own dependencies is the
+ * thing this file's neighbours are arranged to avoid.
+ */
 export const EmptyRow = GObject.registerClass(
   class EmptyRow extends PopupMenu.PopupBaseMenuItem {
-    constructor() {
+    constructor(hooksInstalled: boolean) {
       super({ reactive: false, can_focus: false, style_class: 'dasbo-row' })
-      // The label goes in a box carrying the popup's fixed width, the way a
+      const { title, detail } = emptyState(hooksInstalled)
+
+      // The labels go in a box carrying the popup's fixed width, the way a
       // SessionRow's .dasbo-row-outer does. Without it this row is narrower
       // than the session rows and the popup visibly shrinks when the last
       // session ends.
-      const outer = new St.BoxLayout({ style_class: 'dasbo-empty-outer dasbo-fixed-width' })
-      const label = new St.Label({
-        text: 'No active sessions',
+      const outer = new St.BoxLayout({
+        vertical: true,
+        style_class: 'dasbo-empty-outer dasbo-fixed-width',
+      })
+
+      const titleLabel = new St.Label({
+        text: title,
         style_class: 'dasbo-empty',
         x_expand: true,
         y_align: Clutter.ActorAlign.CENTER,
@@ -77,8 +91,24 @@ export const EmptyRow = GObject.registerClass(
       // rule is kept for intent, but isn't load-bearing) — set the Clutter
       // actor property directly so the label actually reads as dimmed.
       // 178 == 0.7 * 255.
-      label.opacity = 178
-      outer.add_child(label)
+      titleLabel.opacity = 178
+
+      const detailLabel = new St.Label({
+        text: detail,
+        style_class: 'dasbo-empty-detail',
+        x_expand: true,
+        y_align: Clutter.ActorAlign.CENTER,
+      })
+      detailLabel.opacity = 140
+      // The popup is a fixed 30em and this sentence is longer than the title,
+      // so it wraps rather than ellipsizing — the same rule the task list and
+      // the question panel follow.
+      detailLabel.clutter_text.line_wrap = true
+      detailLabel.clutter_text.line_wrap_mode = Pango.WrapMode.WORD_CHAR
+      detailLabel.clutter_text.ellipsize = Pango.EllipsizeMode.NONE
+
+      outer.add_child(titleLabel)
+      outer.add_child(detailLabel)
       this.add_child(outer)
     }
   }

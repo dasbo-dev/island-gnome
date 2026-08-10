@@ -38,6 +38,24 @@ describe('the agent catalog', () => {
     expect(lastSupported).toBeLessThan(firstComingSoon)
   })
 
+  // docs/limitations.md § "Codex has no permission gate": Codex's PreToolUse
+  // hook rejects an allow/ask decision outright, so every Codex hook is
+  // installed notify-only. That is a fact about the agent, so it lives on the
+  // catalog rather than being restated wherever a row happens to be built.
+  it('records what each supported agent can actually do', () => {
+    for (const entry of AGENT_CATALOG) {
+      if (entry.status !== 'supported') continue
+      expect(['inline', 'notify-only'], entry.id).toContain(entry.permissions)
+    }
+  })
+
+  it('marks Claude Code inline and Codex notify-only', () => {
+    const byId = Object.fromEntries(
+      AGENT_CATALOG.filter((e) => e.status === 'supported').map((e) => [e.id, e.permissions])
+    )
+    expect(byId).toEqual({ claude: 'inline', codex: 'notify-only' })
+  })
+
   it('holds the agents this release ships and the three it does not', () => {
     expect(AGENT_CATALOG.filter((e) => e.status === 'supported').map((e) => e.id))
       .toEqual(['claude', 'codex'])

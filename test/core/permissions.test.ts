@@ -82,7 +82,7 @@ describe('PermissionTable', () => {
     advance(29_999)
     expect(seen).toHaveLength(0)
     advance(2)
-    expect(seen).toEqual([{ kind: 'fallthrough', reason: 'Timed out' }])
+    expect(seen).toEqual([{ kind: 'fallthrough', reason: 'Dasbo Island timed out waiting for an answer' }])
     expect(t.pendingCount()).toBe(0)
   })
 
@@ -163,7 +163,7 @@ describe('PermissionTable', () => {
     const t = new PermissionTable(store, timers)
     const seen: Decision[] = []
     t.request({ sessionKey: 'claude:ghost', tool: 'Bash', timeoutSeconds: 30 }, (d) => seen.push(d))
-    expect(seen).toEqual([{ kind: 'fallthrough', reason: 'Unknown session' }])
+    expect(seen).toEqual([{ kind: 'fallthrough', reason: 'Dasbo Island didn’t recognise this session' }])
   })
 
   it('queues a second request for the same session instead of overwriting it', () => {
@@ -249,7 +249,7 @@ describe('PermissionTable', () => {
     advance(29_000)
     expect(seen, 'the promoted request must not have timed out yet').toHaveLength(1)
     advance(2_000)
-    expect(seen[1]).toEqual({ kind: 'fallthrough', reason: 'Timed out' })
+    expect(seen[1]).toEqual({ kind: 'fallthrough', reason: 'Dasbo Island timed out waiting for an answer' })
   })
 
   it('resolving a queued request directly leaves the active one alone', () => {
@@ -348,7 +348,7 @@ describe('PermissionTable', () => {
 
     t.releaseSession('claude:s1')
 
-    expect(seen1).toEqual([{ kind: 'fallthrough', reason: 'Session reaped' }])
+    expect(seen1).toEqual([{ kind: 'fallthrough', reason: 'Dasbo Island lost track of this session' }])
     expect(seen2).toHaveLength(0)
     expect(t.pendingCount()).toBe(1)
   })

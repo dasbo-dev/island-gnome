@@ -1,6 +1,7 @@
 import Adw from 'gi://Adw'
 import Gtk from 'gi://Gtk'
 import Gio from 'gi://Gio'
+import Gdk from 'gi://Gdk'
 import { ABOUT } from '../core/about.js'
 import { logoAsset } from '../core/logo.js'
 
@@ -99,7 +100,7 @@ function _identity(window: Adw.PreferencesWindow): Adw.PreferencesGroup {
   const group = new Adw.PreferencesGroup()
 
   group.add(new Adw.ActionRow({ title: 'Author', subtitle: ABOUT.author }))
-  group.add(new Adw.ActionRow({ title: 'Licence', subtitle: ABOUT.license }))
+  group.add(new Adw.ActionRow({ title: 'License', subtitle: ABOUT.license }))
   group.add(_linkRow(window, 'GitHub', ABOUT.repoUrl))
   group.add(_linkRow(window, 'Report an issue', ABOUT.issuesUrl))
 
@@ -225,10 +226,28 @@ function _open(window: Adw.PreferencesWindow, uri: string): void {
     try {
       launcher.launch_finish(result)
     } catch {
-      // No browser, or a session that won't let us reach one. The address is
-      // the only thing the user actually needs, so hand it over verbatim
-      // rather than reporting a failure they can do nothing with.
-      window.add_toast(new Adw.Toast({ title: uri }))
+      // No browser, or a session that won't let us reach one. A toast title is
+      // not selectable, so a bare address is something the user can read and
+      // not use — put it on the clipboard and say that is where it went.
+      const clipboard = Gdk.Display.get_default()?.get_clipboard()
+      if (clipboard) {
+        // set_content with a bytes provider rather than a string setter:
+        // Gdk.Clipboard's convenience setters are variadic in C and are not
+        // bound in the typings this build compiles against.
+        clipboard.set_content(
+          Gdk.ContentProvider.new_for_bytes(
+            'text/plain;charset=utf-8',
+            new TextEncoder().encode(uri)
+          )
+        )
+        window.add_toast(
+          new Adw.Toast({ title: 'Couldn’t open your browser. Copied the address to the clipboard.' })
+        )
+      } else {
+        // No display to copy through, so the address itself is still the most
+        // useful thing we have.
+        window.add_toast(new Adw.Toast({ title: `Couldn’t open your browser — visit ${uri}` }))
+      }
     }
   })
 }

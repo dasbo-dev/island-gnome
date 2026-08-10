@@ -17,8 +17,18 @@ export function formatElapsed(ms: number): string {
  * activity label wraps, so this bounds the label's *height*, not its width —
  * to a few wrapped lines, though the exact count depends on the column width,
  * which differs between a plain row and one showing the permission cluster.
+ *
+ * The cut lands on a word boundary. A task subject one line below this is never
+ * truncated at all (`taskList.ts`), so an activity line ending mid-word made
+ * two pieces of the same kind of content follow two different rules. When there
+ * is no space to break at — a path, a URL, one long token — the hard cut stands,
+ * because breaking at the first character would leave an ellipsis and nothing
+ * else.
  */
 export function truncateDetail(s: string, max = 120): string {
   const flat = s.replace(/\s+/g, ' ').trim()
-  return flat.length <= max ? flat : flat.slice(0, max - 1) + '…'
+  if (flat.length <= max) return flat
+  const window = flat.slice(0, max - 1)
+  const lastSpace = window.lastIndexOf(' ')
+  return lastSpace > 0 ? `${window.slice(0, lastSpace + 1)}…` : `${window}…`
 }

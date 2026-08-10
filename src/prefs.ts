@@ -9,14 +9,14 @@ import {
   installState,
   configPath,
   type InstallEnv,
-  type InstallState,
 } from './core/install/plan.js'
 import { applyEdits, readFileOrNull } from './shell/applyEdits.js'
 import { adapters } from './core/adapters/index.js'
-import { AGENT_CATALOG } from './core/agentCatalog.js'
-import type { AgentId } from './core/types.js'
+import { AGENT_CATALOG, type CatalogEntry } from './core/agentCatalog.js'
+import { installRowText, installToast } from './core/install/messages.js'
 import { aboutPage } from './prefs/about.js'
 import { PREFS_WINDOW } from './core/prefsWindow.js'
+import { PREFS_LABEL } from './core/vocabulary.js'
 
 export default class DasboIslandPreferences extends ExtensionPreferences {
   fillPreferencesWindow(window: Adw.PreferencesWindow): Promise<void> | void {
@@ -33,7 +33,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     window.set_default_size(PREFS_WINDOW.width, PREFS_WINDOW.height)
 
     window.add(this._appearancePage(settings))
-    window.add(this._behaviourPage(settings))
+    window.add(this._behaviorPage(settings))
     window.add(this._agentsPage(settings, window))
     window.add(aboutPage(window, this.path, this._version()))
   }
@@ -48,11 +48,14 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
 
   private _appearancePage(settings: Gio.Settings): Adw.PreferencesPage {
     const page = new Adw.PreferencesPage({ title: 'Appearance', icon_name: 'preferences-desktop-display-symbolic' })
-    const group = new Adw.PreferencesGroup({ title: 'Panel' })
+    const group = new Adw.PreferencesGroup({
+      title: 'Panel',
+      description: 'Extensions that replace the top bar, such as Dash to Panel, decide where each box lands on screen.',
+    })
 
     const position = new Adw.ComboRow({
-      title: 'Panel box',
-      subtitle: 'Extensions that replace the top bar, such as Dash to Panel, decide where each box lands on screen',
+      title: PREFS_LABEL['panel-position']!,
+      subtitle: 'Where the island sits in the top bar',
       model: Gtk.StringList.new(['Left', 'Center', 'Right']),
     })
     const order = ['left', 'center', 'right']
@@ -63,15 +66,15 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     group.add(position)
 
     const index = new Adw.SpinRow({
-      title: 'Position within the box',
+      title: PREFS_LABEL['panel-index']!,
       adjustment: new Gtk.Adjustment({ lower: 0, upper: 20, step_increment: 1 }),
     })
     settings.bind('panel-index', index, 'value', 0)
     group.add(index)
 
     const alwaysShow = new Adw.SwitchRow({
-      title: 'Always show the pill',
-      subtitle: 'Keep it visible even when no agent session is active',
+      title: PREFS_LABEL['always-show']!,
+      subtitle: 'Keep the island visible even when no agent session is active',
     })
     settings.bind('always-show', alwaysShow, 'active', 0)
     group.add(alwaysShow)
@@ -79,13 +82,16 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     page.add(group)
 
     // Its own group rather than an addition to "Panel": that group is entirely
-    // about where the pill sits in the top bar, and the chip is inside the
+    // about where the island sits in the top bar, and the chip is inside the
     // popup. Filing it there would make the group's title a lie.
-    const rows = new Adw.PreferencesGroup({ title: 'Session rows' })
+    const rows = new Adw.PreferencesGroup({
+      title: 'Session rows',
+      description: 'A row whose mark is missing shows the name whatever this says.',
+    })
 
     const chipDisplay = new Adw.ComboRow({
-      title: 'Agent chip',
-      subtitle: 'What the tag at the head of each row shows. A row whose mark is missing shows the name whatever this says.',
+      title: PREFS_LABEL['agent-chip-display']!,
+      subtitle: 'What the tag at the head of each row shows',
       model: Gtk.StringList.new(['Logo only', 'Logo and name', 'Name only']),
     })
     // Written out both ways rather than bound: settings.bind has no
@@ -102,54 +108,64 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     return page
   }
 
-  private _behaviourPage(settings: Gio.Settings): Adw.PreferencesPage {
-    const page = new Adw.PreferencesPage({ title: 'Behaviour', icon_name: 'preferences-system-symbolic' })
+  private _behaviorPage(settings: Gio.Settings): Adw.PreferencesPage {
+    const page = new Adw.PreferencesPage({ title: 'Behavior', icon_name: 'preferences-system-symbolic' })
     const group = new Adw.PreferencesGroup({ title: 'Permissions' })
 
     const timeout = new Adw.SpinRow({
-      title: 'Permission timeout',
+      title: PREFS_LABEL['permission-timeout']!,
       subtitle: 'Seconds before falling through to the agent’s own prompt. Zero waits indefinitely.',
       adjustment: new Gtk.Adjustment({ lower: 0, upper: 3600, step_increment: 5 }),
     })
     settings.bind('permission-timeout', timeout, 'value', 0)
     group.add(timeout)
 
-    const questionTimeout = new Adw.SpinRow({
-      title: 'Question timeout',
-      subtitle: 'Seconds before an agent’s question falls through to its own picker. Zero waits indefinitely.',
-      adjustment: new Gtk.Adjustment({ lower: 0, upper: 3600, step_increment: 15 }),
-    })
-    settings.bind('question-timeout', questionTimeout, 'value', 0)
-    group.add(questionTimeout)
-
     const autoOpen = new Adw.SwitchRow({
-      title: 'Open the popup automatically',
+      title: PREFS_LABEL['auto-open-on-permission']!,
       subtitle: 'Suppressed while a fullscreen window is on the primary monitor',
     })
     settings.bind('auto-open-on-permission', autoOpen, 'active', 0)
     group.add(autoOpen)
 
+    page.add(group)
+
+    // Not under Permissions: a question is not a permission, and the linger
+    // timer is about a session that has already finished. A user looking for
+    // either of them does not look under Permissions.
+    const sessions = new Adw.PreferencesGroup({ title: 'Sessions' })
+
+    const questionTimeout = new Adw.SpinRow({
+      title: PREFS_LABEL['question-timeout']!,
+      subtitle: 'Seconds before an agent’s question falls through to its own picker. Zero waits indefinitely.',
+      adjustment: new Gtk.Adjustment({ lower: 0, upper: 3600, step_increment: 15 }),
+    })
+    settings.bind('question-timeout', questionTimeout, 'value', 0)
+    sessions.add(questionTimeout)
+
     const linger = new Adw.SpinRow({
-      title: 'Keep finished sessions visible',
+      title: PREFS_LABEL['done-linger']!,
       subtitle: 'Seconds a completed session stays in the list',
       adjustment: new Gtk.Adjustment({ lower: 0, upper: 300, step_increment: 5 }),
     })
     settings.bind('done-linger', linger, 'value', 0)
-    group.add(linger)
+    sessions.add(linger)
 
-    page.add(group)
+    page.add(sessions)
 
-    const notifications = new Adw.PreferencesGroup({ title: 'Notifications' })
+    const notifications = new Adw.PreferencesGroup({
+      title: 'Notifications',
+      description: 'Sounds come from your desktop’s sound theme, and stay silent when system sounds are off.',
+    })
 
     const notificationPopup = new Adw.SwitchRow({
-      title: 'Open the popup on a notification',
+      title: PREFS_LABEL['notification-popup']!,
       subtitle: 'Suppressed while a fullscreen window is on the primary monitor',
     })
     settings.bind('notification-popup', notificationPopup, 'active', 0)
     notifications.add(notificationPopup)
 
     const notificationSeconds = new Adw.SpinRow({
-      title: 'Keep a notification visible',
+      title: PREFS_LABEL['notification-seconds']!,
       subtitle: 'Seconds the message stays on the row. Zero keeps it until the agent does something else.',
       adjustment: new Gtk.Adjustment({ lower: 0, upper: 300, step_increment: 1 }),
     })
@@ -157,8 +173,8 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     notifications.add(notificationSeconds)
 
     const notificationSounds = new Adw.SwitchRow({
-      title: 'Play a sound',
-      subtitle: 'When an agent needs an answer, raises a notification, or finishes. Uses your desktop’s sound theme, and stays silent when system sounds are off.',
+      title: PREFS_LABEL['notification-sounds']!,
+      subtitle: 'When an agent needs you, or finishes',
     })
     settings.bind('notification-sounds', notificationSounds, 'active', 0)
     notifications.add(notificationSounds)
@@ -195,7 +211,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
         group.add(this._comingSoonRow(entry.displayName))
         continue
       }
-      const { row, refresh } = this._agentRow(entry.id, env, settings, window, refreshAll)
+      const { row, refresh } = this._agentRow(entry, env, settings, window, refreshAll)
       // Only a real row registers a refresher: a coming-soon row reads no
       // file, so there is nothing for refreshAll to re-read.
       refreshers.push(refresh)
@@ -213,15 +229,19 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
   }
 
   private _agentRow(
-    id: AgentId,
+    entry: Extract<CatalogEntry, { status: 'supported' }>,
     env: InstallEnv,
     settings: Gio.Settings,
     window: Adw.PreferencesWindow,
     refreshAll: () => void
   ): { row: Adw.ActionRow; refresh: () => void } {
+    const id = entry.id
     const row = new Adw.ActionRow({ title: adapters[id].displayName })
 
-    const enabled = new Gtk.Switch({ valign: Gtk.Align.CENTER, tooltip_text: 'Accept events from this agent' })
+    const enabled = new Gtk.Switch({
+      valign: Gtk.Align.CENTER,
+      tooltip_text: 'Show this agent’s sessions in the top bar',
+    })
     enabled.connect('notify::active', () => {
       const current = settings.get_strv('enabled-agents')
       const has = current.includes(id)
@@ -232,30 +252,8 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
       }
     })
 
-    const install = new Gtk.Button({ label: 'Install', valign: Gtk.Align.CENTER })
-    const uninstall = new Gtk.Button({ label: 'Remove', valign: Gtk.Align.CENTER })
-
-    const describe = (state: InstallState): string => {
-      switch (state) {
-        case 'installed':
-          return 'Hooks installed'
-        // Deliberately vague about the cause: stale covers an out-of-date hook
-        // path, a duplicated entry, a missing event, a command under the wrong
-        // event, and a codex file still holding the old named-hook entry.
-        case 'stale':
-          return 'Hooks need updating — they don’t match what this version installs'
-        case 'unreadable':
-          return `${configPath(id, env)} is not valid JSON`
-        case 'absent':
-          return 'Not installed'
-        default: {
-          // A new InstallState member must be given a subtitle here rather
-          // than silently rendering as "Not installed".
-          const unhandled: never = state
-          return unhandled
-        }
-      }
-    }
+    const install = new Gtk.Button({ label: 'Install hooks', valign: Gtk.Align.CENTER })
+    const uninstall = new Gtk.Button({ label: 'Remove hooks', valign: Gtk.Align.CENTER })
 
     const refresh = () => {
       // The switch is re-read here, not just at construction: enabled-agents
@@ -267,30 +265,43 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
       if (enabled.active !== isEnabled) enabled.active = isEnabled
 
       const state = installState(id, env)
-      row.subtitle = describe(state)
-      install.label = state === 'stale' ? 'Update' : 'Install'
+      const text = installRowText(state, entry.permissions, configPath(id, env))
+      row.subtitle = text.subtitle
+      // Cleared, not left behind: a row that recovers from `unreadable` would
+      // otherwise keep a tooltip pointing at a problem that no longer exists.
+      row.tooltip_text = text.tooltip ?? ''
+      install.label = state === 'stale' ? 'Update hooks' : 'Install hooks'
       install.sensitive = state === 'absent' || state === 'stale'
       uninstall.sensitive = state === 'installed' || state === 'stale'
     }
 
-    const run = (edits: ReturnType<typeof planInstall>, verb: string) => {
+    const run = (edits: ReturnType<typeof planInstall>, verb: 'install' | 'remove') => {
+      const toast = (outcome: 'noop' | 'done' | 'failed') =>
+        this._toast(
+          window,
+          installToast({
+            displayName: adapters[id].displayName,
+            agent: id,
+            verb,
+            outcome,
+            configPath: configPath(id, env),
+            home: env.home,
+          })
+        )
       try {
         if (edits.length === 0) {
-          this._toast(window, `${adapters[id].displayName}: nothing to ${verb}`)
+          toast('noop')
           return
         }
         try {
           applyEdits(edits)
-          // Codex will not run a newly written hook until it has been trusted,
-          // and that review only happens in its own TUI — so an install that
-          // succeeded here is still one step short of firing.
-          const trustNote =
-            id === 'codex' && verb === 'install'
-              ? ' — start `codex` once and approve the hook review, or Codex will not run them'
-              : ''
-          this._toast(window, `${adapters[id].displayName}: ${verb} complete${trustNote}`)
+          toast('done')
         } catch (e) {
-          this._toast(window, `${adapters[id].displayName}: ${verb} failed — ${e}`)
+          // The toast says what the user can act on; the real error goes where
+          // a bug report can find it. A GLib error string in a one-line toast
+          // is a path, an errno and no advice, clipped.
+          console.warn(`dasbo-island: ${verb} of ${id} hooks failed: ${e}`)
+          toast('failed')
         }
       } finally {
         // Refresh every row, not just this one: all three read from disk, and
@@ -330,10 +341,10 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
       valign: Gtk.Align.CENTER,
       active: false,
       sensitive: false,
-      tooltip_text: 'Not supported yet',
+      tooltip_text: 'Not available in this release',
     })
-    const install = new Gtk.Button({ label: 'Install', valign: Gtk.Align.CENTER, sensitive: false })
-    const uninstall = new Gtk.Button({ label: 'Remove', valign: Gtk.Align.CENTER, sensitive: false })
+    const install = new Gtk.Button({ label: 'Install hooks', valign: Gtk.Align.CENTER, sensitive: false })
+    const uninstall = new Gtk.Button({ label: 'Remove hooks', valign: Gtk.Align.CENTER, sensitive: false })
 
     row.add_suffix(enabled)
     row.add_suffix(install)

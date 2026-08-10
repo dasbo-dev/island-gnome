@@ -143,6 +143,9 @@ export const SessionRow = GObject.registerClass(
         label: '▸',
         style_class: 'dasbo-expander',
         y_align: Clutter.ActorAlign.CENTER,
+        // Its only text is a geometric shape, and it is in the tab order — a
+        // screen reader announces the character or nothing at all.
+        accessible_name: 'Show details',
         // The row is can_focus: false, so without this the only way to fold a
         // question away is the mouse — see Jump and the header gear.
         can_focus: true,
@@ -151,6 +154,7 @@ export const SessionRow = GObject.registerClass(
       this._expander.connect('clicked', () => {
         this._expanded = !this._expanded
         this._expander.label = this._expanded ? '▾' : '▸'
+        this._expander.accessible_name = this._expanded ? 'Hide details' : 'Show details'
         this._syncTaskBoxVisible()
         this._cb.onToggleExpanded(this._expanded)
       })
@@ -184,6 +188,10 @@ export const SessionRow = GObject.registerClass(
 
       this._jump = new St.Button({ label: 'Jump', style_class: 'button dasbo-jump',
         y_align: Clutter.ActorAlign.CENTER,
+        // "Jump" is not a GNOME verb and does not say where to. The label is
+        // kept because the row's right-hand cluster is unshrinkable and
+        // "Open" is no clearer; the name carries the meaning instead.
+        accessible_name: 'Focus this session’s terminal window',
         // St.Button doesn't set this in its own init, and this row is
         // deliberately can_focus: false, so without it Jump is unreachable
         // by keyboard — see PopupHeader's gear for the same fix.

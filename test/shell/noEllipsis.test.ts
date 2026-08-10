@@ -47,4 +47,15 @@ describe('the popup never truncates an option or a task', () => {
     // that regardless of what the rule is called.
     expect(css).not.toMatch(/\.dasbo-task[^{]*\{[^}]*max-height/)
   })
+
+  // The island's state word is the longest thing on the label, and the label is
+  // a fixed width — so a stylesheet edit is one careless line away from
+  // clipping "thinking" at three-digit session counts. 8.5em is sized on
+  // "100 · thinking"; a narrower rule is a regression, a wider one is fine.
+  it('keeps the island label wide enough for its longest state word', () => {
+    const css = readFileSync('stylesheet.css', 'utf8')
+    const rule = css.match(/\.dasbo-pill-label\s*\{[^}]*\}/)?.[0] ?? ''
+    const width = Number(rule.match(/width:\s*([\d.]+)em/)?.[1] ?? 0)
+    expect(width).toBeGreaterThanOrEqual(8.5)
+  })
 })

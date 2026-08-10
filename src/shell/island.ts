@@ -9,6 +9,7 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 import type { SessionStore } from '../core/store.js'
 import type { Session, SessionState } from '../core/types.js'
+import { islandLabel } from '../core/islandLabel.js'
 import { SessionRow } from './sessionRow.js'
 import { PermissionControls } from './permissionRow.js'
 import { QuestionPanel } from './questionPanel.js'
@@ -30,14 +31,6 @@ import type { SoundPlayer } from './soundPlayer.js'
  */
 type MenuWithOpenSignal = PopupMenu.PopupMenu & {
   connect(sigName: 'open-state-changed', callback: (menu: unknown, open: boolean) => void): number
-}
-
-const STATE_WORD: Record<SessionState, string> = {
-  idle: 'idle',
-  running: 'working',
-  waiting: 'waiting',
-  error: 'error',
-  done: 'done',
 }
 
 export const Island = GObject.registerClass(
@@ -70,6 +63,7 @@ export const Island = GObject.registerClass(
     private _menuStateId = 0
     private _onJump: (s: Session) => void = () => {}
     private _onPrefs: () => void = () => {}
+    private _hooksProbe: (() => boolean) | null = null
     private _controls = new Map<string, { id: string; controls: PermissionControls }>()
     private _questions = new Map<string, { id: string; panel: QuestionPanel }>()
     private _taskLists = new Map<string, { list: TaskList }>()
@@ -139,7 +133,7 @@ export const Island = GObject.registerClass(
         style_class: 'dasbo-pill-label',
         y_align: Clutter.ActorAlign.CENTER,
       })
-      // The label's width is pinned in the stylesheet so the pill cannot resize
+      // The label's width is pinned in the stylesheet so the island cannot resize
       // the top bar. St's CSS engine has no `text-overflow`, so the ellipsis has
       // to be set on the ClutterText — the same lesson as the opacity note in
       // popupHeader.ts. Without it, overlong content is clipped mid-glyph.
@@ -226,7 +220,7 @@ export const Island = GObject.registerClass(
       )
 
       // Fullscreen is not a store event, so refresh() never runs for it. The
-      // pill is invisible under a fullscreen window; animating it there is
+      // island is invisible under a fullscreen window; animating it there is
       // pure waste.
       this._fullscreenId = global.display.connect('in-fullscreen-changed', () =>
         this._applyPause()
@@ -273,11 +267,20 @@ export const Island = GObject.registerClass(
       this._onPrefs = fn
     }
 
+    /**
+     * How the empty state finds out whether any agent has hooks installed.
+     * Injected rather than read here: it needs the extension's own path and the
+     * file reader, and the island is a widget.
+     */
+    setHooksProbe(probe: () => boolean): void {
+      this._hooksProbe = probe
+    }
+
     showJumpFailure(key: string): void {
       const row = this._rows.get(key)
       if (!row) return
       const until = Date.now() + 2000
-      row.showTransient('no window', until)
+      row.showTransient('couldn’t find its terminal window', until)
       const id = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
         // Explicit rather than relying on the deadline having passed:
         // g_timeout_add_seconds rounds to a perturbed second boundary and can
@@ -313,7 +316,7 @@ export const Island = GObject.registerClass(
     /** Called by the D-Bus service after a permission row has been registered. */
     notifyPermissionOpened(kind: 'permission' | 'question'): void {
       // First, above even the notice-timer reset: sound is deliberately
-      // independent of every popup rule below it. In fullscreen the pill is
+      // independent of every popup rule below it. In fullscreen the island is
       // invisible and the popup is suppressed, which is exactly when the sound
       // is the only signal left — and unlike the popup, it covers nothing.
       this._sound.play(kind)
@@ -780,7 +783,11 @@ export const Island = GObject.registerClass(
       // anything is painted — so it never ends up observably wedged between
       // two session rows.
       if (sessions.length === 0 && !this._emptyRow) {
-        this._emptyRow = new EmptyRow()
+        // Called here rather than cached, so a user who installs hooks and
+        // reopens the popup gets the other variant without a reload. The
+        // fallback is the less alarming of the two: claiming no agents are
+        // connected when we do not know is worse than the reverse.
+        this._emptyRow = new EmptyRow(this._hooksProbe?.() ?? true)
         this._body.addMenuItem(this._emptyRow)
       } else if (sessions.length > 0 && this._emptyRow) {
         this._emptyRow.destroy()
@@ -806,7 +813,7 @@ export const Island = GObject.registerClass(
       this._rebuildRows()
       const sessions = this._store.list()
 
-      // Above the early return below, deliberately: with the pill hidden and no
+      // Above the early return below, deliberately: with the island hidden and no
       // sessions, that return would leave the snapshot stale and the next
       // visible refresh would replay finishes already sounded. Silent when
       // nothing moved, which is what makes the always-show handler and the
@@ -831,11 +838,13 @@ export const Island = GObject.registerClass(
       const state = pillState(sessions)
       this._icon.setState(state)
 
-      if (count === 0) {
-        this._label.text = 'idle'
-      } else {
-        this._label.text = `${count} · ${STATE_WORD[state]}`
-      }
+      // One call decides both, so the label a sighted user reads and the name a
+      // screen reader hears can never drift apart — and the accessible name is
+      // no longer the fixed string set in the constructor, which said nothing
+      // about the state the island exists to report.
+      const label = islandLabel(count, state)
+      this._label.text = label.text
+      this.accessible_name = label.spoken
       this._applyPause()
     }
 
