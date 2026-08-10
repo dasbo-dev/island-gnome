@@ -9,13 +9,19 @@ export const DOC_PAGES = [
   { source: 'docs/agent-dialects.md', out: 'agent-dialects.html', title: 'Agent hook dialects' },
 ]
 
+// Entities are decoded before slugifying, not after. marked escapes the
+// apostrophe in "Claude Code's SessionEnd" to &#39; while rendering, and a
+// slugifier that only strips non-word characters turns that into
+// claude-code39s-sessionend — an id no hand-written anchor will ever match.
+const ENTITIES = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#39;': "'", '&#x27;': "'" }
+const decode = (text) => text.replace(/&(?:amp|lt|gt|quot|#39|#x27);/g, (entity) => ENTITIES[entity])
+
 // GitHub's own heading-anchor rule, the same one test/docs/links.test.ts
 // implements: strip markup, lowercase, drop everything that is not a word
 // character, space or hyphen, then join words with hyphens. Periods vanish
 // rather than becoming separators — "0.146.0" becomes "01460".
 export const slug = (text) =>
-  text
-    .replace(/<[^>]+>/g, '')
+  decode(text.replace(/<[^>]+>/g, ''))
     .toLowerCase()
     .replace(/[^\w\s-]/g, '')
     .trim()

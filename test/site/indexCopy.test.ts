@@ -44,4 +44,20 @@ describe('the landing page copy', () => {
     expect(html).toContain('GNOME Shell 46 only')
     expect(html).not.toMatch(/Requires GNOME Shell 46,/)
   })
+
+  // C13. The README renders this cell as "no — notify-only" with a link to
+  // the explanation. The site kept the phrase and dropped both the "no" and
+  // the link, so it reads as a mode the user picked.
+  it('matches the README on Codex permission gating, and links the reason', () => {
+    expect(html).toContain('limitations.html#codex-has-no-permission-gate')
+    expect(html).toMatch(/No — notify-only/)
+  })
+
+  // C14. Two of the events the page counts as verified are inferred rather
+  // than fixture-backed, and the limitations page is where that is written
+  // down. The number stays; the framing gets its footnote.
+  it('links the fixture counts to the page that qualifies them', () => {
+    expect(html).toContain('limitations.html#claude-codes-sessionend-and-notification-are-inferred')
+    expect(html).toContain('limitations.html#codex-hooks-written-before-01460-never-fired')
+  })
 })

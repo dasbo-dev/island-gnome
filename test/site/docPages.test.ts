@@ -35,6 +35,16 @@ describe('the published doc pages', () => {
     expect(withAnchors('<h2>The <code>agy</code> dialect</h2>')).toContain('id="the-agy-dialect"')
   })
 
+  // marked escapes the apostrophe while rendering, so the slugifier sees
+  // "Claude Code&#39;s" and not "Claude Code's". Slugified naively that
+  // becomes claude-code39s-… — an id no hand-written anchor will match, and
+  // the only symptom is a link that quietly lands at the top of the page.
+  it('decodes entities before slugifying', () => {
+    expect(withAnchors('<h3>Claude Code&#39;s SessionEnd</h3>')).toContain(
+      'id="claude-codes-sessionend"'
+    )
+  })
+
   it('rewrites markdown cross-links to their published form', () => {
     expect(rewriteDocLinks('<a href="docs/limitations.md#codex-has-no-permission-gate">x</a>')).toBe(
       '<a href="limitations.html#codex-has-no-permission-gate">x</a>'
