@@ -9,7 +9,7 @@ import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 import type { SessionStore } from '../core/store.js'
 import type { Session, SessionState } from '../core/types.js'
-import { STATE_WORD } from '../core/vocabulary.js'
+import { islandLabel } from '../core/islandLabel.js'
 import { SessionRow } from './sessionRow.js'
 import { PermissionControls } from './permissionRow.js'
 import { QuestionPanel } from './questionPanel.js'
@@ -824,11 +824,13 @@ export const Island = GObject.registerClass(
       const state = pillState(sessions)
       this._icon.setState(state)
 
-      if (count === 0) {
-        this._label.text = 'idle'
-      } else {
-        this._label.text = `${count} · ${STATE_WORD[state]}`
-      }
+      // One call decides both, so the label a sighted user reads and the name a
+      // screen reader hears can never drift apart — and the accessible name is
+      // no longer the fixed string set in the constructor, which said nothing
+      // about the state the island exists to report.
+      const label = islandLabel(count, state)
+      this._label.text = label.text
+      this.accessible_name = label.spoken
       this._applyPause()
     }
 

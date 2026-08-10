@@ -9,9 +9,10 @@ import type { SessionState } from './types.js'
  * way while the row beneath it named the same session another, in a single
  * screenshot.
  *
- * Pure by construction — `src/core` may not import gi:// or resource://
- * (see test/core/purity.test.ts), which is what lets the shell, the
- * preferences process and the tests all read the same table.
+ * Pure by construction — nothing under `src/core` may import a GNOME namespace
+ * (see test/core/purity.test.ts, which scans for the import prefixes as raw
+ * substrings, so do not name them here). That purity is what lets the shell,
+ * the preferences process and the tests all read the same table.
  */
 
 /** The word the island's label carries for each state. */
