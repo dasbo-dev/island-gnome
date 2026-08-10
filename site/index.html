@@ -4,13 +4,38 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dasbo Island — your coding agents, on the GNOME top bar</title>
-<meta name="description" content="A GNOME Shell extension that keeps every live Claude Code and Codex session in the top bar — status at a glance, permissions answered inline, one click back to the terminal.">
+<meta name="description" content="GNOME Shell extension for Claude Code and Codex: every live session in the top bar, Claude Code permissions answered inline, one click back to the terminal.">
+<link rel="canonical" href="https://dasbo-dev.github.io/island-gnome/">
+<meta name="theme-color" content="#1c1f26">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta property="og:title" content="Dasbo Island — your coding agents, on the GNOME top bar">
-<meta property="og:description" content="A GNOME Shell extension that keeps every live Claude Code and Codex session in the top bar — status at a glance, permissions answered inline, one click back to the terminal.">
+<meta property="og:description" content="The pill and popup on the page are the extension's own state machine, compiled for the browser. Free, GPL-3.0-or-later, GNOME Shell 46.">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://fsevenm.github.io/dasbo-island/">
-<meta name="twitter:card" content="summary">
+<meta property="og:url" content="https://dasbo-dev.github.io/island-gnome/">
+<meta property="og:site_name" content="Dasbo Island">
+<meta property="og:locale" content="en_US">
+<meta property="og:image" content="https://dasbo-dev.github.io/island-gnome/og-image.png">
+<meta property="og:image:alt" content="The Dasbo Island pill in a GNOME top bar, above a popup listing two live coding sessions.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://dasbo-dev.github.io/island-gnome/og-image.png">
 <link rel="stylesheet" href="site.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Dasbo Island",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Linux, GNOME Shell 46",
+  "softwareVersion": "0.1.0",
+  "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+  "url": "https://dasbo-dev.github.io/island-gnome/",
+  "downloadUrl": "https://github.com/dasbo-dev/island-gnome",
+  "image": "https://dasbo-dev.github.io/island-gnome/og-image.png",
+  "description": "A GNOME Shell extension that keeps every live Claude Code and Codex session in the top bar.",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
 </head>
 <body>
 
@@ -28,12 +53,13 @@
 <main>
 
 <section class="hero">
-  <h1>Your coding agents, on the top&nbsp;bar.</h1>
-  <p class="sub">Dasbo Island is a GNOME Shell extension that keeps every live Claude&nbsp;Code and Codex session in the top bar — status at a glance, permission prompts answered inline, and one click back to the terminal that is running the work.</p>
+  <h1>Your coding agents, on the GNOME top&nbsp;bar.</h1>
+  <p class="sub">Dasbo Island is a GNOME Shell extension that keeps every live Claude&nbsp;Code and Codex session in the top bar: status at a glance, Claude&nbsp;Code permission prompts answered inline, and one click back to the terminal that's running the work.</p>
   <p class="cta">
-    <a class="button primary" href="#install">Install</a>
+    <a class="button primary" href="#install">Install from source</a>
     <a class="button" href="https://github.com/dasbo-dev/island-gnome">GitHub</a>
   </p>
+  <p class="fine">Verified against 17 real Claude&nbsp;Code hook payloads and 6 from Codex. Free and GPL-3.0-or-later. GNOME Shell 46 only; 47 and 48 support is planned.</p>
 
   <div class="popup">
     <div id="popup-rows">
@@ -55,7 +81,7 @@
       </div>
     </div>
   </div>
-  <p class="demo-note">The pill and popup above are driven by the extension's real state machine — <code>src/core</code> bundled for the browser, not a mock.</p>
+  <p class="demo-note">The pill and popup above are driven by the extension's own state machine, compiled for the browser. Not a mock.</p>
 </section>
 
 <section id="states">
@@ -71,22 +97,23 @@
        done@150ms (mid-stagger). This is the no-JS fallback, so it has to be
        a real pose, not a guess. -->
   <div class="strip">
-    <figure><span class="grid state-idle"><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.45"></span></span><figcaption><strong>Resting</strong> — one block breathes</figcaption></figure>
-    <figure><span class="grid state-running"><span class="block" style="opacity:.6"></span><span class="block" style="opacity:1"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span></span><figcaption><strong>Working</strong> — a light runs clockwise</figcaption></figure>
-    <figure><span class="grid state-waiting accent"><span class="block"></span><span class="block"></span><span class="block"></span><span class="block"></span></span><figcaption><strong>Needs you</strong> — all four blink</figcaption></figure>
-    <figure><span class="grid state-error accent"><span class="block"></span><span class="block" style="opacity:.16"></span><span class="block"></span><span class="block" style="opacity:.16"></span></span><figcaption><strong>Error</strong> — a diagonal pair holds</figcaption></figure>
-    <figure><span class="grid state-done accent"><span class="block"></span><span class="block"></span><span class="block" style="opacity:0"></span><span class="block" style="opacity:0"></span></span><figcaption><strong>Done</strong> — a green stagger</figcaption></figure>
+    <figure><span class="grid state-idle"><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.45"></span></span><figcaption><strong>Resting</strong> — one block breathes; the agent is up with nothing to do</figcaption></figure>
+    <figure><span class="grid state-running"><span class="block" style="opacity:.6"></span><span class="block" style="opacity:1"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span></span><figcaption><strong>Working</strong> — a light runs clockwise for as long as the agent needs nothing</figcaption></figure>
+    <figure><span class="grid state-waiting accent"><span class="block"></span><span class="block"></span><span class="block"></span><span class="block"></span></span><figcaption><strong>Needs you</strong> — all four blink; nothing moves until you answer</figcaption></figure>
+    <figure><span class="grid state-error accent"><span class="block"></span><span class="block" style="opacity:.16"></span><span class="block"></span><span class="block" style="opacity:.16"></span></span><figcaption><strong>Error</strong> — a diagonal pair holds; the session stopped and the row says why</figcaption></figure>
+    <figure><span class="grid state-done accent"><span class="block"></span><span class="block"></span><span class="block" style="opacity:0"></span><span class="block" style="opacity:0"></span></span><figcaption><strong>Done</strong> — a green stagger; the work finished and the terminal is free</figcaption></figure>
   </div>
 </section>
 
 <section id="features">
   <h2>Built for the moment an agent needs a human.</h2>
+  <p class="fine">An agent stops to ask permission in a terminal behind three other windows. You notice twenty minutes later. That gap is the whole reason this exists.</p>
   <div class="cards">
-    <div class="card"><h3>Answer permissions from the bar</h3><p>An agent asking to run a command blinks the pill. Allow or deny from the popup — no hunting through terminal windows for the one that is stuck.</p></div>
-    <div class="card"><h3>Jump back to the session</h3><p>Click a session row and land in the window the session started in.</p></div>
-    <div class="card"><h3>Watch the plan tick over</h3><p>Agents that keep a task list show progress — 3/10 beside the clock — and the expander opens the list itself, one line per task.</p></div>
-    <div class="card"><h3>Hear when you're needed</h3><p>Permission requests, questions, notifications, and finishes each have a cue from your desktop's own sound theme. A fullscreen window doesn't mute them — that is when the pill is least visible and the sound most useful.</p></div>
-    <div class="card"><h3>Know when it's waiting</h3><p>When an agent sits idle on your input, its row says so and the popup opens on its own — and closes again a few seconds later.</p></div>
+    <div class="card"><h3>Answer permissions from the bar</h3><p>A Claude&nbsp;Code agent asking to run a command blinks the pill. Allow or deny from the popup, with no hunting through terminal windows for the one that's stuck. Codex sessions notify but can't be answered from the bar.</p></div>
+    <div class="card"><h3>Jump back to the session</h3><p>Click a session row and land in the window the session started in, so getting back to an agent costs one click instead of a search.</p></div>
+    <div class="card"><h3>Watch the plan tick over</h3><p>Agents that keep a task list show progress (3/10 beside the clock) and the expander opens the list itself, one line per task. It's how you tell a long job from a stuck one without reading the terminal.</p></div>
+    <div class="card"><h3>Hear when you're needed</h3><p>Permission requests, questions, notifications, and finishes each have a cue from your desktop's own sound theme. A fullscreen window doesn't mute them: that's when the pill is least visible and the sound most useful.</p></div>
+    <div class="card"><h3>Know when it's waiting</h3><p>When an agent sits idle on your input, its row says so and the popup opens on its own, closing again after five seconds, or however long you set. A session waiting on a word from you doesn't sit there all afternoon.</p></div>
   </div>
 </section>
 
@@ -95,33 +122,39 @@
   <table>
     <thead><tr><th>Agent</th><th>In this build</th><th>Status</th><th>Permission gating</th></tr></thead>
     <tbody>
-      <tr><td>Claude Code</td><td>Yes</td><td>Verified against 17 real hook-payload fixtures</td><td>Yes</td></tr>
+      <tr><td>Claude Code</td><td>Yes</td><td><a href="limitations.html#claude-codes-sessionend-and-notification-are-inferred">Verified against 17 real hook-payload fixtures</a></td><td>Yes</td></tr>
       <!-- Every cell in this table is re-derived from docs/limitations.md and
            the README's "Supported agents" table — never edited straight to a
            friendlier wording. This row said "never fired, zero payloads
            captured" long after test/fixtures/codex/ held six captures. -->
-      <tr><td>Codex CLI</td><td>Yes</td><td>Verified against 6 real hook-payload fixtures (0.146.0)</td><td>Notify-only</td></tr>
+      <tr><td>Codex CLI</td><td>Yes</td><td><a href="limitations.html#codex-hooks-written-before-01460-never-fired">Verified against 6 real hook-payload fixtures (0.146.0)</a></td><td><a href="limitations.html#codex-has-no-permission-gate">No — notify-only</a></td></tr>
       <tr><td>OpenCode</td><td>Coming soon</td><td>—</td><td>—</td></tr>
       <tr><td>Cursor CLI</td><td>Coming soon</td><td>—</td><td>—</td></tr>
       <tr><td>Antigravity CLI</td><td>Coming soon</td><td>—</td><td>—</td></tr>
     </tbody>
   </table>
-  <p class="fine">Statuses are honest, not aspirational — the details live in the <a href="https://github.com/dasbo-dev/island-gnome#supported-agents">README</a>.</p>
+  <p class="fine">Statuses are honest, not aspirational. The details live in <a href="limitations.html">Known limitations</a> and the <a href="https://github.com/dasbo-dev/island-gnome#supported-agents">README</a>.</p>
   <p class="fine">A <em>coming soon</em> agent has a row on the extension's Agents page with its toggle and both buttons disabled: visible, not installable.</p>
 </section>
 
 <section id="failopen">
   <h2>Fail-open, guaranteed.</h2>
-  <p>The hook helper exits 0 with empty stdout on every error path. If the island is disabled, crashed, or never installed, your agents behave exactly as they would without it — a session can never hang on this extension.</p>
+  <p>The hook helper exits 0 with empty stdout on every error path. If the island is disabled, crashed, or never installed, your agents behave exactly as they would without it. A session can never hang on this extension.</p>
+  <p>Nothing leaves your machine. Hook payloads travel from the agent to the extension over your session's D-Bus; the extension makes no network calls and collects no telemetry.</p>
+  <p class="cta"><a class="button primary" href="#install">Install from source</a></p>
 </section>
 
 <section id="install">
   <h2>Install</h2>
-  <p>Requires GNOME Shell 46, X11 or Wayland. Not yet on extensions.gnome.org — for now, install from source:</p>
+  <p>GNOME Shell 46 only, X11 or Wayland. Building needs Node 22 and <code>glib-compile-schemas</code> (<code>libglib2.0-bin</code> on Debian and Ubuntu, <code>glib2-devel</code> on Fedora). It isn't on extensions.gnome.org yet, so for now install from source:</p>
   <pre><code>git clone https://github.com/dasbo-dev/island-gnome.git
-cd island-gnome &amp;&amp; make install
+cd island-gnome
+npm ci
+make install
+# X11: log out and back in before the next line
 gnome-extensions enable dasbo-island@ayubaswad.gmail.com</code></pre>
   <p class="fine">Then open the preferences and install hooks for each agent you use:<br><code>gnome-extensions prefs dasbo-island@ayubaswad.gmail.com</code></p>
+  <p class="fine">Changed your mind? Remove the hooks from that same preferences page, then <code>make uninstall</code>.</p>
 </section>
 
 <section id="support">
@@ -132,7 +165,8 @@ gnome-extensions enable dasbo-island@ayubaswad.gmail.com</code></pre>
 </main>
 
 <footer>
-  <p>GPL-3.0-or-later · Inspired by <a href="https://github.com/Octane0411/open-vibe-island">open-vibe-island</a> · <a href="https://github.com/dasbo-dev/island-gnome">GitHub</a></p>
+  <p><a href="limitations.html">Known limitations</a> · <a href="agent-dialects.html">Agent hook dialects</a> · <a href="https://github.com/dasbo-dev/island-gnome/blob/master/CHANGELOG.md">Changelog</a> · <a href="https://github.com/dasbo-dev/island-gnome/blob/master/SECURITY.md">Security</a> · <a href="https://github.com/dasbo-dev/island-gnome/issues">Report an issue</a></p>
+  <p><a href="https://github.com/dasbo-dev/island-gnome/blob/master/LICENSE">GPL-3.0-or-later</a> · Inspired by <a href="https://github.com/Octane0411/open-vibe-island">open-vibe-island</a> · <a href="https://github.com/dasbo-dev/island-gnome">GitHub</a></p>
 </footer>
 
 <script type="module" src="demo.js"></script>

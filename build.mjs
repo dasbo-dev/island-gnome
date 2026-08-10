@@ -1,5 +1,6 @@
 import { build } from 'esbuild'
-import { cp, mkdir, rm } from 'node:fs/promises'
+import { DOC_PAGES, renderDoc, renderPage } from './site/docPages.mjs'
+import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 
 const external = ['gi://*', 'resource://*', 'system', 'cairo', 'gettext']
@@ -37,6 +38,11 @@ if (existsSync('hooks')) {
   await cp('hooks', 'dist/hooks', { recursive: true })
 }
 
+// Every absolute URL the site emits — canonical, og:*, sitemap, JSON-LD —
+// resolves against this one origin. GitHub Pages serves the same bytes at
+// more than one path, so disagreement here is a live indexing bug.
+const SITE_URL = 'https://dasbo-dev.github.io/island-gnome/'
+
 // ---- landing page (dist-site/, deployed to GitHub Pages; see site/) ----
 await rm('dist-site', { recursive: true, force: true })
 await mkdir('dist-site', { recursive: true })
@@ -51,6 +57,24 @@ await build({
 })
 await cp('site/index.html', 'dist-site/index.html')
 await cp('site/site.css', 'dist-site/site.css')
+// Crawl files and icons. Copied rather than generated: robots.txt and
+// sitemap.xml are three lines each, and the two PNGs are rendered by hand
+// from tools/*.html because the deploy runner has no rasteriser.
+for (const file of ['robots.txt', 'sitemap.xml', '404.html', 'og-image.png', 'favicon.svg', 'apple-touch-icon.png']) {
+  await cp(`site/${file}`, `dist-site/${file}`)
+}
 await cp('src/icons', 'dist-site/icons', { recursive: true })
+
+// docs/*.md published as pages of the site, so the agent table can link its
+// caveats to an explanation on this domain instead of restating them. See
+// site/docPages.mjs for why the anchors and link rewriting matter.
+const docTemplate = await readFile('site/doc-template.html', 'utf8')
+for (const page of DOC_PAGES) {
+  const body = renderDoc(await readFile(page.source, 'utf8'))
+  await writeFile(
+    `dist-site/${page.out}`,
+    renderPage(docTemplate, { title: page.title, canonical: `${SITE_URL}${page.out}`, body })
+  )
+}
 
 console.log('built dist/ and dist-site/')

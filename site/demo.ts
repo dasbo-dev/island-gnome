@@ -10,6 +10,7 @@ import { activityText } from '../src/core/activity.js'
 import { formatElapsed } from '../src/core/format.js'
 import { summarize } from '../src/core/tasks.js'
 import { adapters } from '../src/core/adapters/index.js'
+import { clockText } from './clock.js'
 import type { Session, SessionState } from '../src/core/types.js'
 import { LOOP_MS, TIMELINE, storeAt } from './timeline.js'
 
@@ -256,6 +257,19 @@ const pillLabel = document.querySelector<HTMLElement>('#pill .pill-label')
 const rowsBox = document.querySelector<HTMLElement>('#popup-rows')
 const stripGrids = [...document.querySelectorAll<HTMLElement>('#states .grid')]
 const STRIP_STATES: SessionState[] = ['idle', 'running', 'waiting', 'error', 'done']
+
+// The markup ships a static date as the no-JS fallback; this replaces it
+// with today's whenever the script runs. A page whose whole pitch is "this
+// is live, not a mock" should not be showing last quarter's date in its own
+// top bar. Half a minute is finer than any reader will notice.
+const clock = document.querySelector<HTMLElement>('.topbar .clock')
+if (clock) {
+  const paintClock = (): void => {
+    clock.textContent = clockText(new Date())
+  }
+  paintClock()
+  window.setInterval(paintClock, 30_000)
+}
 
 if (pillGrid && pillLabel && rowsBox) {
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
