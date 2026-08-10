@@ -18,6 +18,7 @@ import {
 } from './shell/windowFinder.js'
 import { placeInPanelBox } from './shell/panelPlacement.js'
 import { SoundPlayer } from './shell/soundPlayer.js'
+import { maybeShowWelcome } from './shell/welcome.js'
 
 export default class DasboIslandExtension extends Extension {
   private _island: InstanceType<typeof Island> | null = null
@@ -145,6 +146,10 @@ export default class DasboIslandExtension extends Extension {
       }
       return GLib.SOURCE_CONTINUE
     })
+
+    // Last, after every handler is wired: its action button opens preferences,
+    // so nothing should be half-built at the moment the user can press it.
+    maybeShowWelcome(settings, () => this.openPreferences())
   }
 
   disable() {

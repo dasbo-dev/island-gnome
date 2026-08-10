@@ -73,5 +73,10 @@
       <summary>What the agent chip on a session row shows</summary>
       <description>The mark alone, the mark with a short name, or the name alone. A row whose mark is missing shows the name whatever this says.</description>
     </key>
+    <key name="welcome-shown" type="b">
+      <default>false</default>
+      <summary>First-run notification shown</summary>
+      <description>Set once the one-time welcome notification has been posted. Reset it to see the notification again.</description>
+    </key>
   </schema>
 </schemalist>
