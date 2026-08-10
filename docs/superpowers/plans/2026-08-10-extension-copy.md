@@ -460,10 +460,10 @@ Expected: FAIL — the description does not contain `Claude Code`, and `gettext-
 
 - [ ] **Step 3: Edit `metadata.json`**
 
-Set the description to exactly this (146 characters) and delete the `"gettext-domain"` line:
+Set the description to exactly this (143 characters) and delete the `"gettext-domain"` line:
 
 ```json
-  "description": "Live Claude Code and Codex sessions in the top bar: status at a glance, one click back to the terminal, and Claude Code permission prompts answered inline.",
+  "description": "Live Claude Code and Codex sessions in the top bar: status, one click back to the terminal, and Claude Code permission prompts answered inline.",
 ```
 
 Removing the field is safe: `grep -rn gettext src/` finds no call, and `build.mjs:6` lists `gettext` only as an esbuild external, which is a no-op when nothing imports it. Leave `build.mjs` alone.

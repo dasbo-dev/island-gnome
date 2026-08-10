@@ -1,11 +1,10 @@
 {
   "uuid": "dasbo-island@ayubaswad.gmail.com",
   "name": "Dasbo Island",
-  "description": "Live AI coding-agent sessions in the top bar: status, inline permission approval, and jump-back to the terminal.",
+  "description": "Live Claude Code and Codex sessions in the top bar: status, one click back to the terminal, and Claude Code permission prompts answered inline.",
   "shell-version": ["46"],
   "session-modes": ["user"],
   "settings-schema": "org.gnome.shell.extensions.dasbo-island",
-  "gettext-domain": "dasbo-island",
   "url": "https://github.com/dasbo-dev/island-gnome",
   "version-name": "0.1.0"
 }

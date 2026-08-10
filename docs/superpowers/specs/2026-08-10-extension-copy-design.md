@@ -135,12 +135,11 @@ verbatim and the owner did not override it, that fix is what ships.
 
 **E1 · `metadata.json:4`**
 
-> Live Claude Code and Codex sessions in the top bar: status at a glance, one
-> click back to the terminal, and Claude Code permission prompts answered
-> inline.
+> Live Claude Code and Codex sessions in the top bar: status, one click back to
+> the terminal, and Claude Code permission prompts answered inline.
 
-146 characters, so the qualifier survives extensions.gnome.org's list-view
-truncation at ~150.
+143 characters, so the qualifier survives extensions.gnome.org's list-view
+truncation at ~150. ("status at a glance" was the first draft and came to 155.)
 
 **E2 · `src/prefs.ts` `describe()`** — for an entry whose `permissions` is
 `notify-only`, append ` · notifications only, no permission prompts` to the
