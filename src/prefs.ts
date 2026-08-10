@@ -32,7 +32,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     window.set_default_size(PREFS_WINDOW.width, PREFS_WINDOW.height)
 
     window.add(this._appearancePage(settings))
-    window.add(this._behaviourPage(settings))
+    window.add(this._behaviorPage(settings))
     window.add(this._agentsPage(settings, window))
     window.add(aboutPage(window, this.path, this._version()))
   }
@@ -47,11 +47,14 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
 
   private _appearancePage(settings: Gio.Settings): Adw.PreferencesPage {
     const page = new Adw.PreferencesPage({ title: 'Appearance', icon_name: 'preferences-desktop-display-symbolic' })
-    const group = new Adw.PreferencesGroup({ title: 'Panel' })
+    const group = new Adw.PreferencesGroup({
+      title: 'Panel',
+      description: 'Extensions that replace the top bar, such as Dash to Panel, decide where each box lands on screen.',
+    })
 
     const position = new Adw.ComboRow({
       title: 'Panel box',
-      subtitle: 'Extensions that replace the top bar, such as Dash to Panel, decide where each box lands on screen',
+      subtitle: 'Where the island sits in the top bar',
       model: Gtk.StringList.new(['Left', 'Center', 'Right']),
     })
     const order = ['left', 'center', 'right']
@@ -69,8 +72,8 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     group.add(index)
 
     const alwaysShow = new Adw.SwitchRow({
-      title: 'Always show the pill',
-      subtitle: 'Keep it visible even when no agent session is active',
+      title: 'Always show the island',
+      subtitle: 'Keep the island visible even when no agent session is active',
     })
     settings.bind('always-show', alwaysShow, 'active', 0)
     group.add(alwaysShow)
@@ -78,13 +81,16 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     page.add(group)
 
     // Its own group rather than an addition to "Panel": that group is entirely
-    // about where the pill sits in the top bar, and the chip is inside the
+    // about where the island sits in the top bar, and the chip is inside the
     // popup. Filing it there would make the group's title a lie.
-    const rows = new Adw.PreferencesGroup({ title: 'Session rows' })
+    const rows = new Adw.PreferencesGroup({
+      title: 'Session rows',
+      description: 'A row whose mark is missing shows the name whatever this says.',
+    })
 
     const chipDisplay = new Adw.ComboRow({
       title: 'Agent chip',
-      subtitle: 'What the tag at the head of each row shows. A row whose mark is missing shows the name whatever this says.',
+      subtitle: 'What the tag at the head of each row shows',
       model: Gtk.StringList.new(['Logo only', 'Logo and name', 'Name only']),
     })
     // Written out both ways rather than bound: settings.bind has no
@@ -101,8 +107,8 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     return page
   }
 
-  private _behaviourPage(settings: Gio.Settings): Adw.PreferencesPage {
-    const page = new Adw.PreferencesPage({ title: 'Behaviour', icon_name: 'preferences-system-symbolic' })
+  private _behaviorPage(settings: Gio.Settings): Adw.PreferencesPage {
+    const page = new Adw.PreferencesPage({ title: 'Behavior', icon_name: 'preferences-system-symbolic' })
     const group = new Adw.PreferencesGroup({ title: 'Permissions' })
 
     const timeout = new Adw.SpinRow({
@@ -113,14 +119,6 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     settings.bind('permission-timeout', timeout, 'value', 0)
     group.add(timeout)
 
-    const questionTimeout = new Adw.SpinRow({
-      title: 'Question timeout',
-      subtitle: 'Seconds before an agent’s question falls through to its own picker. Zero waits indefinitely.',
-      adjustment: new Gtk.Adjustment({ lower: 0, upper: 3600, step_increment: 15 }),
-    })
-    settings.bind('question-timeout', questionTimeout, 'value', 0)
-    group.add(questionTimeout)
-
     const autoOpen = new Adw.SwitchRow({
       title: 'Open the popup automatically',
       subtitle: 'Suppressed while a fullscreen window is on the primary monitor',
@@ -128,17 +126,35 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     settings.bind('auto-open-on-permission', autoOpen, 'active', 0)
     group.add(autoOpen)
 
+    page.add(group)
+
+    // Not under Permissions: a question is not a permission, and the linger
+    // timer is about a session that has already finished. A user looking for
+    // either of them does not look under Permissions.
+    const sessions = new Adw.PreferencesGroup({ title: 'Sessions' })
+
+    const questionTimeout = new Adw.SpinRow({
+      title: 'Question timeout',
+      subtitle: 'Seconds before an agent’s question falls through to its own picker. Zero waits indefinitely.',
+      adjustment: new Gtk.Adjustment({ lower: 0, upper: 3600, step_increment: 15 }),
+    })
+    settings.bind('question-timeout', questionTimeout, 'value', 0)
+    sessions.add(questionTimeout)
+
     const linger = new Adw.SpinRow({
       title: 'Keep finished sessions visible',
       subtitle: 'Seconds a completed session stays in the list',
       adjustment: new Gtk.Adjustment({ lower: 0, upper: 300, step_increment: 5 }),
     })
     settings.bind('done-linger', linger, 'value', 0)
-    group.add(linger)
+    sessions.add(linger)
 
-    page.add(group)
+    page.add(sessions)
 
-    const notifications = new Adw.PreferencesGroup({ title: 'Notifications' })
+    const notifications = new Adw.PreferencesGroup({
+      title: 'Notifications',
+      description: 'Sounds come from your desktop’s sound theme, and stay silent when system sounds are off.',
+    })
 
     const notificationPopup = new Adw.SwitchRow({
       title: 'Open the popup on a notification',
@@ -157,7 +173,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
 
     const notificationSounds = new Adw.SwitchRow({
       title: 'Play a sound',
-      subtitle: 'When an agent needs an answer, raises a notification, or finishes. Uses your desktop’s sound theme, and stays silent when system sounds are off.',
+      subtitle: 'When an agent needs you, or finishes',
     })
     settings.bind('notification-sounds', notificationSounds, 'active', 0)
     notifications.add(notificationSounds)
@@ -221,7 +237,10 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     const id = entry.id
     const row = new Adw.ActionRow({ title: adapters[id].displayName })
 
-    const enabled = new Gtk.Switch({ valign: Gtk.Align.CENTER, tooltip_text: 'Accept events from this agent' })
+    const enabled = new Gtk.Switch({
+      valign: Gtk.Align.CENTER,
+      tooltip_text: 'Show this agent’s sessions in the top bar',
+    })
     enabled.connect('notify::active', () => {
       const current = settings.get_strv('enabled-agents')
       const has = current.includes(id)
@@ -232,8 +251,8 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
       }
     })
 
-    const install = new Gtk.Button({ label: 'Install', valign: Gtk.Align.CENTER })
-    const uninstall = new Gtk.Button({ label: 'Remove', valign: Gtk.Align.CENTER })
+    const install = new Gtk.Button({ label: 'Install hooks', valign: Gtk.Align.CENTER })
+    const uninstall = new Gtk.Button({ label: 'Remove hooks', valign: Gtk.Align.CENTER })
 
     const refresh = () => {
       // The switch is re-read here, not just at construction: enabled-agents
@@ -321,10 +340,10 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
       valign: Gtk.Align.CENTER,
       active: false,
       sensitive: false,
-      tooltip_text: 'Not supported yet',
+      tooltip_text: 'Not available in this release',
     })
-    const install = new Gtk.Button({ label: 'Install', valign: Gtk.Align.CENTER, sensitive: false })
-    const uninstall = new Gtk.Button({ label: 'Remove', valign: Gtk.Align.CENTER, sensitive: false })
+    const install = new Gtk.Button({ label: 'Install hooks', valign: Gtk.Align.CENTER, sensitive: false })
+    const uninstall = new Gtk.Button({ label: 'Remove hooks', valign: Gtk.Align.CENTER, sensitive: false })
 
     row.add_suffix(enabled)
     row.add_suffix(install)

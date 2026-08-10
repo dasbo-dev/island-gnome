@@ -13,7 +13,7 @@ describe('the About page', () => {
 
   it('is added to the preferences window, after the other three', () => {
     expect(prefs).toContain('aboutPage(')
-    const order = ['_appearancePage', '_behaviourPage', '_agentsPage', 'aboutPage']
+    const order = ['_appearancePage', '_behaviorPage', '_agentsPage', 'aboutPage']
     const positions = order.map((name) => prefs.indexOf(`window.add(${name === 'aboutPage' ? '' : 'this.'}${name}`))
     expect(positions.every((p) => p >= 0), 'a page is missing from fillPreferencesWindow').toBe(true)
     expect([...positions].sort((a, b) => a - b)).toEqual(positions)
