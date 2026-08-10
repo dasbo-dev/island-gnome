@@ -141,7 +141,7 @@ export const claudeAdapter: AgentAdapter = {
         hookSpecificOutput: {
           hookEventName: 'PreToolUse',
           permissionDecision: 'deny',
-          permissionDecisionReason: d.answer ?? 'The user gave no answer in Dasbo Island.',
+          permissionDecisionReason: d.answer ?? 'The user closed Dasbo Island without answering — ask again here.',
         },
       }
     }
@@ -150,7 +150,7 @@ export const claudeAdapter: AgentAdapter = {
     const defaultReason =
       d.kind === 'allow' ? 'Allowed from Dasbo Island'
       : d.kind === 'deny' ? 'Denied from Dasbo Island'
-      : 'Dasbo Island did not decide'
+      : 'Dasbo Island timed out — ask the user here instead.'
     return {
       hookSpecificOutput: {
         hookEventName: 'PreToolUse',

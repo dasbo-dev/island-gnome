@@ -270,7 +270,7 @@ export const Island = GObject.registerClass(
       const row = this._rows.get(key)
       if (!row) return
       const until = Date.now() + 2000
-      row.showTransient('no window', until)
+      row.showTransient('couldn’t find its terminal window', until)
       const id = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 2, () => {
         // Explicit rather than relying on the deadline having passed:
         // g_timeout_add_seconds rounds to a perturbed second boundary and can
