@@ -39,8 +39,22 @@ Nothing has been tagged yet. Everything below is on `master`.
 - The project mark in the popup header and at the top of the preferences
   About page, in the variant matching the current light or dark theme.
 
+### Changed
+
+- The landing page declares a canonical URL, a sitemap, a `robots.txt`, a
+  favicon, a 1200×630 share card and `SoftwareApplication` structured data,
+  all resolving against `https://dasbo-dev.github.io/island-gnome/`.
+- `docs/limitations.md` and `docs/agent-dialects.md` are published as pages of
+  the site, rendered from the markdown at build time, and the agent table
+  links its caveats to them instead of restating them.
+- The landing page states what the extension does with session data, how to
+  remove it, and that GNOME Shell 46 is a ceiling rather than a floor.
+
 ### Fixed
 
+- The landing page no longer promises Codex the inline permission answering
+  only Claude Code can do, and its install snippet runs `npm ci` before it
+  builds — as published, it failed on its second line from a clean clone.
 - Every repository URL now points at `dasbo-dev/island-gnome`; three files
   named it and all three were stale at once.
 - Codex hooks written in the older named-hook form parsed without complaint
