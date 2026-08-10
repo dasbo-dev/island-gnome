@@ -81,7 +81,7 @@
       </div>
     </div>
   </div>
-  <p class="demo-note">The pill and popup above are driven by the extension's real state machine — <code>src/core</code> bundled for the browser, not a mock.</p>
+  <p class="demo-note">The pill and popup above are driven by the extension's own state machine, compiled for the browser. Not a mock.</p>
 </section>
 
 <section id="states">
@@ -97,22 +97,23 @@
        done@150ms (mid-stagger). This is the no-JS fallback, so it has to be
        a real pose, not a guess. -->
   <div class="strip">
-    <figure><span class="grid state-idle"><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.45"></span></span><figcaption><strong>Resting</strong> — one block breathes</figcaption></figure>
-    <figure><span class="grid state-running"><span class="block" style="opacity:.6"></span><span class="block" style="opacity:1"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span></span><figcaption><strong>Working</strong> — a light runs clockwise</figcaption></figure>
-    <figure><span class="grid state-waiting accent"><span class="block"></span><span class="block"></span><span class="block"></span><span class="block"></span></span><figcaption><strong>Needs you</strong> — all four blink</figcaption></figure>
-    <figure><span class="grid state-error accent"><span class="block"></span><span class="block" style="opacity:.16"></span><span class="block"></span><span class="block" style="opacity:.16"></span></span><figcaption><strong>Error</strong> — a diagonal pair holds</figcaption></figure>
-    <figure><span class="grid state-done accent"><span class="block"></span><span class="block"></span><span class="block" style="opacity:0"></span><span class="block" style="opacity:0"></span></span><figcaption><strong>Done</strong> — a green stagger</figcaption></figure>
+    <figure><span class="grid state-idle"><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.45"></span></span><figcaption><strong>Resting</strong> — one block breathes; the agent is up with nothing to do</figcaption></figure>
+    <figure><span class="grid state-running"><span class="block" style="opacity:.6"></span><span class="block" style="opacity:1"></span><span class="block" style="opacity:.3"></span><span class="block" style="opacity:.3"></span></span><figcaption><strong>Working</strong> — a light runs clockwise for as long as the agent needs nothing</figcaption></figure>
+    <figure><span class="grid state-waiting accent"><span class="block"></span><span class="block"></span><span class="block"></span><span class="block"></span></span><figcaption><strong>Needs you</strong> — all four blink; nothing moves until you answer</figcaption></figure>
+    <figure><span class="grid state-error accent"><span class="block"></span><span class="block" style="opacity:.16"></span><span class="block"></span><span class="block" style="opacity:.16"></span></span><figcaption><strong>Error</strong> — a diagonal pair holds; the session stopped and the row says why</figcaption></figure>
+    <figure><span class="grid state-done accent"><span class="block"></span><span class="block"></span><span class="block" style="opacity:0"></span><span class="block" style="opacity:0"></span></span><figcaption><strong>Done</strong> — a green stagger; the work finished and the terminal is free</figcaption></figure>
   </div>
 </section>
 
 <section id="features">
   <h2>Built for the moment an agent needs a human.</h2>
+  <p class="fine">An agent stops to ask permission in a terminal behind three other windows. You notice twenty minutes later. That gap is the whole reason this exists.</p>
   <div class="cards">
     <div class="card"><h3>Answer permissions from the bar</h3><p>A Claude&nbsp;Code agent asking to run a command blinks the pill. Allow or deny from the popup, with no hunting through terminal windows for the one that's stuck. Codex sessions notify but can't be answered from the bar.</p></div>
-    <div class="card"><h3>Jump back to the session</h3><p>Click a session row and land in the window the session started in.</p></div>
-    <div class="card"><h3>Watch the plan tick over</h3><p>Agents that keep a task list show progress — 3/10 beside the clock — and the expander opens the list itself, one line per task.</p></div>
-    <div class="card"><h3>Hear when you're needed</h3><p>Permission requests, questions, notifications, and finishes each have a cue from your desktop's own sound theme. A fullscreen window doesn't mute them — that is when the pill is least visible and the sound most useful.</p></div>
-    <div class="card"><h3>Know when it's waiting</h3><p>When an agent sits idle on your input, its row says so and the popup opens on its own — and closes again a few seconds later.</p></div>
+    <div class="card"><h3>Jump back to the session</h3><p>Click a session row and land in the window the session started in, so getting back to an agent costs one click instead of a search.</p></div>
+    <div class="card"><h3>Watch the plan tick over</h3><p>Agents that keep a task list show progress (3/10 beside the clock) and the expander opens the list itself, one line per task. It's how you tell a long job from a stuck one without reading the terminal.</p></div>
+    <div class="card"><h3>Hear when you're needed</h3><p>Permission requests, questions, notifications, and finishes each have a cue from your desktop's own sound theme. A fullscreen window doesn't mute them: that's when the pill is least visible and the sound most useful.</p></div>
+    <div class="card"><h3>Know when it's waiting</h3><p>When an agent sits idle on your input, its row says so and the popup opens on its own, closing again after five seconds, or however long you set. A session waiting on a word from you doesn't sit there all afternoon.</p></div>
   </div>
 </section>
 
@@ -164,7 +165,8 @@ gnome-extensions enable dasbo-island@ayubaswad.gmail.com</code></pre>
 </main>
 
 <footer>
-  <p>GPL-3.0-or-later · Inspired by <a href="https://github.com/Octane0411/open-vibe-island">open-vibe-island</a> · <a href="https://github.com/dasbo-dev/island-gnome">GitHub</a></p>
+  <p><a href="limitations.html">Known limitations</a> · <a href="agent-dialects.html">Agent hook dialects</a> · <a href="https://github.com/dasbo-dev/island-gnome/blob/master/CHANGELOG.md">Changelog</a> · <a href="https://github.com/dasbo-dev/island-gnome/blob/master/SECURITY.md">Security</a> · <a href="https://github.com/dasbo-dev/island-gnome/issues">Report an issue</a></p>
+  <p><a href="https://github.com/dasbo-dev/island-gnome/blob/master/LICENSE">GPL-3.0-or-later</a> · Inspired by <a href="https://github.com/Octane0411/open-vibe-island">open-vibe-island</a> · <a href="https://github.com/dasbo-dev/island-gnome">GitHub</a></p>
 </footer>
 
 <script type="module" src="demo.js"></script>

@@ -98,4 +98,67 @@ describe('the landing page copy', () => {
     expect(hero).toContain('GNOME Shell 46 only')
     expect(hero).toContain('47 and 48 support is planned')
   })
+
+  // C15. 28 em dashes in ~503 words. Dense em-dash use is a listed
+  // AI-writing tell, to exactly the audience this page targets. The state
+  // captions keep theirs; they are doing structural work.
+  //
+  // Counted over prose only. A <td>—</td> standing for "not applicable" and
+  // a dash inside an HTML comment are not rhythm, and counting them would
+  // push the page toward deleting table cells to satisfy a test.
+  it('rations its em dashes', () => {
+    const prose = html.replace(/<!--[\s\S]*?-->/g, '').replace(/<td>—<\/td>/g, '')
+    expect((prose.match(/—/g) ?? []).length).toBeLessThanOrEqual(10)
+  })
+
+  // C16. "you're needed" and "it's waiting" sat beside "the one that is
+  // stuck" and "the terminal that is running the work".
+  it('uses contractions consistently', () => {
+    expect(html).not.toMatch(/that is (stuck|running|waiting)/)
+  })
+
+  // C10. Three cards described the mechanic and left the benefit to the
+  // reader.
+  it('says what each feature is for, not only what it does', () => {
+    expect(html).toContain('instead of a search')
+    expect(html).toContain('a long job from a stuck one')
+    expect(html).toContain("doesn't sit there all afternoon")
+  })
+
+  // C11. Four of five captions spent the clause after the dash on the
+  // animation while the bold word carried the whole meaning.
+  it('makes the state captions say what the state means', () => {
+    expect(html).toContain('the session stopped and the row says why')
+  })
+
+  // C17. The delay is the notification-seconds setting, default 5, 0
+  // disables. "A few seconds later" understated a configurable feature.
+  it('gives the auto-close delay a number', () => {
+    expect(html).toContain('after five seconds, or however long you set')
+    expect(html).not.toContain('a few seconds later')
+  })
+
+  // C18. src/core means nothing to someone who has not opened the repo,
+  // and the claim it qualifies is a genuine differentiator.
+  it('states the real-state-machine claim without the file path', () => {
+    expect(html).toContain("the extension's own state machine, compiled for the browser")
+    expect(html).not.toContain('<code>src/core</code>')
+  })
+
+  // C20. The emotion sweep found nothing in the "before" state — the page
+  // never described the problem it exists to solve.
+  it('names the problem before it sells the fix', () => {
+    expect(html).toContain('You notice twenty minutes later.')
+  })
+
+  // C23. License text, an attribution link and a GitHub link. No route to
+  // the license, the docs, the changelog, or a way to report anything.
+  it('gives the footer somewhere to go', () => {
+    const footer = html.match(/<footer>([\s\S]*?)<\/footer>/)?.[1] ?? ''
+    expect(footer).toContain('/blob/master/LICENSE')
+    expect(footer).toContain('CHANGELOG.md')
+    expect(footer).toContain('SECURITY.md')
+    expect(footer).toContain('/issues')
+    expect(footer).toContain('limitations.html')
+  })
 })
