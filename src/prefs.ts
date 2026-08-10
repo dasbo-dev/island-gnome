@@ -9,12 +9,11 @@ import {
   installState,
   configPath,
   type InstallEnv,
-  type InstallState,
 } from './core/install/plan.js'
 import { applyEdits, readFileOrNull } from './shell/applyEdits.js'
 import { adapters } from './core/adapters/index.js'
-import { AGENT_CATALOG } from './core/agentCatalog.js'
-import type { AgentId } from './core/types.js'
+import { AGENT_CATALOG, type CatalogEntry } from './core/agentCatalog.js'
+import { installRowText, installToast } from './core/install/messages.js'
 import { aboutPage } from './prefs/about.js'
 import { PREFS_WINDOW } from './core/prefsWindow.js'
 
@@ -195,7 +194,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
         group.add(this._comingSoonRow(entry.displayName))
         continue
       }
-      const { row, refresh } = this._agentRow(entry.id, env, settings, window, refreshAll)
+      const { row, refresh } = this._agentRow(entry, env, settings, window, refreshAll)
       // Only a real row registers a refresher: a coming-soon row reads no
       // file, so there is nothing for refreshAll to re-read.
       refreshers.push(refresh)
@@ -213,12 +212,13 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
   }
 
   private _agentRow(
-    id: AgentId,
+    entry: Extract<CatalogEntry, { status: 'supported' }>,
     env: InstallEnv,
     settings: Gio.Settings,
     window: Adw.PreferencesWindow,
     refreshAll: () => void
   ): { row: Adw.ActionRow; refresh: () => void } {
+    const id = entry.id
     const row = new Adw.ActionRow({ title: adapters[id].displayName })
 
     const enabled = new Gtk.Switch({ valign: Gtk.Align.CENTER, tooltip_text: 'Accept events from this agent' })
@@ -235,28 +235,6 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     const install = new Gtk.Button({ label: 'Install', valign: Gtk.Align.CENTER })
     const uninstall = new Gtk.Button({ label: 'Remove', valign: Gtk.Align.CENTER })
 
-    const describe = (state: InstallState): string => {
-      switch (state) {
-        case 'installed':
-          return 'Hooks installed'
-        // Deliberately vague about the cause: stale covers an out-of-date hook
-        // path, a duplicated entry, a missing event, a command under the wrong
-        // event, and a codex file still holding the old named-hook entry.
-        case 'stale':
-          return 'Hooks need updating — they don’t match what this version installs'
-        case 'unreadable':
-          return `${configPath(id, env)} is not valid JSON`
-        case 'absent':
-          return 'Not installed'
-        default: {
-          // A new InstallState member must be given a subtitle here rather
-          // than silently rendering as "Not installed".
-          const unhandled: never = state
-          return unhandled
-        }
-      }
-    }
-
     const refresh = () => {
       // The switch is re-read here, not just at construction: enabled-agents
       // changes under this window — another prefs instance, gsettings, the
@@ -267,30 +245,43 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
       if (enabled.active !== isEnabled) enabled.active = isEnabled
 
       const state = installState(id, env)
-      row.subtitle = describe(state)
-      install.label = state === 'stale' ? 'Update' : 'Install'
+      const text = installRowText(state, entry.permissions, configPath(id, env))
+      row.subtitle = text.subtitle
+      // Cleared, not left behind: a row that recovers from `unreadable` would
+      // otherwise keep a tooltip pointing at a problem that no longer exists.
+      row.tooltip_text = text.tooltip ?? ''
+      install.label = state === 'stale' ? 'Update hooks' : 'Install hooks'
       install.sensitive = state === 'absent' || state === 'stale'
       uninstall.sensitive = state === 'installed' || state === 'stale'
     }
 
-    const run = (edits: ReturnType<typeof planInstall>, verb: string) => {
+    const run = (edits: ReturnType<typeof planInstall>, verb: 'install' | 'remove') => {
+      const toast = (outcome: 'noop' | 'done' | 'failed') =>
+        this._toast(
+          window,
+          installToast({
+            displayName: adapters[id].displayName,
+            agent: id,
+            verb,
+            outcome,
+            configPath: configPath(id, env),
+            home: env.home,
+          })
+        )
       try {
         if (edits.length === 0) {
-          this._toast(window, `${adapters[id].displayName}: nothing to ${verb}`)
+          toast('noop')
           return
         }
         try {
           applyEdits(edits)
-          // Codex will not run a newly written hook until it has been trusted,
-          // and that review only happens in its own TUI — so an install that
-          // succeeded here is still one step short of firing.
-          const trustNote =
-            id === 'codex' && verb === 'install'
-              ? ' — start `codex` once and approve the hook review, or Codex will not run them'
-              : ''
-          this._toast(window, `${adapters[id].displayName}: ${verb} complete${trustNote}`)
+          toast('done')
         } catch (e) {
-          this._toast(window, `${adapters[id].displayName}: ${verb} failed — ${e}`)
+          // The toast says what the user can act on; the real error goes where
+          // a bug report can find it. A GLib error string in a one-line toast
+          // is a path, an errno and no advice, clipped.
+          console.warn(`dasbo-island: ${verb} of ${id} hooks failed: ${e}`)
+          toast('failed')
         }
       } finally {
         // Refresh every row, not just this one: all three read from disk, and
