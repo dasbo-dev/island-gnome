@@ -3,6 +3,9 @@ import type Gio from 'gi://Gio'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js'
 import { SessionStore } from './core/store.js'
+import { installState, type InstallEnv } from './core/install/plan.js'
+import { readFileOrNull } from './shell/applyEdits.js'
+import { AGENT_CATALOG } from './core/agentCatalog.js'
 import { PermissionTable } from './core/permissions.js'
 import { glibTimers } from './shell/glibTimers.js'
 import { IslandService } from './dbus/service.js'
@@ -75,6 +78,22 @@ export default class DasboIslandExtension extends Extension {
     })
 
     this._island.setPrefsHandler(() => this.openPreferences())
+
+    this._island.setHooksProbe(() => {
+      const env: InstallEnv = {
+        home: GLib.get_home_dir(),
+        hookPath: `${this.path}/hooks/dasbo-hook`,
+        existing: readFileOrNull,
+      }
+      // `stale` counts as connected: the hooks are on disk and firing, they
+      // just don't match this version. Telling that user no agents are
+      // connected would send them to install hooks they already have.
+      return AGENT_CATALOG.some((entry) => {
+        if (entry.status !== 'supported') return false
+        const state = installState(entry.id, env)
+        return state === 'installed' || state === 'stale'
+      })
+    })
 
     this._island.setPermissionHandlers({
       resolve: (id, kind) => {

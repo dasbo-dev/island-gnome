@@ -63,6 +63,7 @@ export const Island = GObject.registerClass(
     private _menuStateId = 0
     private _onJump: (s: Session) => void = () => {}
     private _onPrefs: () => void = () => {}
+    private _hooksProbe: (() => boolean) | null = null
     private _controls = new Map<string, { id: string; controls: PermissionControls }>()
     private _questions = new Map<string, { id: string; panel: QuestionPanel }>()
     private _taskLists = new Map<string, { list: TaskList }>()
@@ -264,6 +265,15 @@ export const Island = GObject.registerClass(
 
     setPrefsHandler(fn: () => void): void {
       this._onPrefs = fn
+    }
+
+    /**
+     * How the empty state finds out whether any agent has hooks installed.
+     * Injected rather than read here: it needs the extension's own path and the
+     * file reader, and the island is a widget.
+     */
+    setHooksProbe(probe: () => boolean): void {
+      this._hooksProbe = probe
     }
 
     showJumpFailure(key: string): void {
@@ -773,7 +783,11 @@ export const Island = GObject.registerClass(
       // anything is painted — so it never ends up observably wedged between
       // two session rows.
       if (sessions.length === 0 && !this._emptyRow) {
-        this._emptyRow = new EmptyRow()
+        // Called here rather than cached, so a user who installs hooks and
+        // reopens the popup gets the other variant without a reload. The
+        // fallback is the less alarming of the two: claiming no agents are
+        // connected when we do not know is worse than the reverse.
+        this._emptyRow = new EmptyRow(this._hooksProbe?.() ?? true)
         this._body.addMenuItem(this._emptyRow)
       } else if (sessions.length > 0 && this._emptyRow) {
         this._emptyRow.destroy()

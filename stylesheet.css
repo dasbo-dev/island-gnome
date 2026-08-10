@@ -38,6 +38,13 @@
   font-weight: bold;
 }
 
+/* The empty state's second line: smaller than the title it sits under, and
+   the reason .dasbo-empty-outer is a vertical box. */
+.dasbo-empty-detail {
+  font-size: 0.9em;
+  padding-top: 2px;
+}
+
 /* The gap between the project name and the shell's uptime. */
 .dasbo-row-title { spacing: 6px; }
 
