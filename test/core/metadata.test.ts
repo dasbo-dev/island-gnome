@@ -37,12 +37,12 @@ describe('the store description', () => {
     expect(description.slice(0, inline)).toContain('Claude Code permission')
   })
 
-  // H1 of the DIS-14 review: the extension writes into three other
-  // applications' config files and the store description said nothing about
-  // it. A reviewer who greps before reading finds writes to $HOME and has to
-  // guess at the intent. Every clause below is a disclosure the reviewer would
-  // otherwise have to discover; a copy edit that drops one puts the submission
-  // back where it started.
+  // H1 of the DIS-14 review: the extension writes into other applications'
+  // config files and the store description said nothing about it. A reviewer
+  // who greps before reading finds writes to $HOME and has to guess at the
+  // intent. Every clause below is a disclosure the reviewer would otherwise
+  // have to discover; a copy edit that drops one puts the submission back
+  // where it started.
   it('discloses the files it writes and the terms it writes them on', () => {
     for (const path of ['~/.claude/settings.json', '~/.codex/hooks.json', '~/.gemini/config/hooks.json']) {
       expect(description, `the description no longer names ${path}`).toContain(path)
@@ -51,6 +51,20 @@ describe('the store description', () => {
     expect(description, 'the backup is no longer mentioned').toContain('.dasbo.bak')
     expect(description, 'removal is no longer mentioned').toContain('Remove hooks')
     expect(description, 'the hook still reads as a shipped binary').toContain('GJS script')
+  })
+
+  // DIS-15 final review, finding 1: agentCatalog.ts marks antigravity
+  // 'coming-soon' and prefs.ts gives coming-soon rows no Install button, so no
+  // reachable path in this build writes ~/.gemini/config/hooks.json. Naming
+  // the file without qualifying it would claim a write this build cannot
+  // perform. This asserts the qualification survives, not just the path, so a
+  // copy edit cannot quietly turn the reserved file back into a claimed one.
+  it('qualifies the gemini path as reserved, not written, in this build', () => {
+    const gemini = description.indexOf('~/.gemini/config/hooks.json')
+    expect(gemini, 'the gemini path is gone').not.toBe(-1)
+    const sentence = description.slice(gemini)
+    expect(sentence, 'the gemini path is no longer scoped to Antigravity').toContain('Antigravity')
+    expect(sentence, 'the gemini path no longer says this build leaves it unused').toContain('not enabled in this build')
   })
 
   // M1 of the DIS-14 review: the copy uses three vendors' product names
