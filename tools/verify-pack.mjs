@@ -51,12 +51,37 @@ export function checkEntries(entries) {
   return problems
 }
 
+/**
+ * Catches the defect `*.map`-entry filtering cannot: `make pack` strips the
+ * `.map` file from the archive, but esbuild only omits the
+ * `//# sourceMappingURL=` comment it writes into the bundle when it is told
+ * `sourcemap: false` (see build.mjs, gated on `DASBO_PACK`). If that env var
+ * ever fails to reach the build — a Makefile edit that drops it, a build
+ * runner that clears the environment — the archive holds no `.map` entries
+ * and passes `checkEntries`, while the bundle still points at a file that
+ * shipped nowhere. Only reading the bundle text catches that.
+ *
+ * @param {string} name Bundle file name, for the violation message.
+ * @param {string} text Bundle file contents.
+ * @returns {string[]} One message per violation, empty when the bundle is clean.
+ */
+export function checkBundleText(name, text) {
+  return text.includes('sourceMappingURL')
+    ? [`must not ship: ${name} — carries a sourceMappingURL comment pointing at a .map file make pack excludes`]
+    : []
+}
+
 /** @param {string} zipPath */
 function entriesOf(zipPath) {
   return execFileSync('unzip', ['-Z1', zipPath], { encoding: 'utf8' })
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.length > 0)
+}
+
+/** @param {string} zipPath @param {string} entry */
+function readEntry(zipPath, entry) {
+  return execFileSync('unzip', ['-p', zipPath, entry], { encoding: 'utf8' })
 }
 
 // Run as a CLI only, so importing this from a test does not shell out.
@@ -66,7 +91,11 @@ if (process.argv[1] && process.argv[1].endsWith('verify-pack.mjs')) {
     console.error('usage: node tools/verify-pack.mjs <archive.zip>')
     process.exit(2)
   }
-  const problems = checkEntries(entriesOf(zipPath))
+  const problems = [
+    ...checkEntries(entriesOf(zipPath)),
+    ...checkBundleText('extension.js', readEntry(zipPath, 'extension.js')),
+    ...checkBundleText('prefs.js', readEntry(zipPath, 'prefs.js')),
+  ]
   if (problems.length > 0) {
     console.error(`${zipPath} is not fit to upload:`)
     for (const problem of problems) console.error(`  - ${problem}`)

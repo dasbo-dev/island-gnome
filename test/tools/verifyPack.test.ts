@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { checkEntries } from '../../tools/verify-pack.mjs'
+import { checkEntries, checkBundleText } from '../../tools/verify-pack.mjs'
 
 // The stale archive that prompted this file held nine entries and neither
 // icons/ nor assets/. Both are loaded by absolute path at runtime and both
@@ -101,5 +101,29 @@ describe('checkEntries', () => {
     ])
     const problems = checkEntries(nested)
     expect(problems.join('\n')).toContain('icons/')
+  })
+})
+
+// The defect this guards: make pack strips the `.map` file from the archive,
+// but esbuild only omits the `//# sourceMappingURL=` comment it writes into
+// the bundle when told `sourcemap: false`, gated on DASBO_PACK in build.mjs.
+// If that env var ever fails to reach the build, the archive holds no `.map`
+// entries — checkEntries sees nothing wrong — while the bundle still points
+// at a file that shipped nowhere. checkEntries alone cannot catch this: it
+// only ever sees the entry list, never bundle contents.
+describe('checkBundleText', () => {
+  it('passes a bundle with no sourcemap comment', () => {
+    expect(checkBundleText('extension.js', 'var x = 1;\n')).toEqual([])
+  })
+
+  it('rejects a bundle carrying a dangling sourceMappingURL comment', () => {
+    const text = 'var x = 1;\n//# sourceMappingURL=extension.js.map\n'
+    const problems = checkBundleText('extension.js', text)
+    expect(problems).toHaveLength(1)
+  })
+
+  it('names the offending bundle in the message', () => {
+    const text = '//# sourceMappingURL=prefs.js.map\n'
+    expect(checkBundleText('prefs.js', text)[0]).toContain('prefs.js')
   })
 })
