@@ -17,6 +17,7 @@ import {
   pruneSessionWindows,
 } from './shell/windowFinder.js'
 import { placeInPanelBox } from './shell/panelPlacement.js'
+import { panelBox } from './core/panelBox.js'
 import { SoundPlayer } from './shell/soundPlayer.js'
 import { maybeShowWelcome } from './shell/welcome.js'
 
@@ -57,7 +58,7 @@ export default class DasboIslandExtension extends Extension {
       this.uuid,
       this._island,
       settings.get_int('panel-index'),
-      settings.get_string('panel-position')
+      panelBox(settings.get_string('panel-position'))
     )
 
     // addToStatusArea above runs once, because it also registers the role and

@@ -201,6 +201,39 @@ Everything above is `tsc`. It says nothing about:
 A clean typecheck on 50 is necessary, not sufficient. Runtime validation still
 needs a real GNOME 48+ machine — tier 3.
 
+## Status: D3, D4 and D5 are done
+
+Applied on `main` while still targeting 46, because compatible forms exist that
+satisfy both sides. Re-measured afterwards: **GNOME 50 drops from 13 errors to
+10**, and 46 stays green (`npm run typecheck` exit 0, 892 tests across 64
+files).
+
+| | Fix that holds on both 46 and 50 |
+|---|---|
+| D3 | `rgba(c: ReturnType<St.ThemeNode['get_foreground_color']>)` — derives the type from the accessor instead of naming `Clutter.Color`, so the 16-series move to `Cogl.Color` does not matter |
+| D4 | `fillPreferencesWindow(...): Promise<void>`, **not** `async` — see below |
+| D5 | `panelBox()` in `src/core/panelBox.ts`, a checked narrow to `'left' \| 'center' \| 'right'` with the schema default as fallback, unit-tested against the gschema's own `<choices>` |
+
+**Why D4 is not `async`.** The obvious fix is to mark the method `async`. That
+is wrong here: the shell calls it without awaiting
+(`prefsObj.fillPreferencesWindow(this)`), so under `async` a throw inside the
+method becomes an unhandled rejection and the user gets a blank preferences
+window instead of the shell's error page. Declaring `Promise<void>` and
+returning `Promise.resolve()` from a synchronous body satisfies both versions'
+typings while leaving exception propagation exactly as it was.
+
+**D2 was deliberately left undone.** It is not compatible across versions:
+GNOME 46 types the parameter `open(animate: boolean)`, GNOME 50 types it
+`open(animate?: BoxPointer.PopupAnimation)`. No single expression satisfies
+both without a cast, so this one has to land together with the version bump
+rather than ahead of it. Note also that it is not purely cosmetic —
+`PopupAnimation` is a bit field (`SLIDE = 1`, `FADE = 2`, `FULL = ~0`), so the
+current `true` sets only the `SLIDE` bit. Moving to `FULL` changes the
+animation that actually plays, which is a user-visible change wanting a real
+GNOME session to judge.
+
+**Remaining for the port: 10 errors** — D1's six and D2's four.
+
 ## Recommendation
 
 1. **Target 48, 49 and 50 together, or 50 alone.** 48 and 49 are the same port,

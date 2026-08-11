@@ -54,7 +54,10 @@ function metrics(s: number): Metrics {
   }
 }
 
-function rgba(c: Clutter.Color): Rgba {
+// Typed off the accessor rather than naming Clutter.Color: the type moved to
+// Cogl.Color when Clutter dropped its own in the 16 series, and deriving it
+// here keeps this compiling on either side of that move.
+function rgba(c: ReturnType<St.ThemeNode['get_foreground_color']>): Rgba {
   return [c.red / 255, c.green / 255, c.blue / 255, c.alpha / 255]
 }
 
