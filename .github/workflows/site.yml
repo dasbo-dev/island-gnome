@@ -21,8 +21,8 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -30,6 +30,12 @@ jobs:
       - run: npm test
       - run: npm run typecheck
       - run: node build.mjs
+      # Creates the Pages site if the repository does not have one yet.
+      # Without it, deploy-pages below fails with a bare 404. A no-op once
+      # Settings → Pages has GitHub Actions as its source.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist-site
