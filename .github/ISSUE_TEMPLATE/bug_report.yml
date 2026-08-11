@@ -58,8 +58,8 @@ body:
     id: extension-version
     attributes:
       label: Extension version
-      description: "The version-name in metadata.json, or the commit you built."
-      placeholder: 0.1.0
+      description: "The commit you built: git rev-parse --short HEAD"
+      placeholder: a39e3d8
 
   - type: textarea
     id: log

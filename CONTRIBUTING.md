@@ -1,8 +1,11 @@
 # Contributing to Dasbo Island
 
-Thanks for looking. This is a GNOME Shell extension written in TypeScript and
-bundled with esbuild; everything that can be tested without a running GNOME
-session is tested with Vitest.
+The most useful thing you can send this project is a captured hook payload.
+The second most useful is a bug report with a shell log. This is a GNOME Shell
+extension written in TypeScript and bundled with esbuild; everything that can
+be tested without a running GNOME session is tested with Vitest.
+
+It is a one-person project, so replies come when they come.
 
 ## What is most useful
 
@@ -67,16 +70,16 @@ tools/fake-agent.js perm   # drive the UI without a real agent
 
 ## The gates
 
-Both must pass before a pull request can be merged, and CI runs them on every
-pull request, and on pushes to `main`:
+Three, and CI runs all of them on every pull request and on pushes to `main`:
 
 ```bash
-npm test
+npm test          # the core logic, no GNOME session needed
 npm run typecheck
+node build.mjs    # builds dist/ and the landing page in dist-site/
 ```
 
-`node build.mjs` must also succeed — it builds `dist/` and the landing page in
-`dist-site/`.
+[The pull-request template](.github/PULL_REQUEST_TEMPLATE.md) lists what else
+is worth checking before you open one.
 
 ## Rules worth knowing before you start
 
@@ -123,6 +126,9 @@ build: ship src/assets alongside the extension
 Say what changed and why in the pull-request description, and note anything
 you could not verify. Unverified is fine here. Unlabelled is not.
 
-## Code of Conduct
+## License and conduct
+
+Contributions are accepted under GPL-3.0-or-later, the same license as the
+project.
 
 Participation is covered by the [Code of Conduct](CODE_OF_CONDUCT.md).

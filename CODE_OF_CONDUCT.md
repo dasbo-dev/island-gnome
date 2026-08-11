@@ -1,5 +1,9 @@
 # Contributor Covenant Code of Conduct
 
+This is a one-person project. Reports go to <ayubaswad@gmail.com> and are read
+by that one person, who is also the maintainer named in the Covenant text below
+as "community leaders".
+
 ## Our Pledge
 
 We as members, contributors, and leaders pledge to make participation in our

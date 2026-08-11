@@ -31,4 +31,19 @@ describe('the community-health files', () => {
     const text = readFileSync('CHANGELOG.md', 'utf8')
     expect(text).not.toMatch(/^## \[\d+\.\d+\.\d+\]/m)
   })
+
+  // The fail-open guarantee is written out in full in two files, and nothing
+  // stops one from being reworded on its own. The pair is the whole promise:
+  // the README makes it, SECURITY.md explains what it costs.
+  it('states the fail-open guarantee identically in the README and SECURITY.md', () => {
+    const guarantee =
+      'The hook helper exits 0 with empty stdout on every error path. ' +
+      'If this extension is disabled, crashed, or never installed, your agents ' +
+      'behave exactly as they would without it.'
+    const normalise = (path: string) => readFileSync(path, 'utf8').replace(/\s+/g, ' ')
+    expect(normalise('README.md'), 'the README lost the fail-open guarantee').toContain(guarantee)
+    expect(normalise('SECURITY.md'), 'SECURITY.md lost the fail-open guarantee').toContain(
+      guarantee
+    )
+  })
 })
