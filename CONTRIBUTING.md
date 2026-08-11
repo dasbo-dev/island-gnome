@@ -26,13 +26,19 @@ the whole story.
 stdout — it is safe to leave wired into a session you are actually working in.
 
 ```bash
-tools/capture-hook claude
+/path/to/island-gnome/tools/capture-hook claude
 ```
 
 Point the agent's hook command at it, in the same config file dasbo installs
-into, and every event it fires lands in `test/fixtures/claude/` as
-`raw-0.json`, `raw-1.json`, and so on, numbered from what is already there. Set
-`DASBO_FIXTURE_DIR` to collect them somewhere else first.
+into. Use the absolute path to `tools/capture-hook`: a hook runs with the
+agent's session directory as its working directory, not this repository, so a
+relative command either is not found or writes into whatever directory the
+agent happened to be in.
+
+Every event the hook fires lands in `test/fixtures/claude/` as `raw-N.json`,
+where `N` is however many files are already in that directory when the hook
+runs — not a count you can predict from outside it. Set `DASBO_FIXTURE_DIR` to
+an absolute path to collect them somewhere else first.
 
 Rename each file after the event it captured, matching what is already in
 `test/fixtures/`: `PreToolUse-4.json` for Claude Code and Antigravity,

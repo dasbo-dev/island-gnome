@@ -115,7 +115,7 @@ gnome-extensions prefs dasbo-island@ayubaswad.gmail.com
 
 Whenever the pill is visible, the preferences window is one click away: click
 the pill, then the gear in the popup's header. The pill stays hidden while no
-session is running unless you enable **Always show the pill**.
+session is running unless you enable **Always show the island**.
 
 > [!IMPORTANT]
 > **Codex CLI needs one more step.** Installing the hooks is not enough on its
@@ -190,8 +190,8 @@ close it.
 
 ### Sound cues
 
-Each of those moments also makes a sound: a permission request, an agent's
-question, a notification, and a session finishing, each with its own cue. The
+Four moments each make a sound: a permission request, an agent's question, a
+notification, and a session finishing, each with its own cue. The
 sounds come from your desktop's sound theme rather than from this extension,
 so they match everything else on the system, and they stay silent when GNOME's
 own event sounds are off. Unlike the popup, sound is not suppressed by a
