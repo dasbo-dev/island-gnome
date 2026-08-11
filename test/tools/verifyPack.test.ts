@@ -78,4 +78,28 @@ describe('checkEntries', () => {
   it('names the offending entry in the message, not just the rule', () => {
     expect(checkEntries([...GOOD, 'extension.js.map'])[0]).toContain('extension.js.map')
   })
+
+  // The old predicate matched `.gschema.xml` anywhere in the path, so a
+  // gschema at the archive root — not under schemas/ — would silently pass
+  // a rule whose label promises "under schemas/". A build that dropped the
+  // file into the wrong directory would ship undetected.
+  it('rejects an archive whose only gschema XML sits at the root, not under schemas/', () => {
+    const misplaced = GOOD.filter((e) => !e.endsWith('.gschema.xml')).concat([
+      'org.gnome.shell.extensions.dasbo-island.gschema.xml',
+    ])
+    const problems = checkEntries(misplaced)
+    expect(problems.join('\n')).toContain('schemas/')
+  })
+
+  // The old predicate matched any icons/**/*.svg, so an icon nested in a
+  // subdirectory — icons/*.svg is meant to be flat — would silently pass a
+  // rule meant to require a flat layout. A build that nested icons one level
+  // deeper would ship undetected.
+  it('rejects an archive whose only SVG sits at icons/sub/foo.svg, not flat under icons/', () => {
+    const nested = GOOD.filter((e) => !e.startsWith('icons/') || e === 'icons/').concat([
+      'icons/sub/foo.svg',
+    ])
+    const problems = checkEntries(nested)
+    expect(problems.join('\n')).toContain('icons/')
+  })
 })

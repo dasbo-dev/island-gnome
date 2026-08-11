@@ -16,9 +16,9 @@ const REQUIRED = [
   ['extension.js', (e) => e === 'extension.js'],
   ['prefs.js', (e) => e === 'prefs.js'],
   ['stylesheet.css', (e) => e === 'stylesheet.css'],
-  ['the gschema XML under schemas/', (e) => e.endsWith('.gschema.xml')],
+  ['the gschema XML under schemas/', (e) => /^schemas\/.+\.gschema\.xml$/.test(e)],
   ['hooks/dasbo-hook', (e) => e === 'hooks/dasbo-hook'],
-  ['at least one icons/*.svg — the agent chip marks', (e) => /^icons\/.+\.svg$/.test(e)],
+  ['at least one icons/*.svg — the agent chip marks', (e) => /^icons\/[^/]+\.svg$/.test(e)],
   ['at least one file under assets/ — the About QR', (e) => /^assets\/.+/.test(e)],
 ]
 

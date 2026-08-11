@@ -30,5 +30,6 @@ clean:
 pack:
 	DASBO_PACK=1 npm run build
 	glib-compile-schemas dist/schemas
+	rm -f $(UUID).shell-extension.zip
 	cd dist && zip -qr ../$(UUID).shell-extension.zip . -x '*.map' -x 'schemas/gschemas.compiled'
 	node tools/verify-pack.mjs $(UUID).shell-extension.zip
