@@ -9,6 +9,7 @@
 // so the failure reaches a user as a mark-less agent chip and a blank About QR
 // with nothing in the log. A source-text assertion could not have caught it.
 import { execFileSync } from 'node:child_process'
+import { readdirSync } from 'node:fs'
 
 /** Entries that must be present, as a label and the predicate that finds them. */
 const REQUIRED = [
@@ -31,11 +32,21 @@ const FORBIDDEN = [
 /**
  * @param {string[]} entries Archive entry names as `unzip -Z1` prints them:
  *   no leading `./`, directories with a trailing slash.
+ * @param {{ icons?: string[], assets?: string[] }} [expected] Plain filenames
+ *   (`'claude.svg'`, `'qr-code.png'`) each of which must appear in the
+ *   archive as `icons/<name>` / `assets/<name>`. Passing the actual source
+ *   listing here is what turns "at least one" into "all of them": an archive
+ *   holding only icons/claude.svg still satisfies the REQUIRED floor below
+ *   while shipping mark-less chips for every other agent, which is the
+ *   defect this parameter exists to catch. An empty list (the default)
+ *   leaves the floor as the only check, so a call site with nothing to
+ *   compare against — or a test exercising the floor itself — still catches
+ *   a wholly missing directory.
  * @returns {string[]} One message per violation, empty when the archive is good.
  *   Every rule is evaluated, because a one-at-a-time check turns one broken
  *   pack into as many rebuild cycles as there are problems.
  */
-export function checkEntries(entries) {
+export function checkEntries(entries, expected = { icons: [], assets: [] }) {
   const problems = []
 
   for (const [label, matches] of REQUIRED) {
@@ -46,6 +57,13 @@ export function checkEntries(entries) {
     for (const entry of entries.filter(matches)) {
       problems.push(`must not ship: ${entry} — ${label}`)
     }
+  }
+
+  for (const name of expected.icons ?? []) {
+    if (!entries.includes(`icons/${name}`)) problems.push(`missing: icons/${name}`)
+  }
+  for (const name of expected.assets ?? []) {
+    if (!entries.includes(`assets/${name}`)) problems.push(`missing: assets/${name}`)
   }
 
   return problems
@@ -91,8 +109,15 @@ if (process.argv[1] && process.argv[1].endsWith('verify-pack.mjs')) {
     console.error('usage: node tools/verify-pack.mjs <archive.zip>')
     process.exit(2)
   }
+  // Read straight from the source tree so this stays correct automatically
+  // when an icon or asset is added or renamed — no second list to fall out
+  // of sync with build.mjs's own `cp('src/icons', ...)` / `cp('src/assets', ...)`.
+  const expected = {
+    icons: readdirSync('src/icons'),
+    assets: readdirSync('src/assets'),
+  }
   const problems = [
-    ...checkEntries(entriesOf(zipPath)),
+    ...checkEntries(entriesOf(zipPath), expected),
     ...checkBundleText('extension.js', readEntry(zipPath, 'extension.js')),
     ...checkBundleText('prefs.js', readEntry(zipPath, 'prefs.js')),
   ]

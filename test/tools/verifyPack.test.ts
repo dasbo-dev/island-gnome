@@ -102,6 +102,31 @@ describe('checkEntries', () => {
     const problems = checkEntries(nested)
     expect(problems.join('\n')).toContain('icons/')
   })
+
+  // DIS-15 final review, finding 3: "at least one icons/*.svg" and "at least
+  // one file under assets/" both pass an archive holding only
+  // icons/claude.svg and only assets/logo-light.svg — the B3 symptom of
+  // mark-less chips for the other agents and a blank About QR. Naming every
+  // file the source tree actually has is what closes that gap; the bare
+  // "at least one" rules stay in effect underneath (see the tests above) so
+  // a wholly missing directory is still caught even when expected is empty.
+  const EXPECTED = { icons: ['claude.svg', 'codex.svg', 'antigravity.svg'], assets: ['qr-code.png'] }
+
+  it('passes when every expected icon and asset is present', () => {
+    expect(checkEntries(GOOD, EXPECTED)).toEqual([])
+  })
+
+  it('rejects an archive missing one named icon and names it in the message', () => {
+    const missingCodex = GOOD.filter((e) => e !== 'icons/codex.svg')
+    const problems = checkEntries(missingCodex, EXPECTED)
+    expect(problems.join('\n')).toContain('icons/codex.svg')
+  })
+
+  it('rejects an archive missing one named asset and names it in the message', () => {
+    const missingQr = GOOD.filter((e) => e !== 'assets/qr-code.png')
+    const problems = checkEntries(missingQr, EXPECTED)
+    expect(problems.join('\n')).toContain('assets/qr-code.png')
+  })
 })
 
 // The defect this guards: make pack strips the `.map` file from the archive,
