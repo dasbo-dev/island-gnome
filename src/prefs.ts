@@ -19,7 +19,17 @@ import { PREFS_WINDOW } from './core/prefsWindow.js'
 import { PREFS_LABEL } from './core/vocabulary.js'
 
 export default class DasboIslandPreferences extends ExtensionPreferences {
-  fillPreferencesWindow(window: Adw.PreferencesWindow): Promise<void> | void {
+  // GNOME 46 types the base method as returning void, GNOME 50 as returning
+  // Promise<void>, and the `Promise<void> | void` this used to declare
+  // satisfies the second no better than the first. A Promise is assignable to
+  // a void-returning base, so declaring Promise<void> holds on both.
+  //
+  // Deliberately not `async`. The shell calls this without awaiting it
+  // (extensionPrefsDialog.js: `prefsObj.fillPreferencesWindow(this)`), so under
+  // `async` a throw in here would become an unhandled rejection and leave a
+  // blank window instead of the shell's error page. Staying synchronous keeps
+  // exceptions propagating to the caller the way they do today.
+  fillPreferencesWindow(window: Adw.PreferencesWindow): Promise<void> {
     const settings = this.getSettings()
 
     // The default size, not a size request: it only sets the size the window
@@ -36,6 +46,8 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
     window.add(this._behaviorPage(settings))
     window.add(this._agentsPage(settings, window))
     window.add(aboutPage(window, this.path, this._version()))
+
+    return Promise.resolve()
   }
 
   // Read from the extension's own metadata rather than a constant, so a
