@@ -78,8 +78,8 @@ way to install it.
 
 - Node 22, the version CI runs
 - npm
-- `glib-compile-schemas`, from `libglib2.0-bin` on Debian and Ubuntu, or
-  `glib2-devel` on Fedora
+- `glib-compile-schemas`, from `libglib2.0-bin` on Debian and Ubuntu. On other
+  distributions it ships with GLib itself.
 
 ## Install
 
