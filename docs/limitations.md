@@ -17,6 +17,14 @@ approvals ride a separate `PermissionRequest` event that dasbo does not wire.
 Every Codex hook is therefore installed notify-only. `codexAdapter.encodeDecision`
 is exercised by unit tests and is never reached from a real Codex session.
 
+### No permission round-trip has been captured
+
+Claude Code's gate is the one this project treats as working, and
+`claudeAdapter.encodeDecision` is exercised by unit tests. What no fixture
+shows is a permission answered end to end: nothing in `test/fixtures/` records
+a decision travelling back to an agent, for any agent. The encoding has never
+been observed against a live prompt.
+
 ## Sound
 
 ### No cue has been confirmed audible

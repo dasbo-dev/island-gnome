@@ -23,6 +23,10 @@ to the helper inside the extension directory.
 Those hooks make the extension part of your agents' tool-permission path,
 which is why the guarantee below exists.
 
+Nothing leaves your machine. The extension makes no network requests; the only
+URLs it knows are the three links on its About page, and those open in your
+browser when you click them.
+
 ## The fail-open guarantee
 
 The hook helper exits 0 with empty stdout on every error path. If this
@@ -39,8 +43,8 @@ Codex CLI has no permission gate through this extension at all; its hooks are
 installed
 [notify-only](docs/limitations.md#codex-has-no-permission-gate).
 Claude Code's gate is the one this project treats as working; its
-dialect is verified against 17 captured payloads, though no permission
-round-trip has been captured for any agent.
+dialect is verified against 17 captured payloads, though
+[no permission round-trip has been captured for any agent](docs/limitations.md#no-permission-round-trip-has-been-captured).
 
 No other agent's hooks can be installed from this build, so no other agent's
 decision path is reachable.

@@ -17,6 +17,31 @@ the whole story.
 
 **Patches.** Small and focused, please.
 
+## How to capture a payload
+
+`tools/capture-hook` records one payload verbatim, then exits 0 with empty
+stdout — it is safe to leave wired into a session you are actually working in.
+
+```bash
+tools/capture-hook claude
+```
+
+Point the agent's hook command at it, in the same config file dasbo installs
+into, and every event it fires lands in `test/fixtures/claude/` as
+`raw-0.json`, `raw-1.json`, and so on, numbered from what is already there. Set
+`DASBO_FIXTURE_DIR` to collect them somewhere else first.
+
+Rename each file after the event it captured, matching what is already in
+`test/fixtures/`: `PreToolUse-4.json` for Claude Code and Antigravity,
+`PreToolUse.json` for Codex. Say in the pull request which agent and which
+version produced them.
+
+**Scrub before you open the pull request.** A payload carries `cwd`,
+`session_id`, transcript paths and your prompt text. Replace anything you would
+not post in public — paths, project names, prompts — and leave the structure
+alone. The structure is the part an adapter is tested against; the contents are
+yours.
+
 ## Setup
 
 ```bash

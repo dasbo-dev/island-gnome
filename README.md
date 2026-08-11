@@ -31,6 +31,10 @@ Dasbo Island is a GNOME Shell extension that keeps every live AI coding-agent
 session in the top bar: status at a glance, permission prompts answered
 inline, and one click back to the terminal running the work.
 
+Nothing leaves your machine. The extension makes no network requests; the only
+URLs it knows are the three links on its About page, and those open in your
+browser when you click them.
+
 The demo linked above is not a video. It is the extension's own `src/core`
 state machine, bundled for the browser.
 
@@ -115,6 +119,21 @@ session is running unless you enable **Always show the pill**.
 Hook installation preserves entries belonging to other tools and writes a
 `.dasbo.bak` backup before its first change.
 
+## Uninstall
+
+Remove the hooks first, while the extension is still there to do it. In the
+preferences, each agent row has **Remove hooks**: dasbo takes out its own
+entries and leaves every other tool's alone, so the agent goes back to
+behaving as it did before. The `.dasbo.bak` written before the first change
+stays where it is.
+
+Then remove the extension itself:
+
+```bash
+gnome-extensions disable dasbo-island@ayubaswad.gmail.com
+make uninstall
+```
+
 ## How it works
 
 The pill shows a 2×2 grid that reflects the busiest session: three blocks dim
@@ -195,6 +214,9 @@ This project says what it has not proven. The full account is in
 - **Codex sessions cannot be gated through dasbo.** Its hooks are installed
   notify-only.
   [Details](docs/limitations.md#codex-has-no-permission-gate)
+- **No permission round-trip has been captured, for any agent.** The decision
+  encoding is exercised by unit tests, never against a live prompt.
+  [Details](docs/limitations.md#no-permission-round-trip-has-been-captured)
 - **No cue has been confirmed audible on a live desktop.** The suite can pin
   the decision logic; nothing in it can listen.
   [Details](docs/limitations.md#no-cue-has-been-confirmed-audible)
