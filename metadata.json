@@ -1,9 +1,8 @@
 {
   "uuid": "dasbo-island@ayubaswad.gmail.com",
   "name": "Dasbo Island",
-  "description": "Live Claude Code and Codex sessions in the top bar: status, one click back to the terminal, and Claude Code permission prompts answered inline.",
+  "description": "Live Claude Code and Codex sessions in the top bar: status, one click back to the terminal, and Claude Code permission prompts answered inline.\n\nPreferences can add hook entries to ~/.claude/settings.json and ~/.codex/hooks.json; this happens only when you press Install hooks. A .dasbo.bak copy is written before the first change, and Remove hooks takes the entries back out again. The hook itself is hooks/dasbo-hook, a readable GJS script that the agent runs, not the extension. ~/.gemini/config/hooks.json is reserved for Antigravity support, not enabled in this build.\n\nNot affiliated with or endorsed by Anthropic, OpenAI or Google.",
   "shell-version": ["46"],
-  "session-modes": ["user"],
   "settings-schema": "org.gnome.shell.extensions.dasbo-island",
   "url": "https://github.com/dasbo-dev/island-gnome",
   "version-name": "0.1.0"

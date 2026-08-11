@@ -10,6 +10,15 @@ and this project adheres to
 
 Nothing has been tagged yet. Everything below is on `main`.
 
+### Changed
+
+- Hooks are now installed as `gjs -m <path> …` rather than as a bare path to
+  `hooks/dasbo-hook`. No `chmod` exists in `src/`, `hooks/`, or `build.mjs` —
+  the only one lives in the Makefile's `install` target, which local installs
+  run and the packaged path never does — and a dropped mode made every hook
+  fail silently. If you installed hooks before this change, preferences shows
+  them as out of date and **Update hooks** rewrites them.
+
 ### Added
 
 - A top-bar island whose 2×2 grid reflects the busiest session: idle,

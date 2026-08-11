@@ -417,3 +417,13 @@ nearest non-shell, non-interpreter ancestor found so far, and to `0` — meaning
 unknown — when nothing matches. The session's `startedAt` comes from that
 process's own start time in `/proc`, which makes it recoverable at any point
 rather than observable only when `SessionStart` fires.
+
+The hook process itself changed `comm` when `plan.ts` moved from a bare-path
+invocation to `gjs -m <hookPath>` (see the comment on `cmd()` in
+`src/core/install/plan.ts`): the kernel used to set `comm` to `dasbo-hook`,
+read off the shebang'd executable itself; under `gjs -m` it is `gjs`. Nothing
+downstream breaks — `selectAgentPid` starts its ancestor walk at index 1, past
+the hook process itself, and no `procNames` list contains `gjs` — but it means
+`pgrep dasbo-hook` no longer finds a live hook process. Anyone troubleshooting
+by process name should `pgrep gjs` instead, or grep `/proc/<pid>/cmdline` for
+`dasbo-hook`.
