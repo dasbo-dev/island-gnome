@@ -49,8 +49,10 @@ const ANTIGRAVITY_FLAT = ['PreInvocation', 'PostInvocation', 'Stop'] as const
  * (Antigravity).
  *
  * Run through `gjs -m` rather than as a bare path, so the hook's executable
- * bit stops being load-bearing: nothing in this tree ever sets it, and a
- * dropped mode would make every hook fail silently. Bare `gjs`, not
+ * bit stops being load-bearing: no `chmod` exists in src/, hooks/, or
+ * build.mjs — the only one lives in the Makefile's install target, which
+ * local installs run and the packaged path never does — and a dropped mode
+ * would make every hook fail silently. Bare `gjs`, not
  * /usr/bin/gjs, because not every distribution puts it there — and any machine
  * running GNOME Shell has it on PATH. The `dasbo-hook` substring survives in
  * the new string, so isOurs() still recognises entries written either way and
