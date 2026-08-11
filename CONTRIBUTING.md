@@ -1,20 +1,55 @@
 # Contributing to Dasbo Island
 
-Thanks for looking. This is a GNOME Shell extension written in TypeScript and
-bundled with esbuild; everything that can be tested without a running GNOME
-session is tested with Vitest.
+The most useful thing you can send this project is a captured hook payload.
+The second most useful is a bug report with a shell log. This is a GNOME Shell
+extension written in TypeScript and bundled with esbuild; everything that can
+be tested without a running GNOME session is tested with Vitest.
+
+It is a one-person project, so replies come when they come.
 
 ## What is most useful
 
 **Captured hook payloads.** Several gaps in
 [docs/limitations.md](docs/limitations.md) close the moment someone produces a
-real payload — the Antigravity permission round-trip above all. A fixture is
-worth more here than a patch.
+real payload — a Claude Code `SessionEnd` or `Notification` above all, and a
+permission round-trip from any agent, which nobody has captured yet. A fixture
+is worth more here than a patch.
 
 **Bug reports with a shell log.** See the issue template; the log is usually
 the whole story.
 
 **Patches.** Small and focused, please.
+
+## How to capture a payload
+
+`tools/capture-hook` records one payload verbatim, then exits 0 with empty
+stdout — it is safe to leave wired into a session you are actually working in.
+
+```bash
+/path/to/island-gnome/tools/capture-hook claude
+```
+
+Point the agent's hook command at it, in the same config file dasbo installs
+into. Use the absolute path to `tools/capture-hook`: a hook runs with the
+agent's session directory as its working directory, not this repository, so a
+relative command either is not found or writes into whatever directory the
+agent happened to be in.
+
+Every event the hook fires lands in `test/fixtures/claude/` as `raw-N.json`,
+where `N` is however many files are already in that directory when the hook
+runs — not a count you can predict from outside it. Set `DASBO_FIXTURE_DIR` to
+an absolute path to collect them somewhere else first.
+
+Rename each file after the event it captured, matching what is already in
+`test/fixtures/`: `PreToolUse-4.json` for Claude Code and Antigravity,
+`PreToolUse.json` for Codex. Say in the pull request which agent and which
+version produced them.
+
+**Scrub before you open the pull request.** A payload carries `cwd`,
+`session_id`, transcript paths and your prompt text. Replace anything you would
+not post in public — paths, project names, prompts — and leave the structure
+alone. The structure is the part an adapter is tested against; the contents are
+yours.
 
 ## Setup
 
@@ -41,16 +76,16 @@ tools/fake-agent.js perm   # drive the UI without a real agent
 
 ## The gates
 
-Both must pass before a pull request can be merged, and CI runs them on every
-pull request, and on pushes to `master`:
+Three, and CI runs all of them on every pull request and on pushes to `main`:
 
 ```bash
-npm test
+npm test          # the core logic, no GNOME session needed
 npm run typecheck
+node build.mjs    # builds dist/ and the landing page in dist-site/
 ```
 
-`node build.mjs` must also succeed — it builds `dist/` and the landing page in
-`dist-site/`.
+[The pull-request template](.github/PULL_REQUEST_TEMPLATE.md) lists what else
+is worth checking before you open one.
 
 ## Rules worth knowing before you start
 
@@ -78,9 +113,9 @@ dialect into the extension's own events.
 exist; the fixtures behind them are in `test/fixtures/`.
 
 An adapter written without captured fixtures is a guess, and this project
-labels guesses as such — see the Antigravity entry in
-[docs/limitations.md](docs/limitations.md) for what that looks like in
-practice.
+labels guesses as such — see
+[Claude Code's SessionEnd and Notification are inferred](docs/limitations.md#claude-codes-sessionend-and-notification-are-inferred)
+for what that looks like in practice.
 
 ## Commits and pull requests
 
@@ -97,6 +132,9 @@ build: ship src/assets alongside the extension
 Say what changed and why in the pull-request description, and note anything
 you could not verify. Unverified is fine here. Unlabelled is not.
 
-## Code of Conduct
+## License and conduct
+
+Contributions are accepted under GPL-3.0-or-later, the same license as the
+project.
 
 Participation is covered by the [Code of Conduct](CODE_OF_CONDUCT.md).

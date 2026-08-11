@@ -29,9 +29,11 @@ describe('the landing page copy', () => {
     expect(snippet.indexOf('npm ci')).toBeLessThan(snippet.indexOf('make install'))
   })
 
-  // The Makefile's own success message says to log out first on X11. The
-  // page had dropped it, so `gnome-extensions enable` silently does nothing.
-  it('keeps the X11 log-out step the Makefile prints', () => {
+  // The site, the README and the Makefile all give the same reload
+  // instruction, and the site is the one a reader hits first: get it wrong
+  // here and a Wayland reader — the one who actually needs to log out — is
+  // never told to.
+  it('keeps the Wayland log-out step the Makefile prints', () => {
     expect(html).toMatch(/log out and back in/)
   })
 
@@ -155,7 +157,7 @@ describe('the landing page copy', () => {
   // the license, the docs, the changelog, or a way to report anything.
   it('gives the footer somewhere to go', () => {
     const footer = html.match(/<footer>([\s\S]*?)<\/footer>/)?.[1] ?? ''
-    expect(footer).toContain('/blob/master/LICENSE')
+    expect(footer).toContain('/blob/main/LICENSE')
     expect(footer).toContain('CHANGELOG.md')
     expect(footer).toContain('SECURITY.md')
     expect(footer).toContain('/issues')

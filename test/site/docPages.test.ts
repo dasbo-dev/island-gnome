@@ -53,7 +53,7 @@ describe('the published doc pages', () => {
   })
 
   it('leaves absolute links alone', () => {
-    const link = '<a href="https://github.com/dasbo-dev/island-gnome/blob/master/README.md">x</a>'
+    const link = '<a href="https://github.com/dasbo-dev/island-gnome/blob/main/README.md">x</a>'
     expect(rewriteDocLinks(link)).toBe(link)
   })
 
@@ -62,10 +62,10 @@ describe('the published doc pages', () => {
   // publish a 404 on the first line of the first doc page.
   it('sends links to unpublished files to GitHub', () => {
     expect(rewriteDocLinks('<a href="../README.md">x</a>')).toBe(
-      '<a href="https://github.com/dasbo-dev/island-gnome/blob/master/README.md">x</a>'
+      '<a href="https://github.com/dasbo-dev/island-gnome/blob/main/README.md">x</a>'
     )
     expect(rewriteDocLinks('<a href="../CONTRIBUTING.md#tests">x</a>')).toBe(
-      '<a href="https://github.com/dasbo-dev/island-gnome/blob/master/CONTRIBUTING.md#tests">x</a>'
+      '<a href="https://github.com/dasbo-dev/island-gnome/blob/main/CONTRIBUTING.md#tests">x</a>'
     )
   })
 

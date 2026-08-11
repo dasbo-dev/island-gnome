@@ -2,6 +2,13 @@ name: Feature request
 description: Suggest something the extension should do
 labels: [enhancement]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check [known limitations](https://github.com/dasbo-dev/island-gnome/blob/main/docs/limitations.md)
+        first. Some gaps are known and documented, Codex permission gating
+        above all.
+
   - type: textarea
     id: problem
     attributes:

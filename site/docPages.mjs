@@ -38,7 +38,7 @@ export const withAnchors = (html) =>
     (_match, level, inner) => `<h${level} id="${slug(inner)}">${inner}</h${level}>`
   )
 
-const REPO_BLOB = 'https://github.com/dasbo-dev/island-gnome/blob/master/'
+const REPO_BLOB = 'https://github.com/dasbo-dev/island-gnome/blob/main/'
 const PUBLISHED = new Set(DOC_PAGES.map((page) => page.source.replace(/^docs\//, '')))
 
 // The docs link to each other, and to files outside docs/, by relative path.

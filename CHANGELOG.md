@@ -8,7 +8,7 @@ and this project adheres to
 
 ## [Unreleased]
 
-Nothing has been tagged yet. Everything below is on `master`.
+Nothing has been tagged yet. Everything below is on `main`.
 
 ### Added
 
@@ -77,4 +77,4 @@ Nothing has been tagged yet. Everything below is on `master`.
   section without scrolling, and that page's banner is trimmed to earn back the
   room it needs.
 
-[Unreleased]: https://github.com/dasbo-dev/island-gnome/commits/master
+[Unreleased]: https://github.com/dasbo-dev/island-gnome/commits/main

@@ -146,12 +146,12 @@
 
 <section id="install">
   <h2>Install</h2>
-  <p>GNOME Shell 46 only, X11 or Wayland. Building needs Node 22 and <code>glib-compile-schemas</code> (<code>libglib2.0-bin</code> on Debian and Ubuntu, <code>glib2-devel</code> on Fedora). It isn't on extensions.gnome.org yet, so for now install from source:</p>
+  <p>GNOME Shell 46 only, X11 or Wayland. Building needs Node 22 and <code>glib-compile-schemas</code> (<code>libglib2.0-bin</code> on Debian and Ubuntu; it ships with GLib itself on other distributions). It isn't on extensions.gnome.org yet, so for now install from source:</p>
   <pre><code>git clone https://github.com/dasbo-dev/island-gnome.git
 cd island-gnome
 npm ci
 make install
-# X11: log out and back in before the next line
+# Reload the shell: X11 Alt+F2, r, Enter; Wayland log out and back in
 gnome-extensions enable dasbo-island@ayubaswad.gmail.com</code></pre>
   <p class="fine">Then open the preferences and install hooks for each agent you use:<br><code>gnome-extensions prefs dasbo-island@ayubaswad.gmail.com</code></p>
   <p class="fine">Changed your mind? Remove the hooks from that same preferences page, then <code>make uninstall</code>.</p>
@@ -165,8 +165,8 @@ gnome-extensions enable dasbo-island@ayubaswad.gmail.com</code></pre>
 </main>
 
 <footer>
-  <p><a href="limitations.html">Known limitations</a> · <a href="agent-dialects.html">Agent hook dialects</a> · <a href="https://github.com/dasbo-dev/island-gnome/blob/master/CHANGELOG.md">Changelog</a> · <a href="https://github.com/dasbo-dev/island-gnome/blob/master/SECURITY.md">Security</a> · <a href="https://github.com/dasbo-dev/island-gnome/issues">Report an issue</a></p>
-  <p><a href="https://github.com/dasbo-dev/island-gnome/blob/master/LICENSE">GPL-3.0-or-later</a> · Inspired by <a href="https://github.com/Octane0411/open-vibe-island">open-vibe-island</a> · <a href="https://github.com/dasbo-dev/island-gnome">GitHub</a></p>
+  <p><a href="limitations.html">Known limitations</a> · <a href="agent-dialects.html">Agent hook dialects</a> · <a href="https://github.com/dasbo-dev/island-gnome/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://github.com/dasbo-dev/island-gnome/blob/main/SECURITY.md">Security</a> · <a href="https://github.com/dasbo-dev/island-gnome/issues">Report an issue</a></p>
+  <p><a href="https://github.com/dasbo-dev/island-gnome/blob/main/LICENSE">GPL-3.0-or-later</a> · Inspired by <a href="https://github.com/Octane0411/open-vibe-island">open-vibe-island</a> · <a href="https://github.com/dasbo-dev/island-gnome">GitHub</a></p>
 </footer>
 
 <script type="module" src="demo.js"></script>

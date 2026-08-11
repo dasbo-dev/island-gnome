@@ -60,7 +60,7 @@ describe('the README', () => {
       .filter((line) => line.startsWith('| ') && !line.startsWith('| Agent |'))
     expect(table.length, 'the supported-agents table lost its rows').toBeGreaterThan(4)
     for (const row of table) {
-      expect(row, `no availability marker in: ${row}`).toMatch(/\| (yes|coming soon) \|/)
+      expect(row, `no availability marker in: ${row}`).toMatch(/\| (Shipped|Coming soon) \|/)
     }
   })
 
@@ -69,7 +69,7 @@ describe('the README', () => {
   it('does not offer Antigravity as an agent you can install today', () => {
     const row = readme.split('\n').find((line) => line.startsWith('| Antigravity'))
     expect(row, 'the table lost its Antigravity row').toBeDefined()
-    expect(row, 'Antigravity must be marked coming soon').toContain('| coming soon |')
+    expect(row, 'Antigravity must be marked coming soon').toContain('| Coming soon |')
   })
 
   it('says which agents are planned', () => {
