@@ -117,6 +117,78 @@ describe('planInstall for claude', () => {
   })
 })
 
+describe('the hook invocation', () => {
+  // Shared by the three tests below that need a settings.json written by a
+  // pre-gjs install: the exact fixture the brief specifies, declared once.
+  const legacy = JSON.stringify({
+    hooks: {
+      Stop: [
+        {
+          hooks: [
+            {
+              type: 'command',
+              command:
+                '/home/me/.local/share/gnome-shell/extensions/dasbo-island@ayubaswad.gmail.com/hooks/dasbo-hook claude notify Stop',
+            },
+          ],
+        },
+      ],
+    },
+  })
+
+  // hooks/dasbo-hook has no extension and needs +x to be exec'd directly, and
+  // nothing in src/, hooks/ or build.mjs ever sets that bit — it survives only
+  // because make pack zips a file that already has it. If EGO's repackaging or
+  // the Shell's extraction drops the mode, every hook fails silently and the
+  // extension does nothing at all. Going through `gjs -m` makes the bit
+  // irrelevant, and this test is the only thing keeping it that way.
+  it('runs the hook through gjs, so the executable bit cannot matter', () => {
+    const parsed = JSON.parse(planInstall('claude', env())[0]!.content)
+    const command = parsed.hooks.Stop[0].hooks[0].command
+    expect(command).toBe(
+      'gjs -m /home/me/.local/share/gnome-shell/extensions/dasbo-island@ayubaswad.gmail.com/hooks/dasbo-hook claude notify Stop'
+    )
+  })
+
+  it('uses bare gjs, which resolves on distributions that do not use /usr/bin', () => {
+    const parsed = JSON.parse(planInstall('claude', env())[0]!.content)
+    const command = parsed.hooks.Stop[0].hooks[0].command
+    expect(command.startsWith('gjs -m '), `command was: ${command}`).toBe(true)
+  })
+
+  it('runs every agent through gjs, not just the one that gates permissions', () => {
+    const codex = JSON.parse(planInstall('codex', env())[0]!.content)
+    expect(codex.hooks.Stop[0].hooks[0].command.startsWith('gjs -m ')).toBe(true)
+
+    const antigravity = JSON.parse(planInstall('antigravity', env())[0]!.content)
+    expect(antigravity['dasbo-island'].Stop[0].command.startsWith('gjs -m ')).toBe(true)
+    expect(antigravity['dasbo-island'].PreToolUse[0].hooks[0].command.startsWith('gjs -m ')).toBe(true)
+  })
+
+  // The upgrade path for anyone who installed hooks before this change. It
+  // needs no new code — isOurs() matches the dasbo-hook substring, which the
+  // new command still contains — but it is the kind of thing that breaks
+  // silently and leaves a user with hooks firing twice, or not at all.
+  it('reads a pre-gjs install as stale, so the row offers Update hooks', () => {
+    expect(installState('claude', env({ '/home/me/.claude/settings.json': legacy }))).toBe('stale')
+  })
+
+  it('replaces a pre-gjs entry rather than doubling it, so the hook fires once', () => {
+    const parsed = JSON.parse(
+      planInstall('claude', env({ '/home/me/.claude/settings.json': legacy }))[0]!.content
+    )
+    const commands = parsed.hooks.Stop.flatMap((g: any) => g.hooks.map((h: any) => h.command))
+    expect(commands.filter((c: string) => c.includes('dasbo-hook'))).toHaveLength(1)
+    expect(commands[0]).toContain('gjs -m ')
+  })
+
+  it('removes a pre-gjs entry on uninstall, so the old form is not orphaned', () => {
+    const edits = planUninstall('claude', env({ '/home/me/.claude/settings.json': legacy }))
+    expect(edits).toHaveLength(1)
+    expect(JSON.parse(edits[0]!.content).hooks.Stop).toBeUndefined()
+  })
+})
+
 describe('planInstall for codex', () => {
   // Codex 0.146 takes Claude's shape at ~/.codex/hooks.json: an event-keyed
   // map under `hooks`, each event holding groups of command handlers. The

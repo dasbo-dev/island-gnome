@@ -47,9 +47,17 @@ const ANTIGRAVITY_FLAT = ['PreInvocation', 'PostInvocation', 'Stop'] as const
  * is self-describing even for agents whose payload already names the event
  * (Claude, Codex) and load-bearing for the one that has no event field at all
  * (Antigravity).
+ *
+ * Run through `gjs -m` rather than as a bare path, so the hook's executable
+ * bit stops being load-bearing: nothing in this tree ever sets it, and a
+ * dropped mode would make every hook fail silently. Bare `gjs`, not
+ * /usr/bin/gjs, because not every distribution puts it there — and any machine
+ * running GNOME Shell has it on PATH. The `dasbo-hook` substring survives in
+ * the new string, so isOurs() still recognises entries written either way and
+ * the upgrade rides the existing stale/Update path.
  */
 function cmd(env: InstallEnv, agent: AgentId, mode: 'notify' | 'permission', event: string): string {
-  return `${env.hookPath} ${agent} ${mode} ${event}`
+  return `gjs -m ${env.hookPath} ${agent} ${mode} ${event}`
 }
 
 /**
