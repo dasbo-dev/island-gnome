@@ -151,7 +151,7 @@ and `journalctl` stay — `communityFiles.test.ts:12` requires them.
 
 **N1 · branch name.** `master` → `main` in all eight places tabled above, plus
 the three test strings that assert on the site generator's output:
-`test/site/docPages.test.ts` (two occurrences) and
+`test/site/docPages.test.ts` (three occurrences) and
 `test/site/indexCopy.test.ts:158`. The test edits ride in this commit because
 `site/docPages.mjs:41` cannot change without them.
 
@@ -328,7 +328,7 @@ moved:
 
 | Test | Change | Batch |
 |---|---|---|
-| `test/site/docPages.test.ts` | two `/blob/master/` strings → `/blob/main/` | 1 |
+| `test/site/docPages.test.ts` | three `/blob/master/` strings → `/blob/main/` | 1 |
 | `test/site/indexCopy.test.ts:158` | `/blob/master/LICENSE` → `/blob/main/LICENSE` | 1 |
 | `test/docs/readme.test.ts` | row regex and the Antigravity assertion, for R4 | 3 |
 
