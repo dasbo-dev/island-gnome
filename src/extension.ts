@@ -86,9 +86,13 @@ export default class DasboIslandExtension extends Extension {
         hookPath: `${this.path}/hooks/dasbo-hook`,
         existing: readFileOrNull,
       }
-      // `stale` counts as connected: the hooks are on disk and firing, they
-      // just don't match this version. Telling that user no agents are
-      // connected would send them to install hooks they already have.
+      // `stale` counts as connected: most stale hooks are on disk and firing,
+      // they just don't match this version. That is not universally true
+      // since the gjs -m change (src/core/install/plan.ts): a pre-gjs
+      // bare-path entry on an install whose executable bit got dropped is
+      // stale and not firing. Telling the common case's user no agents are
+      // connected would send them to install hooks they already have, so
+      // this still errs toward counting stale as connected.
       return AGENT_CATALOG.some((entry) => {
         if (entry.status !== 'supported') return false
         const state = installState(entry.id, env)
