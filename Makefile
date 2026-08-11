@@ -27,6 +27,8 @@ typecheck:
 clean:
 	rm -rf dist node_modules
 
-pack: build
-	cd dist && zip -qr ../$(UUID).shell-extension.zip . -x '*.map'
-	@echo "Wrote $(UUID).shell-extension.zip"
+pack:
+	DASBO_PACK=1 npm run build
+	glib-compile-schemas dist/schemas
+	cd dist && zip -qr ../$(UUID).shell-extension.zip . -x '*.map' -x 'schemas/gschemas.compiled'
+	node tools/verify-pack.mjs $(UUID).shell-extension.zip

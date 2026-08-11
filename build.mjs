@@ -4,13 +4,18 @@ import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 
 const external = ['gi://*', 'resource://*', 'system', 'cairo', 'gettext']
+// make pack excludes *.map from the archive, so a packed build that emitted
+// the //# sourceMappingURL= comment would ship a pointer to a file that is not
+// there. Development builds keep sourcemaps, because make install is not what
+// ships.
+const packing = process.env['DASBO_PACK'] === '1'
 const common = {
   bundle: true,
   format: 'esm',
   target: 'firefox115',
   platform: 'neutral',
   minify: false,
-  sourcemap: true,
+  sourcemap: !packing,
   external,
 }
 

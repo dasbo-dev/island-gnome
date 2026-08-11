@@ -13,5 +13,5 @@
     // the module itself is not type-checked, only its consumers.
     "allowJs": true
   },
-  "include": ["test/**/*.ts", "site/docPages.mjs"]
+  "include": ["test/**/*.ts", "site/docPages.mjs", "tools/verify-pack.mjs"]
 }
