@@ -68,12 +68,25 @@ Source: [github.com/dasbo-dev/island-gnome](https://github.com/dasbo-dev/island-
 
 ## Requirements
 
+**To run**
+
 - GNOME Shell 46
 - X11 or Wayland
+
+**To build.** No version has been tagged, so building from source is the only
+way to install it.
+
+- Node 22, the version CI runs
+- npm
+- `glib-compile-schemas`, from `libglib2.0-bin` on Debian and Ubuntu, or
+  `glib2-devel` on Fedora
 
 ## Install
 
 ```bash
+git clone https://github.com/dasbo-dev/island-gnome.git
+cd island-gnome
+npm ci
 make install
 gnome-extensions enable dasbo-island@ayubaswad.gmail.com
 ```
@@ -209,7 +222,7 @@ tools/fake-agent.js perm   # drive the UI without a real agent
 
 `node build.mjs` writes both the extension into `dist/` and the landing page
 into `dist-site/`; preview the latter with
-`python3 -m http.server -d dist-site 8080`. Pushes to `master` deploy it to
+`python3 -m http.server -d dist-site 8080`. Pushes to `main` deploy it to
 GitHub Pages via [`.github/workflows/site.yml`](.github/workflows/site.yml).
 
 ## Contributing

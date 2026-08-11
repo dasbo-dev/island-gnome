@@ -8,8 +8,9 @@ session is tested with Vitest.
 
 **Captured hook payloads.** Several gaps in
 [docs/limitations.md](docs/limitations.md) close the moment someone produces a
-real payload — the Antigravity permission round-trip above all. A fixture is
-worth more here than a patch.
+real payload — a Claude Code `SessionEnd` or `Notification` above all, and a
+permission round-trip from any agent, which nobody has captured yet. A fixture
+is worth more here than a patch.
 
 **Bug reports with a shell log.** See the issue template; the log is usually
 the whole story.
@@ -42,7 +43,7 @@ tools/fake-agent.js perm   # drive the UI without a real agent
 ## The gates
 
 Both must pass before a pull request can be merged, and CI runs them on every
-pull request, and on pushes to `master`:
+pull request, and on pushes to `main`:
 
 ```bash
 npm test
@@ -78,9 +79,9 @@ dialect into the extension's own events.
 exist; the fixtures behind them are in `test/fixtures/`.
 
 An adapter written without captured fixtures is a guess, and this project
-labels guesses as such — see the Antigravity entry in
-[docs/limitations.md](docs/limitations.md) for what that looks like in
-practice.
+labels guesses as such — see
+[Claude Code's SessionEnd and Notification are inferred](docs/limitations.md#claude-codes-sessionend-and-notification-are-inferred)
+for what that looks like in practice.
 
 ## Commits and pull requests
 

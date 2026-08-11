@@ -12,7 +12,8 @@ install: build
 	mkdir -p "$(DEST)"
 	cp -r dist/. "$(DEST)/"
 	chmod +x "$(DEST)/hooks/dasbo-hook" 2>/dev/null || true
-	@echo "Installed. Log out and back in (X11), then: gnome-extensions enable $(UUID)"
+	@echo "Installed. Reload the shell: on X11 press Alt+F2, type r, press Enter; on Wayland, log out and back in."
+	@echo "Then run: gnome-extensions enable $(UUID)"
 
 uninstall:
 	rm -rf "$(DEST)"

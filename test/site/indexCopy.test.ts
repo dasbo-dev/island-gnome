@@ -155,7 +155,7 @@ describe('the landing page copy', () => {
   // the license, the docs, the changelog, or a way to report anything.
   it('gives the footer somewhere to go', () => {
     const footer = html.match(/<footer>([\s\S]*?)<\/footer>/)?.[1] ?? ''
-    expect(footer).toContain('/blob/master/LICENSE')
+    expect(footer).toContain('/blob/main/LICENSE')
     expect(footer).toContain('CHANGELOG.md')
     expect(footer).toContain('SECURITY.md')
     expect(footer).toContain('/issues')

@@ -2,8 +2,8 @@
 
 ## Supported versions
 
-No version has been tagged yet. Fixes land on `master`; if you are running the
-extension, run what `make install` gives you from `master`.
+No version has been tagged yet. Fixes land on `main`; if you are running the
+extension, run what `make install` gives you from `main`.
 
 ## Reporting a vulnerability
 
@@ -15,11 +15,10 @@ its disclosure will be discussed with you before either lands.
 ## What this extension does to your system
 
 It writes hook entries into your agents' own configuration files —
-`~/.claude/settings.json`, `~/.codex/hooks.json`,
-`~/.gemini/config/hooks.json`. Installation preserves entries belonging to
-other tools and writes a `.dasbo.bak` backup before its first change to a
-file. Every installed hook command embeds an absolute path to the helper
-inside the extension directory.
+`~/.claude/settings.json` and `~/.codex/hooks.json`. Installation preserves
+entries belonging to other tools and writes a `.dasbo.bak` backup before its
+first change to a file. Every installed hook command embeds an absolute path
+to the helper inside the extension directory.
 
 Those hooks make the extension part of your agents' tool-permission path,
 which is why the guarantee below exists.
