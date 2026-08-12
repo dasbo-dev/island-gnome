@@ -12,6 +12,11 @@ Nothing has been tagged yet. Everything below is on `main`.
 
 ### Changed
 
+- Supported GNOME Shell versions widen from 46 alone to **46 through 50**.
+  The typings target 50; 46 to 49 are covered by runtime validation instead,
+  since one dependency tree can hold only one `@girs` generation. Nothing a
+  user can see changes on 46 — the port is type-level, and the popup
+  animation is pinned to the value the old code already produced.
 - Hooks are now installed as `gjs -m <path> …` rather than as a bare path to
   `hooks/dasbo-hook`. No `chmod` exists in `src/`, `hooks/`, or `build.mjs` —
   the only one lives in the Makefile's `install` target, which local installs

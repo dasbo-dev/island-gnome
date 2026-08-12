@@ -10,7 +10,7 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta property="og:title" content="Dasbo Island — your coding agents, on the GNOME top bar">
-<meta property="og:description" content="The pill and popup on the page are the extension's own state machine, compiled for the browser. Free, GPL-3.0-or-later, GNOME Shell 46.">
+<meta property="og:description" content="The pill and popup on the page are the extension's own state machine, compiled for the browser. Free, GPL-3.0-or-later, GNOME Shell 46 to 50.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://dasbo-dev.github.io/island-gnome/">
 <meta property="og:site_name" content="Dasbo Island">
@@ -26,7 +26,7 @@
   "@type": "SoftwareApplication",
   "name": "Dasbo Island",
   "applicationCategory": "DeveloperApplication",
-  "operatingSystem": "Linux, GNOME Shell 46",
+  "operatingSystem": "Linux, GNOME Shell 46, 47, 48, 49, 50",
   "softwareVersion": "0.1.0",
   "license": "https://www.gnu.org/licenses/gpl-3.0.html",
   "url": "https://dasbo-dev.github.io/island-gnome/",
@@ -59,7 +59,7 @@
     <a class="button primary" href="#install">Install from source</a>
     <a class="button" href="https://github.com/dasbo-dev/island-gnome">GitHub</a>
   </p>
-  <p class="fine">Verified against 17 real Claude&nbsp;Code hook payloads and 6 from Codex. Free and GPL-3.0-or-later. GNOME Shell 46 only; 47 and 48 support is planned.</p>
+  <p class="fine">Verified against 17 real Claude&nbsp;Code hook payloads and 6 from Codex. Free and GPL-3.0-or-later. GNOME Shell 46 to 50.</p>
 
   <div class="popup">
     <div id="popup-rows">
@@ -146,7 +146,7 @@
 
 <section id="install">
   <h2>Install</h2>
-  <p>GNOME Shell 46 only, X11 or Wayland. Building needs Node 22 and <code>glib-compile-schemas</code> (<code>libglib2.0-bin</code> on Debian and Ubuntu; it ships with GLib itself on other distributions). It isn't on extensions.gnome.org yet, so for now install from source:</p>
+  <p>GNOME Shell 46 to 50, X11 or Wayland. Building needs Node 22 and <code>glib-compile-schemas</code> (<code>libglib2.0-bin</code> on Debian and Ubuntu; it ships with GLib itself on other distributions). It isn't on extensions.gnome.org yet, so for now install from source:</p>
   <pre><code>git clone https://github.com/dasbo-dev/island-gnome.git
 cd island-gnome
 npm ci

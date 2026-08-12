@@ -42,9 +42,11 @@ describe('the landing page copy', () => {
     expect(html).toContain('libglib2.0-bin')
   })
 
-  it('states the GNOME Shell 46 limit as a limit, not a floor', () => {
-    expect(html).toContain('GNOME Shell 46 only')
-    expect(html).not.toMatch(/Requires GNOME Shell 46,/)
+  it('states the supported GNOME Shell range as a range, not a floor', () => {
+    expect(html).toContain('GNOME Shell 46 to 50')
+    // "46+" would promise every future release. The range is closed on both
+    // ends deliberately: 51 is not supported until someone has run it.
+    expect(html).not.toMatch(/GNOME Shell 46\+/)
   })
 
   // C13. The README renders this cell as "no — notify-only" with a link to
@@ -97,8 +99,7 @@ describe('the landing page copy', () => {
   it('puts the proof and the version limit above the fold', () => {
     const hero = html.match(/<section class="hero">([\s\S]*?)<div class="popup">/)?.[1] ?? ''
     expect(hero).toContain('17 real Claude&nbsp;Code hook payloads')
-    expect(hero).toContain('GNOME Shell 46 only')
-    expect(hero).toContain('47 and 48 support is planned')
+    expect(hero).toContain('GNOME Shell 46 to 50')
   })
 
   // C15. 28 em dashes in ~503 words. Dense em-dash use is a listed

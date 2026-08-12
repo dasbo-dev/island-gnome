@@ -60,7 +60,7 @@ npm install
 ```
 
 No GNOME session is needed to run the tests. To try the extension itself you
-need GNOME Shell 46:
+need GNOME Shell 46 to 50:
 
 ```bash
 make install

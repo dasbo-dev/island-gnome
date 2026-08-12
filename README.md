@@ -11,7 +11,7 @@
 
 [![CI](https://github.com/dasbo-dev/island-gnome/actions/workflows/ci.yml/badge.svg)](https://github.com/dasbo-dev/island-gnome/actions/workflows/ci.yml)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
-[![GNOME Shell 46](https://img.shields.io/badge/GNOME%20Shell-46-4a86cf.svg)](https://release.gnome.org/46/)
+[![GNOME Shell 46 to 50](https://img.shields.io/badge/GNOME%20Shell-46%20%E2%80%93%2050-4a86cf.svg)](https://release.gnome.org/50/)
 
 [Live demo](https://dasbo-dev.github.io/island-gnome/) ·
 [Agent dialects](docs/agent-dialects.md) ·
@@ -83,7 +83,7 @@ Source: [github.com/dasbo-dev/island-gnome](https://github.com/dasbo-dev/island-
 
 **To run**
 
-- GNOME Shell 46
+- GNOME Shell 46 to 50
 - X11 or Wayland
 
 **To build.** No version has been tagged, so building from source is the only
