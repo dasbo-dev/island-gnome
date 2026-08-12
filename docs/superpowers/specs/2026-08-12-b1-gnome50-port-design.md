@@ -195,10 +195,11 @@ override fails `TS2416` and the total goes *up*, 13 → 14.
 
 ### The pattern
 
-Name the pre-registration class so its constructor can be read back:
+Hold the pre-registration class in a `const` so its constructor can be read
+back, keeping the class expression's own name:
 
 ```ts
-class PopupHeaderImpl extends PopupMenu.PopupBaseMenuItem {
+const PopupHeaderImpl = class PopupHeader extends PopupMenu.PopupBaseMenuItem {
   constructor(base: string, cb: PopupHeaderCallbacks) { /* body unchanged */ }
 }
 
@@ -209,11 +210,15 @@ export const PopupHeader = _PopupHeader as unknown as new (
 ) => InstanceType<typeof _PopupHeader>
 ```
 
-Two properties matter here. `ConstructorParameters<typeof PopupHeaderImpl>`
+Three properties matter here. `ConstructorParameters<typeof PopupHeaderImpl>`
 means the exported signature follows the constructor automatically — change an
 argument and nothing needs hand-editing, which was the drift report's main
 objection to this whole approach. `InstanceType<typeof _PopupHeader>` preserves
-the subclass's own methods, so call sites keep their typing.
+the subclass's own methods, so call sites keep their typing. And the class
+expression **keeps its original name** while the `const` takes the `Impl`
+suffix: GJS derives a GType name from the class's name, so renaming the class
+outright would quietly rename its GType. A named class expression assigned to a
+differently-named const changes nothing at runtime.
 
 The cast is still `as unknown as` and still suppresses checking. What it now
 asserts, though, is only "registration preserves the constructor" — a claim
@@ -222,30 +227,52 @@ drift from the code beneath it.
 
 ### Guarding the cast
 
-The cast removes the compiler's ability to report a mismatch, so restore it in
-the test suite. One assertion per class:
+The cast removes the compiler's ability to report a mismatch, so restore it.
+
+**Not in the Vitest suite.** `tsconfig.test.json` sets `"types": ["node"]`
+precisely so the gnome-shell ambient types stay out of that program — with both
+in one Program, Node's `global` declaration wins and every `Shell.Global` member
+access fails `TS7017` — and `test/core/purity.test.ts` enforces that tests reach
+only `src/core`, which is free of `gi://` and `resource://` entirely. A test
+importing `src/shell/popupHeader.ts` would break both arrangements.
+
+The assertions therefore live in `src/`, next to the classes they guard, as
+compile-time types checked by `tsc -p tsconfig.json`. Two shared helpers go in
+a new `src/shell/typeAssert.ts`:
 
 ```ts
-expectTypeOf<ConstructorParameters<typeof PopupHeader>>()
-  .toEqualTypeOf<ConstructorParameters<typeof PopupHeaderImpl>>()
+export type Equals<X, Y> = (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2
+  ? true
+  : false
+
+export type Assert<T extends true> = T
 ```
 
-This requires exporting the `Impl` classes, or exporting a type alias for them.
-Export the class and mark it `@internal` in a doc comment; a type-only export
-would not be enough for `typeof`.
+Both are type-only and imported with `import type`, so esbuild erases them; the
+file never reaches the bundle.
 
-The assertion is not circular busywork: if a future `@girs` changes
-`RegisteredClass` such that registration no longer preserves the constructor,
-the assertion fails and someone reads this section, instead of the cast
-silently continuing to lie.
+**What to assert.** Deriving the exported signature makes any
+`ConstructorParameters` assertion on it tautological — it would restate the
+cast, not test it. The substantive claim, and the one that actually travels
+through `RegisteredClass`, is that registration preserves the *instance* type:
+
+```ts
+type _PopupHeaderKeepsImpl = Assert<
+  Equals<InstanceType<typeof PopupHeader> extends InstanceType<typeof PopupHeaderImpl> ? true : false, true>
+>
+```
+
+If a future `@girs` changes `RegisteredClass` so the registered instance stops
+carrying the implementation's members, this fails to compile and someone reads
+this section, instead of the cast silently continuing to lie.
 
 ### Fallback
 
-The pattern assumes `GObject.registerClass()` accepts a separately-declared
-named class as cleanly as the inline class expression it is given today. This
-is expected to hold — `registerClass` takes a class, and where it was written
-is not something it can observe — but it has not yet been compiled against the
-50 typings.
+The pattern assumes `GObject.registerClass()` accepts a `const`-held named class
+expression as cleanly as the inline argument it is given today. This is expected
+to hold — `registerClass` takes a class, and which binding it arrived through is
+not something it can observe — but it has not yet been compiled against the 50
+typings.
 
 If it does not hold, fall back to the hand-written signature already verified
 on `popupHeader.ts` (13 → 11 errors):
@@ -262,8 +289,27 @@ it failed. Do not invent a third pattern.
 
 ## Metadata and documentation
 
+Widening `shell-version` is one line of JSON with a wider reach than it looks.
+The version claim is written down in eight places, and one of them is asserted
+against `metadata.json` by a test:
+
 - `metadata.json`: `"shell-version": ["46","47","48","49","50"]`
-- `README.md`: the supported-version badge and any prose naming GNOME 46 alone
+- `README.md:14` (the badge) and `README.md:86` (the **To run** requirement)
+- `CONTRIBUTING.md:63` — "you need GNOME Shell 46"
+- `site/index.html:13` (`og:description`), `:62` (hero fine print, which
+  currently promises "47 and 48 support is planned"), `:149` (install section)
+- `site/index.html:29` — the JSON-LD `operatingSystem`. `test/site/head.test.ts:58`
+  builds its expectation as ``GNOME Shell ${metadata['shell-version'].join(', ')}``,
+  so this string has to be character-exact or that test fails
+- `test/site/indexCopy.test.ts:45-47` and `:100` assert the copy says
+  "GNOME Shell 46 only". Those assertions are the specification of the old
+  claim and have to be rewritten to specify the new one — first, and watched
+  failing, before the HTML is touched
+- `CHANGELOG.md` gets a **new** entry under `[Unreleased]`
+
+`CHANGELOG.md:71` and `docs/copy-seo-audit-2026-08-10.md` are left alone. Both
+are dated records of what was true when they were written; editing them to
+match today falsifies the record.
 
 `version-name` stays at `0.1.0`. Nothing here is a user-facing release; the
 bump belongs to whatever run actually submits to extensions.gnome.org.
