@@ -28,6 +28,7 @@ import { newlyDone, snapshotStates } from '../core/sound.js'
 import { noticeVisible } from '../core/activity.js'
 import { bodyMaxHeight, scrollIntoView } from '../core/popupSize.js'
 import type { SoundPlayer } from './soundPlayer.js'
+import type { Assert, Equals } from './typeAssert.js'
 
 /**
  * `PanelMenu.Button#menu` is typed as `PopupMenu | PopupDummyMenu` because a
@@ -39,8 +40,7 @@ type MenuWithOpenSignal = PopupMenu.PopupMenu & {
   connect(sigName: 'open-state-changed', callback: (menu: unknown, open: boolean) => void): number
 }
 
-export const Island = GObject.registerClass(
-  class Island extends PanelMenu.Button {
+const IslandImpl = class Island extends PanelMenu.Button {
     private _store!: SessionStore
     private _settings!: Gio.Settings
     private _iconBase!: string
@@ -874,5 +874,14 @@ export const Island = GObject.registerClass(
       this._scroll.destroy()
       super.destroy()
     }
-  }
-)
+}
+
+const _Island = GObject.registerClass(IslandImpl)
+
+export const Island = _Island as unknown as new (
+  ...args: ConstructorParameters<typeof IslandImpl>
+) => InstanceType<typeof _Island>
+
+type _IslandKeepsImpl = Assert<
+  Equals<InstanceType<typeof Island> extends InstanceType<typeof IslandImpl> ? true : false, true>
+>

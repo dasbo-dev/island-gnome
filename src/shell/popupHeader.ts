@@ -5,6 +5,7 @@ import Pango from 'gi://Pango'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
 import { logoIcon } from './logoIcon.js'
 import { emptyState } from '../core/emptyState.js'
+import type { Assert, Equals } from './typeAssert.js'
 
 export interface PopupHeaderCallbacks {
   onPrefs: () => void
@@ -16,8 +17,7 @@ export interface PopupHeaderCallbacks {
  * any click along its width, so the title itself would become a close button.
  * The child St.Button still receives clicks, the way SessionRow's Jump does.
  */
-export const PopupHeader = GObject.registerClass(
-  class PopupHeader extends PopupMenu.PopupBaseMenuItem {
+const PopupHeaderImpl = class PopupHeader extends PopupMenu.PopupBaseMenuItem {
     private _cb!: PopupHeaderCallbacks
 
     constructor(base: string, cb: PopupHeaderCallbacks) {
@@ -56,8 +56,24 @@ export const PopupHeader = GObject.registerClass(
       this.add_child(title)
       this.add_child(gear)
     }
-  }
-)
+}
+
+const _PopupHeader = GObject.registerClass(PopupHeaderImpl)
+
+/**
+ * @girs derives a registered class's constructor parameters from `_init`, not
+ * from the TypeScript `constructor`, so the registered form of a class taking
+ * plain arguments is untypable without help. The signature is derived from the
+ * implementation rather than restated, so it cannot drift from it.
+ */
+export const PopupHeader = _PopupHeader as unknown as new (
+  ...args: ConstructorParameters<typeof PopupHeaderImpl>
+) => InstanceType<typeof _PopupHeader>
+
+/** Fails to compile if registration ever stops preserving the instance type. */
+type _PopupHeaderKeepsImpl = Assert<
+  Equals<InstanceType<typeof PopupHeader> extends InstanceType<typeof PopupHeaderImpl> ? true : false, true>
+>
 
 /**
  * Shown in place of the session rows while the store is empty.
@@ -66,8 +82,7 @@ export const PopupHeader = GObject.registerClass(
  * reading files, and a widget that reaches for its own dependencies is the
  * thing this file's neighbours are arranged to avoid.
  */
-export const EmptyRow = GObject.registerClass(
-  class EmptyRow extends PopupMenu.PopupBaseMenuItem {
+const EmptyRowImpl = class EmptyRow extends PopupMenu.PopupBaseMenuItem {
     constructor(hooksInstalled: boolean) {
       super({ reactive: false, can_focus: false, style_class: 'dasbo-row' })
       const { title, detail } = emptyState(hooksInstalled)
@@ -111,5 +126,14 @@ export const EmptyRow = GObject.registerClass(
       outer.add_child(detailLabel)
       this.add_child(outer)
     }
-  }
-)
+}
+
+const _EmptyRow = GObject.registerClass(EmptyRowImpl)
+
+export const EmptyRow = _EmptyRow as unknown as new (
+  ...args: ConstructorParameters<typeof EmptyRowImpl>
+) => InstanceType<typeof _EmptyRow>
+
+type _EmptyRowKeepsImpl = Assert<
+  Equals<InstanceType<typeof EmptyRow> extends InstanceType<typeof EmptyRowImpl> ? true : false, true>
+>

@@ -8,6 +8,7 @@ import { activityText } from '../core/activity.js'
 import { summarize } from '../core/tasks.js'
 import { AgentChip } from './agentChip.js'
 import type { Session, SessionState } from '../core/types.js'
+import type { Assert, Equals } from './typeAssert.js'
 
 const STATE_CLASS: Record<SessionState, string> = {
   idle: '',
@@ -27,8 +28,7 @@ export interface SessionRowCallbacks {
   onToggleExpanded: (expanded: boolean) => void
 }
 
-export const SessionRow = GObject.registerClass(
-  class SessionRow extends PopupMenu.PopupBaseMenuItem {
+const SessionRowImpl = class SessionRow extends PopupMenu.PopupBaseMenuItem {
     private _session!: Session
     private _cb!: SessionRowCallbacks
     private _dot!: St.Widget
@@ -496,5 +496,14 @@ export const SessionRow = GObject.registerClass(
     clearTransient(): void {
       this._transientUntil = 0
     }
-  }
-)
+}
+
+const _SessionRow = GObject.registerClass(SessionRowImpl)
+
+export const SessionRow = _SessionRow as unknown as new (
+  ...args: ConstructorParameters<typeof SessionRowImpl>
+) => InstanceType<typeof _SessionRow>
+
+type _SessionRowKeepsImpl = Assert<
+  Equals<InstanceType<typeof SessionRow> extends InstanceType<typeof SessionRowImpl> ? true : false, true>
+>
