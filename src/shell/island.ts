@@ -7,6 +7,12 @@ import type Gio from 'gi://Gio'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js'
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js'
+// PopupAnimation is a bit field (NONE 0, SLIDE 1, FADE 2, FULL ~0) and the
+// boxpointer masks it, so the `true` these calls used to pass was SLIDE and
+// only SLIDE. Naming SLIDE explicitly keeps the animation exactly what it has
+// always been; it is not an endorsement of SLIDE over FULL, which is a
+// separate question with a separate answer.
+import * as BoxPointer from 'resource:///org/gnome/shell/ui/boxpointer.js'
 import type { SessionStore } from '../core/store.js'
 import type { Session, SessionState } from '../core/types.js'
 import { islandLabel } from '../core/islandLabel.js'
@@ -146,7 +152,7 @@ export const Island = GObject.registerClass(
         onPrefs: () => {
           // Close first: the preferences window takes focus, and a popup left
           // open behind it lingers until the next click somewhere else.
-          this.menu.close(true)
+          this.menu.close(BoxPointer.PopupAnimation.SLIDE)
           try {
             this._onPrefs()
           } catch (e) {
@@ -328,7 +334,7 @@ export const Island = GObject.registerClass(
       this._cancelNoticeClose()
       if (!this._settings.get_boolean('auto-open-on-permission')) return
       if (Main.layoutManager.primaryMonitor?.inFullscreen) return
-      this.menu.open(true)
+      this.menu.open(BoxPointer.PopupAnimation.SLIDE)
     }
 
     /**
@@ -372,7 +378,7 @@ export const Island = GObject.registerClass(
       this._cancelNoticeClose()
       const seconds = this._settings.get_int('notification-seconds')
       const wasClosed = !(this.menu as PopupMenu.PopupMenu).isOpen
-      if (wasClosed) this.menu.open(true)
+      if (wasClosed) this.menu.open(BoxPointer.PopupAnimation.SLIDE)
 
       // The flag is set only when a timer is actually armed. With seconds = 0
       // nothing would ever read it, and leaving it true would hand the *next*
@@ -391,7 +397,7 @@ export const Island = GObject.registerClass(
             // Re-entrant: this fires open-state-changed, whose closed branch
             // clears the flag and cancels the timer. Both are already done, so
             // that pass is a no-op rather than a loop.
-            this.menu.close(true)
+            this.menu.close(BoxPointer.PopupAnimation.SLIDE)
           }
           return GLib.SOURCE_REMOVE
         })
