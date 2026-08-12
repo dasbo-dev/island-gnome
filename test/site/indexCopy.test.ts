@@ -49,6 +49,15 @@ describe('the landing page copy', () => {
     expect(html).not.toMatch(/GNOME Shell 46\+/)
   })
 
+  it('does not promise future GNOME Shell versions as planned', () => {
+    // The page used to read "GNOME Shell 46 only; 47 and 48 support is
+    // planned". Widening the declared range to 46-50 keeps the promise;
+    // this guards against re-introducing the "support is planned" clause.
+    // Scoped to hero: the agent roadmap legitimately lists planned agents.
+    const hero = html.match(/<section class="hero">([\s\S]*?)<div class="popup">/)?.[1] ?? ''
+    expect(hero).not.toContain('planned')
+  })
+
   // C13. The README renders this cell as "no — notify-only" with a link to
   // the explanation. The site kept the phrase and dropped both the "no" and
   // the link, so it reads as a mode the user picked.
