@@ -41,7 +41,7 @@ nothing in it can listen.
 
 ### Claude Code's SessionEnd and Notification are inferred
 
-Claude Code's dialect is verified against 17 real hook-payload fixtures, but
+Claude Code's dialect is verified against 18 real hook-payload fixtures, but
 `SessionEnd` and `Notification` are not among them — their handling is
 inferred from the documented shape rather than captured from a live session.
 

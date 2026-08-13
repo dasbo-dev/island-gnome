@@ -16,15 +16,41 @@ function env(files: Record<string, string> = {}): InstallEnv {
 }
 
 describe('planInstall for claude', () => {
-  it('creates settings.json with all seven hook events when the file is absent', () => {
+  it('creates settings.json with all eight hook events when the file is absent', () => {
     const edits = planInstall('claude', env())
     expect(edits).toHaveLength(1)
     expect(edits[0]!.path).toBe('/home/me/.claude/settings.json')
     expect(edits[0]!.backup).toBe(true)
     const parsed = JSON.parse(edits[0]!.content)
     expect(Object.keys(parsed.hooks).sort()).toEqual(
-      ['Notification', 'PostToolUse', 'PreToolUse', 'SessionEnd', 'SessionStart', 'Stop', 'UserPromptSubmit']
+      ['Notification', 'PostToolUse', 'PreToolUse', 'SessionEnd', 'SessionStart', 'Stop',
+       'StopFailure', 'UserPromptSubmit']
     )
+  })
+
+  it('reports an install predating StopFailure as stale, so the row offers Update', () => {
+    // Without this event the island has no way to learn that a turn ended on an
+    // API error: Claude fires StopFailure *instead of* Stop there, so an install
+    // that predates it sits on 'thinking' until the user types again.
+    const full = JSON.parse(planInstall('claude', env())[0]!.content)
+    delete full.hooks.StopFailure
+    const fs = { '/home/me/.claude/settings.json': JSON.stringify(full) }
+    expect(installState('claude', env(fs))).toBe('stale')
+  })
+
+  it('installs StopFailure in notify mode with no matcher, like every non-tool event', () => {
+    const parsed = JSON.parse(planInstall('claude', env())[0]!.content)
+    const command = parsed.hooks.StopFailure[0].hooks[0].command
+    expect(command).toContain('claude notify StopFailure')
+    expect(command, 'a failed turn is not a gate').not.toContain('permission')
+    expect(parsed.hooks.StopFailure[0].matcher).toBeUndefined()
+  })
+
+  it('removes the StopFailure entry on uninstall', () => {
+    const installed = planInstall('claude', env())[0]!.content
+    const edits = planUninstall('claude', env({ '/home/me/.claude/settings.json': installed }))
+    const parsed = JSON.parse(edits[0]!.content)
+    expect(parsed.hooks.StopFailure).toBeUndefined()
   })
 
   it('reports an install predating Notification as stale, so the row offers Update', () => {

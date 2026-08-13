@@ -3,6 +3,8 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { claudeAdapter } from '../../../src/core/adapters/claude.js'
 import type { HookContext } from '../../../src/core/types.js'
 import { parseQuestions } from '../../../src/core/questions.js'
+import { SessionStore } from '../../../src/core/store.js'
+import { activityText } from '../../../src/core/activity.js'
 
 const ctx: HookContext = { pid: 1234, ts: 5000, cwd: '/hook/cwd' }
 
@@ -250,6 +252,87 @@ describe('claudeAdapter against captured fixtures', () => {
     expect(kinds).toContain('tool-start')
     expect(kinds).toContain('tool-end')
     expect(kinds).toContain('turn-end')
+    expect(kinds).toContain('error')
+  })
+})
+
+/**
+ * CAPTURED, like the five events above it. `StopFailure-17.json` is a verbatim
+ * payload from Claude Code 2.1.220 driven against a local server that answered
+ * every request with HTTP 400 — see docs/agent-dialects.md for the exact
+ * method. That run fired `SessionStart`, `UserPromptSubmit`, `StopFailure`,
+ * `SessionEnd`, and **no `Stop` at all**: an API error leaves the turn through
+ * a different hook than a normal one, which is why the island used to sit on
+ * "thinking" until the user typed again.
+ */
+describe('claudeAdapter.normalize for a StopFailure', () => {
+  const raw = JSON.parse(readFileSync('test/fixtures/claude/StopFailure-17.json', 'utf8'))
+
+  it('maps the captured payload to the error kind', () => {
+    expect(claudeAdapter.normalize(raw, ctx)?.kind).toBe('error')
+  })
+
+  it('carries the message the user was shown as the detail', () => {
+    expect(claudeAdapter.normalize(raw, ctx)?.detail).toBe(
+      'API Error: 400 dasbo capture: deliberate API failure'
+    )
+  })
+
+  it('prefers error_details when the payload carries one', () => {
+    // Present on the prompt-too-long path, absent on the captured one.
+    const e = claudeAdapter.normalize(
+      { ...raw, error_details: 'input length exceeds the context window' }, ctx
+    )
+    expect(e?.detail).toBe('input length exceeds the context window')
+  })
+
+  it('falls back to the error kind when there is no text at all', () => {
+    const e = claudeAdapter.normalize(
+      { hook_event_name: 'StopFailure', session_id: 's1', cwd: '/p', error: 'rate_limit' }, ctx
+    )
+    expect(e?.detail).toBe('rate_limit')
+  })
+
+  it('leaves the detail undefined rather than printing a placeholder', () => {
+    // `error` defaults to the literal "unknown" in Claude's own emitter, which
+    // says nothing; a row with no detail reads as "error", which says the same
+    // thing in the island's own vocabulary.
+    const e = claudeAdapter.normalize(
+      { hook_event_name: 'StopFailure', session_id: 's1', cwd: '/p', error: 'unknown' }, ctx
+    )
+    expect(e?.detail).toBeUndefined()
+  })
+
+  it('falls back to the argv event name, so the install plan carries the meaning', () => {
+    const e = claudeAdapter.normalize(
+      { session_id: 's1', cwd: '/p', error: 'server_error' }, { ...ctx, event: 'StopFailure' }
+    )
+    expect(e?.kind).toBe('error')
+  })
+})
+
+describe('an API-errored turn stops the island saying "thinking"', () => {
+  it('settles the session out of running when StopFailure arrives', () => {
+    // The reported bug, end to end: Claude answers a prompt with an API error
+    // and the row is stuck on the running placeholder forever, because nothing
+    // else ever clears it — the reaper only drops a session whose *process* is
+    // gone, and the REPL is still sitting there.
+    const store = new SessionStore()
+    const read = (f: string) => claudeAdapter.normalize(
+      JSON.parse(readFileSync(`test/fixtures/claude/${f}`, 'utf8')),
+      { pid: 1234, ts: 5000, cwd: '/hook/cwd' }
+    )!
+
+    store.apply({ ...read('UserPromptSubmit-1.json'), sessionId: 's1', ts: 1000 })
+    expect(store.list()[0]!.state, 'a submitted prompt is a running session').toBe('running')
+    expect(activityText(store.list()[0]!, 1000).text).toBe('thinking…')
+
+    store.apply({ ...read('StopFailure-17.json'), sessionId: 's1', ts: 2000 })
+    const session = store.list()[0]!
+    expect(session.state).toBe('error')
+    expect(activityText(session, 2000).text).toBe(
+      'API Error: 400 dasbo capture: deliberate API failure'
+    )
   })
 })
 

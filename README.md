@@ -211,7 +211,7 @@ on screen.
 
 | Agent | Availability | Config touched | Status reporting | Permission gating |
 |---|---|---|---|---|
-| Claude Code | Shipped | `~/.claude/settings.json` | 17 real hook-payload fixtures | yes |
+| Claude Code | Shipped | `~/.claude/settings.json` | 18 real hook-payload fixtures | yes |
 | Codex CLI | Shipped | `~/.codex/hooks.json` | 6 real fixtures (0.146.0) | no — [notify-only](docs/limitations.md#codex-has-no-permission-gate) |
 | OpenCode | Coming soon | — | — | — |
 | Cursor CLI | Coming soon | — | — | — |

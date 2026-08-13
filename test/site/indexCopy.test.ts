@@ -107,7 +107,7 @@ describe('the landing page copy', () => {
   // command block.
   it('puts the proof and the version limit above the fold', () => {
     const hero = html.match(/<section class="hero">([\s\S]*?)<div class="popup">/)?.[1] ?? ''
-    expect(hero).toContain('17 real Claude&nbsp;Code hook payloads')
+    expect(hero).toContain('18 real Claude&nbsp;Code hook payloads')
     expect(hero).toContain('GNOME Shell 46 to 50')
   })
 

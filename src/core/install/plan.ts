@@ -26,9 +26,16 @@ const MARKER = 'dasbo-hook'
 const CODEX_LEGACY_KEY = 'dasbo-island'
 const ANTIGRAVITY_KEY = 'dasbo-island'
 
+/**
+ * `StopFailure` is the pair to `Stop`, not an extra on top of it: Claude ends a
+ * turn through exactly one of the two, and an API error takes the failure path
+ * without ever reaching the Stop hooks (captured — see docs/agent-dialects.md).
+ * Without it installed the island never learns the turn is over and sits on
+ * "thinking" until the user types again.
+ */
 const CLAUDE_EVENTS = [
-  'SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop', 'SessionEnd',
-  'Notification',
+  'SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop', 'StopFailure',
+  'SessionEnd', 'Notification',
 ] as const
 /**
  * Codex's own vocabulary, all six verified firing on 0.146.0 (fixtures in

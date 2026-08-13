@@ -80,15 +80,20 @@ silent rather than wrong. Capturing one is a matter of registering
 `tools/capture-hook claude` under `Notification` and leaving a session idle for
 a minute.
 
+An eighth hook, `StopFailure`, was wired in after that and **is captured** —
+in a second session, against Claude Code 2.1.220, by a method of its own; see
+"StopFailure — the other way a turn ends" below.
+
 **Tools observed:** `Read`, `Edit` (file-edit tool), `Bash` (shell tool) —
 `Edit` has both a denied-`PreToolUse`-only fixture and a successful
 Pre+Post pair.
 
 ### Exact key names
 
-Covers the five captured hooks only — `SessionStart`, `UserPromptSubmit`,
-`PreToolUse`, `PostToolUse`, `Stop`. Neither `SessionEnd` nor `Notification`
-is represented here; see above for both.
+Covers the five hooks captured in the first session — `SessionStart`,
+`UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Stop`. Neither `SessionEnd`
+nor `Notification` is represented here; see above for both. `StopFailure` has
+its own key table below.
 
 | Field | Key | Notes |
 |---|---|---|
@@ -111,10 +116,67 @@ has `source` (e.g. `"startup"`). `Stop` additionally has
 `stop_hook_active`, `last_assistant_message`, `background_tasks`,
 `session_crons`.
 
-**Fixtures:** `test/fixtures/claude/` — 17 files:
+**Fixtures:** `test/fixtures/claude/` — 18 files:
 `SessionStart-0.json`, `SessionStart-8.json`, `UserPromptSubmit-1.json`,
 `UserPromptSubmit-9.json`, `PreToolUse-{2,4,5,10,12,14}.json`,
-`PostToolUse-{3,6,11,13,15}.json`, `Stop-{7,16}.json`.
+`PostToolUse-{3,6,11,13,15}.json`, `Stop-{7,16}.json`,
+`StopFailure-17.json`.
+
+### StopFailure — the other way a turn ends
+
+**A turn that fails fires `StopFailure` and does not fire `Stop`.** The two are
+alternatives, not a sequence. This is the whole reason the event is installed:
+before it was, a session whose API call errored sat on "thinking" forever,
+because the island's only turn-ending event never arrived and the reaper only
+drops a session whose *process* is gone — and the Claude REPL is still sitting
+there at its prompt.
+
+**Capture method** (different from the one at the top of this document,
+because an API error cannot be driven by prompting): a local HTTP server
+answering every request with `400` and an `invalid_request_error` body, with
+`ANTHROPIC_BASE_URL` pointed at it. From `/tmp/dasbo-stopfail`, hooks wired
+project-scoped as above for `SessionStart`, `UserPromptSubmit`, `Stop`,
+`StopFailure` and `SessionEnd`:
+
+```
+ANTHROPIC_BASE_URL=http://127.0.0.1:8787 ANTHROPIC_API_KEY=<any> \
+  claude -p 'say hi' --dangerously-skip-permissions
+```
+
+Claude printed `API Error: 400 …` and exited 1.
+
+**Events observed, in order:** `SessionStart`, `UserPromptSubmit`,
+`StopFailure`, `SessionEnd`. `Stop` was wired for that run and **did not
+fire**. (`SessionEnd` arrives here only because `-p` exits when it is done;
+an interactive session stays open and sends nothing further, which is exactly
+the case the extension was stuck in.)
+
+The same split is visible in the shipped binary: the query loop's
+`isApiErrorMessage` branch fires the `StopFailure` hook and returns
+`{reason:"api_error"}` before reaching the code that runs the `Stop` hooks.
+Two neighbouring branches — a prompt that cannot be compacted small enough,
+and a tool call the model malformed twice — return the same way, so those end
+a turn through this event too.
+
+### StopFailure key names
+
+| Field | Key | Notes |
+|---|---|---|
+| Event name | `hook_event_name` | `"StopFailure"` |
+| Session id | `session_id` | as everywhere else |
+| Cwd | `cwd` | as everywhere else |
+| Error kind | `error` | a slug — `rate_limit`, `server_error`, `authentication_failed`, `invalid_request`, `max_output_tokens`, … — and the literal `"unknown"` when Claude has no kind to report, which is what the captured payload carries |
+| Error detail | `error_details` | the API's own text. **Absent** on the captured payload; the binary fills it on the prompt-too-long path |
+| Last message | `last_assistant_message` | what the user saw in the terminal — `"API Error: 400 dasbo capture: deliberate API failure"` in the fixture |
+
+`transcript_path`, `prompt_id` and `effort` are present as they are elsewhere.
+`permission_mode` is **absent**, unlike on `UserPromptSubmit` and the tool
+events.
+
+`claudeAdapter` maps the event to the `error` kind and takes its detail from
+`error_details`, then `last_assistant_message`, then `error` — skipping the
+`"unknown"` placeholder, which would put a word on the row that says less than
+the row's own fallback.
 
 ---
 
@@ -385,7 +447,7 @@ success payload beyond the keys documented above.
 
 | Agent | Adapter status | Fixture count | Blocker |
 |---|---|---|---|
-| Claude Code | ready to implement | 17 | none |
+| Claude Code | ready to implement | 18 | none |
 | Codex 0.146.0 | ready to implement | 6 | none for capture; hooks do not fire until the user approves Codex's TUI hook review, which no CLI flag makes permanent — see Codex section above |
 | Antigravity 1.1.7 | ready to implement, with a caveat | 12 | none for capture, but the adapter must not rely on any in-payload event-name field — see "Critical dialect gap" above |
 

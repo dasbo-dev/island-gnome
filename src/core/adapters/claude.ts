@@ -9,8 +9,39 @@ const KIND_BY_EVENT: Record<string, EventKind> = {
   PreToolUse: 'tool-start',
   PostToolUse: 'tool-end',
   Stop: 'turn-end',
+  StopFailure: 'error',
   SessionEnd: 'session-end',
   Notification: 'notification',
+}
+
+/**
+ * The `error` value Claude emits when it has no kind to report — its own
+ * emitter defaults the field to this literal. It is a placeholder, not a
+ * description, so it never becomes a row's detail: with no detail the row falls
+ * back to the island's own word for the state, which says exactly as much and
+ * says it in the extension's vocabulary.
+ */
+const UNKNOWN_ERROR = 'unknown'
+
+/**
+ * What a `StopFailure` should put on the row.
+ *
+ * Three fields can carry it, in descending order of specificity.
+ * `error_details` is the API's own text and is the narrowest thing available —
+ * it is what the prompt-too-long path fills in. `last_assistant_message` is
+ * what the user actually saw in their terminal ("API Error: 400 …" in the
+ * captured fixture), which is right whenever there is nothing narrower but is
+ * a paragraph of prose on the paths that also set `error_details`. `error` is
+ * a slug (`rate_limit`, `server_error`, `authentication_failed`, …) and is the
+ * last resort, minus the one value that is not a slug at all.
+ */
+function detailFromFailure(raw: Record<string, unknown>): string | undefined {
+  const kind = str(raw['error'])
+  return (
+    str(raw['error_details']) ??
+    str(raw['last_assistant_message']) ??
+    (kind === UNKNOWN_ERROR ? undefined : kind)
+  )
 }
 
 /** Pick the most useful human-readable detail out of a Claude tool_input blob. */
@@ -99,12 +130,16 @@ export const claudeAdapter: AgentAdapter = {
       cwd,
       tool: str(raw['tool_name']),
       // A Notification carries its text in `message` and has no tool_input; a
-      // tool event has tool_input and no message. The two can never contend
-      // for this field, so the notice needs no field of its own on AgentEvent.
+      // tool event has tool_input and no message; a StopFailure carries neither
+      // and reports the failure across three fields of its own. None of the
+      // three can contend for this field, so each needs no field of its own on
+      // AgentEvent.
       detail:
         kind === 'notification'
           ? str(raw['message'])
-          : detailFromToolInput(raw['tool_input']),
+          : kind === 'error'
+            ? detailFromFailure(raw)
+            : detailFromToolInput(raw['tool_input']),
       transcriptPath: str(raw['transcript_path']),
       pid: ctx.pid,
       agentStartedAt: ctx.agentStartedAt,

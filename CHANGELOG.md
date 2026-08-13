@@ -10,6 +10,17 @@ and this project adheres to
 
 Nothing has been tagged yet. Everything below is on `main`.
 
+### Fixed
+
+- A Claude Code session whose turn ended on an API error no longer reads
+  **thinking** forever. Claude ends a failed turn through its `StopFailure`
+  hook and does not fire `Stop` there, so the island never learned the turn
+  was over — and nothing else cleared it, because the REPL is still running.
+  That event is now installed and read: the row settles to **error**, showing
+  the message the terminal showed, until the next prompt. **If you installed
+  hooks before this change, preferences shows them as out of date and
+  *Update hooks* rewrites them** — the fix does nothing until it does.
+
 ### Changed
 
 - Supported GNOME Shell versions widen from 46 alone to **46 through 50**.
