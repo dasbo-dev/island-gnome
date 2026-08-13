@@ -7,6 +7,12 @@
 `docs/superpowers/specs/2026-08-12-b1-port-handoff.md` (the VM, and the recipes)
 **Status:** design approved by the owner on 2026-08-12
 
+> **Outcome:** The port landed. Runtime validation reached GNOME 46, 47 and
+> 50, not all five Shells this design scoped below — 48 and 49 were deferred
+> to DIS-19. The actual, checked-per-version outcome is recorded in
+> `docs/superpowers/specs/2026-08-12-b1-port-results.md`; treat this design
+> document as the dated plan, not the record of what ran.
+
 This document supersedes the handoff doc wherever the two disagree. Three of
 its claims turned out to be stale, and they are corrected below.
 

@@ -59,6 +59,17 @@ cd island-gnome
 npm install
 ```
 
+Also run this once, in the same clone:
+
+```bash
+git config blame.ignoreRevsFile .git-blame-ignore-revs
+```
+
+`.git-blame-ignore-revs` does nothing until a developer opts in with that
+command — Git does not read it on its own. Without it, `git blame` attributes
+every line of the whitespace-only reindent commit listed there to the
+reindent itself, burying ~1300 lines of real history underneath a reformat.
+
 No GNOME session is needed to run the tests. To try the extension itself you
 need GNOME Shell 46 to 50:
 

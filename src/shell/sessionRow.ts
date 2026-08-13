@@ -28,6 +28,10 @@ export interface SessionRowCallbacks {
   onToggleExpanded: (expanded: boolean) => void
 }
 
+// Same reason as IslandImpl in island.ts: GJS derives the registered GType
+// name from this class expression's own name (`SessionRow`), not from the
+// const (`SessionRowImpl`) it's assigned to, so the two names must stay
+// different.
 const SessionRowImpl = class SessionRow extends PopupMenu.PopupBaseMenuItem {
   private _session!: Session
   private _cb!: SessionRowCallbacks
@@ -500,10 +504,12 @@ const SessionRowImpl = class SessionRow extends PopupMenu.PopupBaseMenuItem {
 
 const _SessionRow = GObject.registerClass(SessionRowImpl)
 
+// Cast rationale: see popupHeader.ts:63-68.
 export const SessionRow = _SessionRow as unknown as new (
   ...args: ConstructorParameters<typeof SessionRowImpl>
 ) => InstanceType<typeof _SessionRow>
 
+// Guard rationale: see popupHeader.ts:73.
 type _SessionRowKeepsImpl = Assert<
   Equals<InstanceType<typeof SessionRow> extends InstanceType<typeof SessionRowImpl> ? true : false, true>
 >

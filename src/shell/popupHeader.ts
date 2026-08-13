@@ -17,6 +17,10 @@ export interface PopupHeaderCallbacks {
  * any click along its width, so the title itself would become a close button.
  * The child St.Button still receives clicks, the way SessionRow's Jump does.
  */
+// `PopupHeaderImpl` (the const) and `PopupHeader` (the class expression's own
+// name) are deliberately different: GJS derives the registered GType name
+// from the class expression's name, not from the const it's bound to, so the
+// two must not be collapsed into one name. Same reason at EmptyRowImpl below.
 const PopupHeaderImpl = class PopupHeader extends PopupMenu.PopupBaseMenuItem {
   private _cb!: PopupHeaderCallbacks
 
@@ -82,6 +86,7 @@ type _PopupHeaderKeepsImpl = Assert<
  * reading files, and a widget that reaches for its own dependencies is the
  * thing this file's neighbours are arranged to avoid.
  */
+// Same GType-naming reason as PopupHeaderImpl above.
 const EmptyRowImpl = class EmptyRow extends PopupMenu.PopupBaseMenuItem {
   constructor(hooksInstalled: boolean) {
     super({ reactive: false, can_focus: false, style_class: 'dasbo-row' })
@@ -130,10 +135,18 @@ const EmptyRowImpl = class EmptyRow extends PopupMenu.PopupBaseMenuItem {
 
 const _EmptyRow = GObject.registerClass(EmptyRowImpl)
 
+// Cast rationale: see PopupHeaderImpl's cast above (line 69) / popupHeader.ts:63-68.
 export const EmptyRow = _EmptyRow as unknown as new (
   ...args: ConstructorParameters<typeof EmptyRowImpl>
 ) => InstanceType<typeof _EmptyRow>
 
+// Guard rationale: see popupHeader.ts:73. Weaker than PopupHeader's,
+// SessionRow's, and Island's guards, though: EmptyRowImpl declares no fields
+// or methods of its own, so InstanceType<typeof EmptyRowImpl> is
+// structurally just PopupBaseMenuItem, and any registered PopupBaseMenuItem
+// subclass satisfies this check. Not equivalent coverage to its three
+// siblings, whose Impl classes carry private fields (_cb, _session, _store)
+// that make structural assignability actually fail on a mistake.
 type _EmptyRowKeepsImpl = Assert<
   Equals<InstanceType<typeof EmptyRow> extends InstanceType<typeof EmptyRowImpl> ? true : false, true>
 >

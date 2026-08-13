@@ -40,6 +40,11 @@ type MenuWithOpenSignal = PopupMenu.PopupMenu & {
   connect(sigName: 'open-state-changed', callback: (menu: unknown, open: boolean) => void): number
 }
 
+// The class expression keeps the name `Island`, distinct from the const
+// `IslandImpl` it's assigned to: GJS derives a registered class's GType name
+// from the class expression's own name, not from the const. Collapsing this
+// to `class IslandImpl extends …` would typecheck fine and silently rename
+// the GType. The `Impl` suffix belongs on the const only.
 const IslandImpl = class Island extends PanelMenu.Button {
   private _store!: SessionStore
   private _settings!: Gio.Settings
@@ -878,10 +883,12 @@ const IslandImpl = class Island extends PanelMenu.Button {
 
 const _Island = GObject.registerClass(IslandImpl)
 
+// Cast rationale: see popupHeader.ts:63-68.
 export const Island = _Island as unknown as new (
   ...args: ConstructorParameters<typeof IslandImpl>
 ) => InstanceType<typeof _Island>
 
+// Guard rationale: see popupHeader.ts:73.
 type _IslandKeepsImpl = Assert<
   Equals<InstanceType<typeof Island> extends InstanceType<typeof IslandImpl> ? true : false, true>
 >
