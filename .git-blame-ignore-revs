@@ -1,0 +1,4 @@
+# Whitespace-only reindent of four registerClass class bodies after the
+# GNOME 50 port moved them out of a registerClass( ... ) call argument.
+# git config blame.ignoreRevsFile .git-blame-ignore-revs
+3d7f0e02755db58da5cd9027b98137ec5ac69523

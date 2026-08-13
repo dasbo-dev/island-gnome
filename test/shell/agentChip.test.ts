@@ -74,7 +74,12 @@ describe('the chip on the row', () => {
   // Anchor the close to the handler's own indentation level: a lazy close lets
   // any nested callback inside the handler end the captured body early, hiding
   // statements (like _rebuildRows() and refresh()) from every assertion below.
-  const handler = /connect\('changed::agent-chip-display'[\s\S]*?\n {8}\}\)/.exec(island)?.[0] ?? ''
+  // The indentation is captured, not assumed, so the anchor survives the
+  // class body being reindented to a different nesting depth: group 1 grabs
+  // whatever the handler's own leading whitespace is, and the backreference
+  // requires the closing `})` to sit at that same indentation, rather than
+  // pinning it to a magic column number tied to one specific nesting depth.
+  const handler = /^( *)this\._settings\.connect\('changed::agent-chip-display'[\s\S]*?\n\1\}\)/m.exec(island)?.[0] ?? ''
 
   it('leads the title line: arrow, then chip, then project name', () => {
     // Order is the design decision, not an accident — the row is meant to read
