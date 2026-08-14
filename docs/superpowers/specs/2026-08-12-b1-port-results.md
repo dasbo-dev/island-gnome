@@ -4,6 +4,14 @@
 **Issue:** DIS-15 / B1, from the DIS-14 extensions.gnome.org readiness review
 **Design:** `docs/superpowers/specs/2026-08-12-b1-gnome50-port-design.md`
 **Plan:** `docs/superpowers/plans/2026-08-12-b1-gnome50-port.md`
+**Status:** superseded in part on 2026-08-14
+
+> **Outcome:** The two deferred rows are closed. DIS-19 ran a six-case
+> functional suite on 47, 48, 49 and 50 and every case passed on every one of
+> them, so the 48 and 49 rows below are no longer current. That run is
+> recorded in
+> `docs/superpowers/specs/2026-08-14-dis19-gnome-47-50-results.md`; treat this
+> document as what was known on 2026-08-12.
 
 `metadata.json` now declares `shell-version: ["46","47","48","49","50"]`. This
 document records what each of those five declarations is actually backed by, so
