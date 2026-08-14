@@ -19,6 +19,7 @@ import {
 import { placeInPanelBox } from './shell/panelPlacement.js'
 import { panelBox } from './core/panelBox.js'
 import { SoundPlayer } from './shell/soundPlayer.js'
+import { TranscriptWatcher } from './shell/transcriptWatcher.js'
 import { maybeShowWelcome } from './shell/welcome.js'
 
 export default class DasboIslandExtension extends Extension {
@@ -30,6 +31,8 @@ export default class DasboIslandExtension extends Extension {
   private _settingsIds: number[] = []
   private _settings: Gio.Settings | null = null
   private _sound: SoundPlayer | null = null
+  private _transcripts: TranscriptWatcher | null = null
+  private _unwatchStore: (() => void) | null = null
 
   enable() {
     const settings = this.getSettings()
@@ -51,6 +54,13 @@ export default class DasboIslandExtension extends Extension {
       })
     )
     this._permissions = new PermissionTable(this._store, glibTimers)
+    // Claude fires no hook when the user interrupts a turn, so the only
+    // evidence is the line it writes into the session transcript — see
+    // src/core/transcript.ts. Driven off the store's own notifications rather
+    // than a timer of its own: every change to which sessions are running
+    // arrives there already, and nothing else has to know this exists.
+    this._transcripts = new TranscriptWatcher(this._store)
+    this._unwatchStore = this._store.subscribe(() => this._transcripts?.sync())
     this._sound = new SoundPlayer(settings)
     this._island = new Island(this._store, settings, this.path, this._sound)
 
@@ -180,6 +190,13 @@ export default class DasboIslandExtension extends Extension {
     safely('dbus service', () => {
       this._service?.unexport()
       this._service = null
+    })
+
+    safely('transcript watcher', () => {
+      this._unwatchStore?.()
+      this._unwatchStore = null
+      this._transcripts?.destroy()
+      this._transcripts = null
     })
 
     safely('remembered jump windows', () => {

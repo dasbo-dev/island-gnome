@@ -1105,3 +1105,63 @@ describe('setTasks', () => {
     expect(s.get('claude:s1')).toBeUndefined()
   })
 })
+
+describe('markInterrupted', () => {
+  it('settles a running session to idle and clears what it was doing', () => {
+    const s = new SessionStore()
+    s.apply(ev())
+    s.apply(ev({ kind: 'tool-start', tool: 'Bash', detail: 'sleep 120', ts: 2000 }))
+    s.markInterrupted('claude:s1', 3000)
+    const session = s.get('claude:s1')!
+    expect(session.state).toBe('idle')
+    expect(session.currentTool).toBeUndefined()
+    expect(session.detail).toBeUndefined()
+    expect(session.lastEventAt).toBe(3000)
+  })
+
+  it('tells its subscribers, so the island repaints', () => {
+    const s = new SessionStore()
+    s.apply(ev({ kind: 'prompt-submit' }))
+    let emits = 0
+    s.subscribe(() => { emits += 1 })
+    s.markInterrupted('claude:s1', 2000)
+    expect(emits).toBe(1)
+  })
+
+  it('ignores a session that is not running', () => {
+    const s = new SessionStore()
+    s.apply(ev())
+    let emits = 0
+    s.subscribe(() => { emits += 1 })
+    s.markInterrupted('claude:s1', 2000)
+    expect(s.get('claude:s1')?.state).toBe('idle')
+    expect(s.get('claude:s1')?.lastEventAt).toBe(1000)
+    expect(emits).toBe(0)
+  })
+
+  it('leaves a session held on a permission alone', () => {
+    const s = new SessionStore()
+    s.apply(ev({ kind: 'prompt-submit' }))
+    s.setPending('claude:s1', { id: 'p1', tool: 'Edit', deadline: 0, queued: 0 })
+    s.markInterrupted('claude:s1', 2000)
+    expect(s.get('claude:s1')?.state).toBe('waiting')
+    expect(s.get('claude:s1')?.pendingPermission).toBeDefined()
+  })
+
+  it('ignores a key it has never seen', () => {
+    const s = new SessionStore()
+    let emits = 0
+    s.subscribe(() => { emits += 1 })
+    s.markInterrupted('claude:nope', 2000)
+    expect(emits).toBe(0)
+  })
+
+  it('ends a notice, like any other thing that happened', () => {
+    const s = new SessionStore()
+    s.apply(ev({ kind: 'notification', detail: 'Claude is waiting for your input', ts: 1000 }))
+    s.apply(ev({ kind: 'prompt-submit', ts: 2000 }))
+    s.apply(ev({ kind: 'notification', detail: 'still here', ts: 2500 }))
+    s.markInterrupted('claude:s1', 3000)
+    expect(s.get('claude:s1')?.notice).toBeUndefined()
+  })
+})

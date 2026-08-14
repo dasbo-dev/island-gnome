@@ -344,6 +344,40 @@ export class SessionStore {
     this.emit()
   }
 
+  /**
+   * Settle a session whose turn the user interrupted.
+   *
+   * Claude fires no hook when a turn is interrupted — not `Stop`, not
+   * `StopFailure`, nothing (captured; see src/core/transcript.ts and
+   * docs/agent-dialects.md). The row therefore keeps whatever `running` state
+   * its last event left, the reaper only drops sessions whose *process* is
+   * gone, and the REPL is still sitting at its prompt: the island said
+   * "thinking" until the user typed again. The shell reads the interrupt off
+   * the transcript instead and calls this.
+   *
+   * The outcome is a turn-end and nothing more — idle, no tool, no detail — so
+   * the row lands exactly where the `Stop` that never came would have put it.
+   * Only from 'running': an interrupt is news about a turn in flight, and any
+   * other state is either a later fact (a session-end, an error) or one this
+   * store does not own — 'waiting' belongs to PermissionTable, which holds the
+   * agent itself and settles through clearPending.
+   *
+   * `ts` is passed in rather than read from a clock here, like every other
+   * time this file needs the current time.
+   */
+  markInterrupted(key: string, ts: number): void {
+    const s = this.sessions.get(key)
+    if (!s || s.state !== 'running') return
+    s.state = 'idle'
+    s.currentTool = undefined
+    s.detail = undefined
+    // A notice describes a silence, and an interrupt is proof the silence is
+    // over — the same rule apply() follows for every non-notification event.
+    s.notice = undefined
+    s.lastEventAt = ts
+    this.emit()
+  }
+
   setPending(key: string, pending: PendingPermission): void {
     const s = this.sessions.get(key)
     if (!s) return

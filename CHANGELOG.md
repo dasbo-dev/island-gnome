@@ -12,6 +12,15 @@ Nothing has been tagged yet. Everything below is on `main`.
 
 ### Fixed
 
+- A Claude Code turn you interrupt with Esc or Ctrl+C no longer leaves its row
+  reading **thinking** until you type again. Claude fires no hook at all when a
+  turn is interrupted — captured against 2.1.220, and its hook vocabulary has
+  no interrupt event in it — but it does write a `[Request interrupted by
+  user…]` line into the session transcript, and the extension now tails the
+  transcript of a running Claude session and settles the row to **idle** when
+  that line appears. No hook change: nothing to reinstall. An interrupt that
+  lands before Claude has produced any output writes no such line and is still
+  missed; see [docs/limitations.md](docs/limitations.md).
 - A Claude Code session whose turn ended on an API error no longer reads
   **thinking** forever. Claude ends a failed turn through its `StopFailure`
   hook and does not fire `Stop` there, so the island never learned the turn

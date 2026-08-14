@@ -178,6 +178,67 @@ events.
 `"unknown"` placeholder, which would put a word on the row that says less than
 the row's own fallback.
 
+### An interrupted turn fires no hook at all
+
+**Esc, or Ctrl+C, ends a turn without firing anything.** Not `Stop`, not
+`StopFailure`, not `PostToolUse` for the tool it was in the middle of. This is
+the third way a turn can end and the only one with no event of its own.
+
+**Capture method:** an interactive session driven through a pty (Claude's
+interrupt is a keystroke the TUI reads, not a signal, so `-p` cannot produce
+it), with ten hooks wired project-scoped in `/tmp/dasbo-interrupt` —
+`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`,
+`PostToolUseFailure`, `Stop`, `StopFailure`, `SessionEnd`, `Notification`,
+`PermissionDenied`. Claude Code 2.1.220. Two runs:
+
+| Interrupted | Key | Events that arrived |
+|---|---|---|
+| during a `Bash` call (`sleep 120`) | Esc | `SessionStart`, `UserPromptSubmit`, `PreToolUse` — then nothing until `/quit` |
+| while thinking, before any output | Ctrl+C | `SessionStart`, `UserPromptSubmit` — then nothing until `/quit` |
+
+The full hook vocabulary, read off the binary, has no interrupt or cancel event
+in it: `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PostToolBatch`,
+`Notification`, `UserPromptSubmit`, `UserPromptExpansion`, `SessionStart`,
+`SessionEnd`, `Stop`, `StopFailure`, `SubagentStart`, `SubagentStop`,
+`PreCompact`, `PostCompact`, `PermissionRequest`, `PermissionDenied`, `Setup`,
+`TeammateIdle`, `TaskCreated`, `TaskCompleted`, `Elicitation`,
+`ElicitationResult`, `ConfigChange`, `WorktreeCreate`, `WorktreeRemove`,
+`InstructionsLoaded`, `CwdChanged`, `FileChanged`, `DirectoryAdded`,
+`MessageDisplay`.
+
+`Notification` looked like a stand-in and is not one. Its `idle_prompt` type
+("Claude is waiting for your input") fires from a timer whose own guard is
+`lastUserActivity > lastMessage` — pressing Esc *is* activity, so the
+notification is suppressed in exactly the case that needed it. Confirmed by
+waiting 100 s after an interrupt with `Notification` wired: nothing arrived.
+(The hook itself is not gated on the user's notification channel — the emitter
+awaits it before it looks at `preferredNotifChannel` — so when `idle_prompt`
+does fire, dasbo does see it.)
+
+### What an interrupt does write: the transcript
+
+The session transcript (`transcript_path`, which every payload carries) gets a
+`user` entry the instant the turn is cut:
+
+```json
+{"type":"user","message":{"role":"user","content":[{"type":"text","text":"[Request interrupted by user for tool use]"}]},"interruptedMessageId":"msg_011Ce1teE6fpSkBWB2CFkWid", …}
+```
+
+`[Request interrupted by user]` is the wording when nothing was running;
+`interruptedMessageId` is the API message Esc cancelled, and Claude's own
+schema documents that field as being for these markers only. A tool that was
+in flight also gets a `tool_result` entry reading "The user doesn't want to
+proceed with this tool use" — which is **not** usable as the signal, because a
+denied permission writes the same thing.
+
+**Fixture:** `test/fixtures/claude/transcript-interrupted.jsonl` — the four
+`user`/`assistant` lines of the Esc-during-`Bash` run above, verbatim.
+
+The one case that writes nothing at all is an interrupt that lands before
+Claude has produced any output — the Ctrl+C run above ends with the prompt and
+no marker. `src/core/transcript.ts` reads the marker; `docs/limitations.md`
+records the gap.
+
 ---
 
 ## Codex CLI 0.146.0 — CAPTURED, complete (0.142.0/0.145.0 were BLOCKED; see history below)

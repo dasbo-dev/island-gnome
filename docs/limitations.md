@@ -45,6 +45,21 @@ Claude Code's dialect is verified against 18 real hook-payload fixtures, but
 `SessionEnd` and `Notification` are not among them — their handling is
 inferred from the documented shape rather than captured from a live session.
 
+### An interrupt with nothing to show for it is still missed
+
+Claude fires no hook when the user interrupts a turn, so the island reads the
+line Claude writes into the session transcript instead
+([agent-dialects.md](agent-dialects.md)). An interrupt that lands *before*
+Claude has produced anything — Ctrl+C a second after the prompt, while the
+spinner is still spinning — writes no such line, and that row still reads
+**thinking** until the next event on it. Both halves of this are captured, not
+inferred: one run was interrupted mid-`Bash` and wrote the marker, one was
+interrupted mid-thought and wrote nothing.
+
+Only Claude is watched this way. No other agent's transcript has been read for
+an interrupt marker, and Codex and Antigravity are unexamined here rather than
+known to be fine.
+
 ### Codex hooks written before 0.146.0 never fired
 
 Codex 0.146.0 speaks Claude's hook dialect: an event-keyed map under `hooks`,
