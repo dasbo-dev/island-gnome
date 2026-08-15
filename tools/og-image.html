@@ -14,16 +14,24 @@
     background: radial-gradient(ellipse at 50% -20%, #2c3a4f 0%, #1c1f26 60%);
     font-family: "Cantarell", system-ui, sans-serif; color: #f6f5f4;
   }
-  /* 44px, not 54: at 54 the headline wraps and the mockup below it loses
+  /* 44px, not 54: at 54 the headline wraps and the picture below it loses
      the breathing room that makes it readable at thumbnail size. */
   h1 { font-size: 44px; letter-spacing: -0.5px; white-space: nowrap; }
   p { font-size: 24px; color: #b8b4b0; }
-  img { width: 860px; }
+  /* The hero is a 1280x800 capture now, and its lower half is empty desktop.
+     Shown whole at 860 wide it stands 537 tall — taller than the card has
+     left — and the popup shrinks to nothing at thumbnail size. Cropped to
+     its top instead: same width the drawing had, everything that matters. */
+  img {
+    width: 860px; height: 300px;
+    object-fit: cover; object-position: top;
+    border-radius: 8px;
+  }
 </style>
 </head>
 <body>
   <h1>Your coding agents, on the GNOME top bar.</h1>
   <p>Claude Code and Codex sessions, live in the panel.</p>
-  <img src="../docs/assets/hero.svg" alt="">
+  <img src="../docs/assets/hero.png" alt="">
 </body>
 </html>

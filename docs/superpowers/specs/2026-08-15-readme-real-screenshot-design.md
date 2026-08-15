@@ -305,6 +305,17 @@ now sets `picture-uri` empty and a vertical shade from `#2b2440` to `#14131a` â€
 the exact two stops the deleted `hero.svg` used, so the hero keeps its palette
 while becoming real.
 
+**The hero had a second consumer.** "Nothing else references the hero" was
+wrong: `tools/og-image.html`, the hand-run source for `site/og-image.png`,
+embedded `hero.svg` at 860 px wide. Deleting the SVG would have left a tool
+pointing at nothing, discovered by whoever next re-rendered the social card. It
+now embeds `hero.png`, cropped in CSS to its top 300 px â€” the capture's lower
+half is empty desktop, and shown whole the popup shrinks past legibility at
+thumbnail size. `site/og-image.png` was re-rendered with the command in
+`docs/superpowers/plans/2026-08-10-landing-page-copy.md`, so the card shows the
+capture rather than a drawing that no longer exists. The committed `hero.png`
+itself is uncropped, as the owner chose.
+
 **The staging is one Python script, not a shell sequence.** Because the Escape
 needs a persistent connection, the same script sends it, runs the six
 `fake-agent` calls, and takes the screenshot. It lived at

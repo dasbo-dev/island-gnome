@@ -1,26 +1,25 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 
-describe('the hero mockup', () => {
-  const path = 'docs/assets/hero.svg'
+// The SVG this file used to describe could be asked what it drew; a capture
+// cannot. What is left are the things a committed binary can still get wrong:
+// being the wrong format, being too small to read, or being large enough that
+// everyone who clones the repository pays for it.
+describe('the hero screenshot', () => {
+  const bytes = readFileSync('docs/assets/hero.png')
 
-  it('draws a row for every supported agent', () => {
-    const svg = readFileSync(path, 'utf8')
-    for (const agent of ['Claude', 'Codex']) {
-      expect(svg, `${path} is missing the ${agent} row`).toContain(agent)
-    }
+  it('is a PNG, not something renamed to look like one', () => {
+    expect([...bytes.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
   })
 
-  // A drawing of the UI can drift from the UI. Saying so inside the file
-  // keeps the disclaimer attached to the asset rather than only to the
-  // README paragraph that happens to embed it today.
-  it('calls itself a mockup, so nobody mistakes it for a capture', () => {
-    const svg = readFileSync(path, 'utf8')
-    expect(svg).toMatch(/<title>[^<]*[Mm]ockup/)
+  // IHDR is the first chunk: an 8-byte signature, a 4-byte length and a 4-byte
+  // type, then width and height as big-endian uint32.
+  it('is big enough to read the popup in', () => {
+    expect(bytes.readUInt32BE(16)).toBeGreaterThanOrEqual(900)
+    expect(bytes.readUInt32BE(20)).toBeGreaterThanOrEqual(500)
   })
 
-  it('is self-contained — no reference to src/icons', () => {
-    const svg = readFileSync(path, 'utf8')
-    expect(svg).not.toContain('src/icons')
+  it('stays small enough to clone without regret', () => {
+    expect(bytes.byteLength).toBeLessThan(900 * 1024)
   })
 })
