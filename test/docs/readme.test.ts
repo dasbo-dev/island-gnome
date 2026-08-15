@@ -14,12 +14,20 @@ describe('the README', () => {
     expect(readme).toMatch(/<img\s+src="src\/assets\/logo-light\.svg"/)
   })
 
-  // The word has to be in the alt text, not merely somewhere on the page: an
-  // <img>'s alt overrides the SVG's own <title>, so a caption alone leaves a
-  // screen-reader user told this is a photograph of the running extension.
-  it('shows the hero and admits in its alt text that it is a mockup', () => {
-    expect(readme).toContain('docs/assets/hero.svg')
-    expect(readme).toMatch(/!\[[^\]]*mockup/i)
+  // The word has to be in the alt text, not merely somewhere on the page: a
+  // caption is not read in place of an alt, so a screen-reader user should be
+  // told this is a capture of the running extension by the same string every
+  // other reader's browser falls back to.
+  it('shows the hero screenshot and says so in its alt text', () => {
+    expect(readme).toContain('docs/assets/hero.png')
+    expect(readme).toMatch(/!\[[^\]]*(screenshot|screen capture)/i)
+  })
+
+  // The caption outliving the asset is the failure worth catching: a real
+  // capture described as a drawing is as wrong as the reverse was.
+  it('no longer calls the hero a drawing', () => {
+    expect(readme).not.toContain('hero.svg')
+    expect(readme).not.toMatch(/mockup/i)
   })
 
   it('has the sections a first-time reader scans for', () => {
