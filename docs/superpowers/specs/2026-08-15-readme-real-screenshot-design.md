@@ -3,6 +3,9 @@
 **Date:** 2026-08-15
 **Issue:** DIS-22
 **Depends on:** `.claude/skills/gnome-shell-extension-testing/SKILL.md`
+**Amended:** 2026-08-16, after the capture run — see [What the capture run
+changed](#what-the-capture-run-changed). The shipped frame is Shell **48**,
+nested, not 50.
 
 ## The problem
 
@@ -266,6 +269,48 @@ describe('the hero screenshot', () => {
   nothing about the host session's extension changes; a reinstall would only
   happen if the directory were missing, and the host would not see it until a
   shell reload anyway.
+
+## What the capture run changed
+
+Four things the design did not foresee. All were settled during the run on
+2026-08-16; the sections above are left as written, and this section is what
+actually happened.
+
+**The shell starts in the overview, and nothing above closes it.** A devkit or
+nested session with no windows comes up on the overview — search box, empty
+workspace previews, app-grid button — with the pill and popup drawn over it.
+That is not a hero. `org.gnome.Shell.Eval` cannot fix it (it answers
+`(false, '')`; unsafe mode is off and Shell 50 has no flag for it), and no app
+worth putting in frame exists in either container. What works is one Escape
+through `org.gnome.Mutter.RemoteDesktop`: `CreateSession`, `Start`,
+`NotifyKeyboardKeysym(0xff1b)` down and up. It has to happen on a connection
+that stays open — mutter destroys the session the moment the creating
+connection goes away, so a `gdbus call` per step loses it between the create
+and the keypress. The session is then `Stop`ped, because an open one puts a
+screen-sharing indicator in the top bar.
+
+**The frame is Shell 48, nested, not Shell 50.** The devkit's entire display
+path *is* a screencast, so Shell 50 wears that orange screen-sharing indicator
+in every session, `Stop` or no `Stop` — in a README hero it reads as "this is a
+recording". Nested sessions have no such stream and come out clean. 48 is
+inside the range the README claims, and the two frames are otherwise identical
+pixel for pixel in the popup. The owner picked 50 before the indicator was
+known and was asked to choose again with both images in hand; the request timed
+out with no answer, so this run took the recommendation it had already given.
+Swapping to the 50 frame later is one capture and one commit.
+
+**The background is the old mockup's gradient.** Neither container ships a
+wallpaper, and the shell's fallback is a flat saturated blue. The devkit dconf
+now sets `picture-uri` empty and a vertical shade from `#2b2440` to `#14131a` —
+the exact two stops the deleted `hero.svg` used, so the hero keeps its palette
+while becoming real.
+
+**The staging is one Python script, not a shell sequence.** Because the Escape
+needs a persistent connection, the same script sends it, runs the six
+`fake-agent` calls, and takes the screenshot. It lived at
+`~/dis22-stage-shot.py` for the run and is not committed — the design's decision
+to keep capture tooling out of the repository stands, and the whole sequence is
+written out in the plan.
 
 ## Not in this issue
 

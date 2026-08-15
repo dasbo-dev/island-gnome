@@ -10,6 +10,14 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-15-readme-real-screenshot-design.md`
 
+> **What the run changed (2026-08-16).** The shipped frame is Shell **48**,
+> nested, not Shell 50: the devkit's display path is a screencast, so every
+> Shell 50 session wears a screen-sharing indicator in the top bar. The shell
+> also starts in the overview, which is closed with one Escape through
+> `org.gnome.Mutter.RemoteDesktop` on a connection that stays open. Both are
+> written up in the spec's "What the capture run changed"; the README strings
+> below already say 48.
+
 ## Global Constraints
 
 - Work happens in the worktree `.worktrees/dis-22` on branch `dis-22-real-screenshot`. All paths below are relative to that worktree unless absolute.
@@ -248,9 +256,9 @@ Expected: FAIL — `shows the hero screenshot` fails on the missing `docs/assets
 In `README.md`, replace lines 24 and 26 — the image and the `<sub>` caption:
 
 ```markdown
-![The Dasbo Island popup open in GNOME Shell 50: the pill in the top bar, three agent session rows, and a permission waiting on Allow or Deny](docs/assets/hero.png)
+![The Dasbo Island popup open in GNOME Shell 48: the pill in the top bar, three agent session rows, and a permission waiting on Allow or Deny](docs/assets/hero.png)
 
-<sub>A screen capture of the extension running in GNOME Shell 50. The sessions in it were staged with <code>tools/fake-agent.js</code> rather than driven by live agents. <a href="https://dasbo-dev.github.io/island-gnome/">The live demo</a> runs the real state machine in your browser.</sub>
+<sub>A screen capture of the extension running in GNOME Shell 48. The sessions in it were staged with <code>tools/fake-agent.js</code> rather than driven by live agents. <a href="https://dasbo-dev.github.io/island-gnome/">The live demo</a> runs the real state machine in your browser.</sub>
 ```
 
 Keep the blank line between them, and leave every other line of the README alone.
