@@ -256,7 +256,7 @@ Expected: FAIL — `shows the hero screenshot` fails on the missing `docs/assets
 In `README.md`, replace lines 24 and 26 — the image and the `<sub>` caption:
 
 ```markdown
-![The Dasbo Island popup open in GNOME Shell 48: the pill in the top bar, three agent session rows, and a permission waiting on Allow or Deny](docs/assets/hero.png)
+![Screenshot: the Dasbo Island popup open in GNOME Shell 48 — the pill in the top bar, three agent session rows, and a permission waiting on Allow or Deny](docs/assets/hero.png)
 
 <sub>A screen capture of the extension running in GNOME Shell 48. The sessions in it were staged with <code>tools/fake-agent.js</code> rather than driven by live agents. <a href="https://dasbo-dev.github.io/island-gnome/">The live demo</a> runs the real state machine in your browser.</sub>
 ```
