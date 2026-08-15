@@ -305,6 +305,19 @@ now sets `picture-uri` empty and a vertical shade from `#2b2440` to `#14131a` �
 the exact two stops the deleted `hero.svg` used, so the hero keeps its palette
 while becoming real.
 
+**Half of all captures catch the pill on the wrong frame.** `waiting` is a
+square wave, not a fade: `WAIT_PERIOD_MS = 1300` in `src/core/grid.ts` holds all
+four blocks at full alpha for 650 ms, then at `WAIT_DIM = 0.16` for 650 ms. On
+the dim half the accent `#f5c211` renders as a dull olive, so the hero shows
+the feature it exists to show in its least legible state — and the first
+capture shipped was one of those, spotted by the owner. The fix is to burst:
+the staging script takes ten screenshots 200 ms apart, spanning more than a
+full period, and the frame is chosen by scoring the pill's grid box for
+accent-yellow pixels. The scores come out cleanly bimodal — 240 lit pixels
+against 0 — so the pick needs no judgement. `test/docs/readmeAssets.test.ts`
+now decodes the committed PNG and fails if that box is unlit, which was
+verified by pointing it at a dim frame.
+
 **The hero had a second consumer.** "Nothing else references the hero" was
 wrong: `tools/og-image.html`, the hand-run source for `site/og-image.png`,
 embedded `hero.svg` at 860 px wide. Deleting the SVG would have left a tool
@@ -331,7 +344,8 @@ MUTTER_DEBUG_DUMMY_MODE_SPECS=1280x800 DCONF_PROFILE=~/.config/dasbo-devkit-dcon
 distrobox-enter -n gnome48-dev -- /bin/dbus-run-session -- sh -c '
   gnome-shell --nested --wayland & p=$!
   sleep 15
-  python3 ~/stage-shot.py "$HOME/hero.png" "$HOME/projects/dasbo-island"
+  mkdir -p "$HOME/frames"
+  python3 ~/stage-shot.py "$HOME/frames" "$HOME/projects/dasbo-island"
   kill $p' > /tmp/hero.log 2>&1
 ```
 
@@ -345,7 +359,7 @@ script this design turned down, and it deserves its own issue.
 ## Appendix: the staging script
 
 Run inside the session's own `dbus-run-session`, as
-`python3 stage-shot.py <outfile> <repo>`.
+`python3 stage-shot.py <frame-directory> <repo>`.
 
 ```python
 """Stage the hero frame in a throwaway shell session, then capture it.
@@ -403,28 +417,47 @@ subprocess.Popen(['gjs', '-m', 'tools/fake-agent.js', 'perm', 'hero-review'],
                  cwd=REPO, env={**ENV, 'AGENT': 'claude'})
 time.sleep(5)
 
-# 3. Capture. The shell allowlists the Screenshot caller by well-known name,
-# and in a throwaway session nothing else owns this one.
+# 3. Burst-capture. The shell allowlists the Screenshot caller by well-known
+# name, and in a throwaway session nothing else owns this one. Ten frames
+# 200ms apart span more than one blink period, so at least one catches the
+# waiting pill lit.
 loop = GLib.MainLoop()
+state = {'n': 0}
 
 
-def on_acquired(conn, name):
+def shoot(conn):
+    out = f'{OUT}/frame-{state["n"]:02d}.png'
     try:
-        r = conn.call_sync(
+        conn.call_sync(
             'org.gnome.Shell.Screenshot', '/org/gnome/Shell/Screenshot',
             'org.gnome.Shell.Screenshot', 'Screenshot',
-            GLib.Variant('(bbs)', (False, False, OUT)),
+            GLib.Variant('(bbs)', (False, False, out)),
             None, Gio.DBusCallFlags.NONE, 60000, None)
-        print('SCREENSHOT-OK', r)
+        print('FRAME-OK', out)
     except Exception as e:
-        print('SCREENSHOT-FAIL', e)
-    loop.quit()
+        print('FRAME-FAIL', out, e)
+    state['n'] += 1
+    if state['n'] >= 10:
+        loop.quit()
+        return False
+    return True
 
 
 Gio.bus_own_name(
     Gio.BusType.SESSION, 'org.gnome.SettingsDaemon.MediaKeys',
-    Gio.BusNameOwnerFlags.NONE, None, on_acquired,
+    Gio.BusNameOwnerFlags.NONE, None,
+    lambda conn, name: GLib.timeout_add(200, lambda: shoot(conn)),
     lambda c, n: (print('NAME-LOST'), loop.quit()))
-GLib.timeout_add_seconds(30, loop.quit)
+GLib.timeout_add_seconds(60, loop.quit)
 loop.run()
+```
+
+Pick the frame on the host, by score rather than by eye — the two states are
+far apart, so this never needs a judgement call:
+
+```python
+from PIL import Image
+for f in sorted(glob.glob('frames/*.png')):
+    box = Image.open(f).convert('RGB').crop((470, 4, 515, 28))
+    print(f, sum(1 for r, g, b in box.getdata() if r > 200 and g > 150 and b < 90))
 ```
