@@ -318,14 +318,113 @@ itself is uncropped, as the owner chose.
 
 **The staging is one Python script, not a shell sequence.** Because the Escape
 needs a persistent connection, the same script sends it, runs the six
-`fake-agent` calls, and takes the screenshot. It lived at
-`~/dis22-stage-shot.py` for the run and is not committed — the design's decision
-to keep capture tooling out of the repository stands, and the whole sequence is
-written out in the plan.
+`fake-agent` calls, and takes the screenshot. It is not committed as a tool —
+the decision to keep capture tooling out of the repository stands — but it is
+reproduced in the appendix below, because a recipe that cannot be rerun is not
+a recipe.
+
+The whole run, from the host, was then:
+
+```sh
+export DISPLAY=:1 XAUTHORITY=/run/user/1000/gdm/Xauthority XDG_RUNTIME_DIR=/run/user/1000
+MUTTER_DEBUG_DUMMY_MODE_SPECS=1280x800 DCONF_PROFILE=~/.config/dasbo-devkit-dconf-profile \
+distrobox-enter -n gnome48-dev -- /bin/dbus-run-session -- sh -c '
+  gnome-shell --nested --wayland & p=$!
+  sleep 15
+  python3 ~/stage-shot.py "$HOME/hero.png" "$HOME/projects/dasbo-island"
+  kill $p' > /tmp/hero.log 2>&1
+```
 
 ## Not in this issue
 
-The landing page's own imagery, an `og-image` refresh, a screenshot of the
-preferences window, and any capture on Shell 46-49. If the hero should be
-regenerated per release, that is the capture script this design turned down,
-and it deserves its own issue.
+The landing page's own imagery beyond the social card the deleted asset forced,
+a screenshot of the preferences window, and captures on the other supported
+versions. If the hero should be regenerated per release, that is the capture
+script this design turned down, and it deserves its own issue.
+
+## Appendix: the staging script
+
+Run inside the session's own `dbus-run-session`, as
+`python3 stage-shot.py <outfile> <repo>`.
+
+```python
+"""Stage the hero frame in a throwaway shell session, then capture it.
+
+Everything here has to happen on one D-Bus connection. Mutter destroys a
+RemoteDesktop session as soon as the connection that created it goes away, so
+the `gdbus call` form loses the session between the create and the keypress.
+"""
+import subprocess
+import sys
+import time
+
+import gi
+from gi.repository import Gio, GLib
+
+OUT = sys.argv[1]
+REPO = sys.argv[2]
+ESCAPE = 0xFF1B
+ROOT = '/org/gnome/Mutter/RemoteDesktop'
+
+bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+
+
+def rd(path, method, args=None):
+    iface = 'org.gnome.Mutter.RemoteDesktop' + ('' if path == ROOT else '.Session')
+    return bus.call_sync('org.gnome.Mutter.RemoteDesktop', path, iface, method,
+                         args, None, Gio.DBusCallFlags.NONE, 10000, None)
+
+
+# 1. Leave the startup overview.
+path = rd(ROOT, 'CreateSession').unpack()[0]
+rd(path, 'Start')
+rd(path, 'NotifyKeyboardKeysym', GLib.Variant('(ub)', (ESCAPE, True)))
+rd(path, 'NotifyKeyboardKeysym', GLib.Variant('(ub)', (ESCAPE, False)))
+# Stop it again: an open remote-desktop session puts a screen-sharing
+# indicator in the top bar, which has no business in a hero shot.
+time.sleep(1)
+rd(path, 'Stop')
+time.sleep(2)
+
+# 2. Stage the rows.
+ENV = {'PATH': '/usr/bin:/bin', 'HOME': GLib.get_home_dir(),
+       'DBUS_SESSION_BUS_ADDRESS': GLib.getenv('DBUS_SESSION_BUS_ADDRESS') or ''}
+
+for mode, sid, who in [('session', 'hero-claude', 'claude'),
+                       ('tool', 'hero-claude', 'claude'),
+                       ('session', 'hero-codex', 'codex'),
+                       ('tool', 'hero-codex', 'codex'),
+                       ('session', 'hero-review', 'claude')]:
+    subprocess.run(['gjs', '-m', 'tools/fake-agent.js', mode, sid],
+                   cwd=REPO, env={**ENV, 'AGENT': who}, check=True)
+
+# Blocks until answered — that is what holds the popup open.
+subprocess.Popen(['gjs', '-m', 'tools/fake-agent.js', 'perm', 'hero-review'],
+                 cwd=REPO, env={**ENV, 'AGENT': 'claude'})
+time.sleep(5)
+
+# 3. Capture. The shell allowlists the Screenshot caller by well-known name,
+# and in a throwaway session nothing else owns this one.
+loop = GLib.MainLoop()
+
+
+def on_acquired(conn, name):
+    try:
+        r = conn.call_sync(
+            'org.gnome.Shell.Screenshot', '/org/gnome/Shell/Screenshot',
+            'org.gnome.Shell.Screenshot', 'Screenshot',
+            GLib.Variant('(bbs)', (False, False, OUT)),
+            None, Gio.DBusCallFlags.NONE, 60000, None)
+        print('SCREENSHOT-OK', r)
+    except Exception as e:
+        print('SCREENSHOT-FAIL', e)
+    loop.quit()
+
+
+Gio.bus_own_name(
+    Gio.BusType.SESSION, 'org.gnome.SettingsDaemon.MediaKeys',
+    Gio.BusNameOwnerFlags.NONE, None, on_acquired,
+    lambda c, n: (print('NAME-LOST'), loop.quit()))
+GLib.timeout_add_seconds(30, loop.quit)
+loop.run()
+```
