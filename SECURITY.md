@@ -14,7 +14,7 @@ its disclosure will be discussed with you before either lands.
 
 ## What this extension does to your system
 
-It writes hook entries into your agents' own configuration files —
+It writes hook entries into your agents' own configuration files:
 `~/.claude/settings.json` and `~/.codex/hooks.json`. Installation preserves
 entries belonging to other tools and writes a `.dasbo.bak` backup before its
 first change to a file. Every installed hook command embeds an absolute path
