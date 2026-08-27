@@ -21,7 +21,7 @@
 
 </div>
 
-![Screenshot: the Dasbo Island popup open in GNOME Shell 48 — the pill in the top bar, three agent session rows, and a permission waiting on Allow or Deny](docs/assets/hero.png)
+![Screenshot: the Dasbo Island popup open in GNOME Shell 48, showing the pill in the top bar, three agent session rows, and a permission waiting on Allow or Deny](docs/assets/hero.png)
 
 <sub>A screen capture of the extension running in GNOME Shell 48. The sessions in it were staged with <code>tools/fake-agent.js</code> rather than driven by live agents. <a href="https://dasbo-dev.github.io/island-gnome/">The live demo</a> runs the real state machine in your browser.</sub>
 
@@ -66,8 +66,8 @@ Source: [github.com/dasbo-dev/island-gnome](https://github.com/dasbo-dev/island-
 
 ## Features
 
-- **Status at a glance.** A pill in the top bar reflects the busiest session —
-  working, waiting on you, errored, or finished — without opening anything.
+- **Status at a glance.** A pill in the top bar reflects the busiest session
+  (working, waiting on you, errored, or finished) without opening anything.
 - **Answer permissions where you are.** A tool waiting for approval can be
   allowed or denied from the popup, without switching to the terminal.
 - **One click back to the terminal.** Every session row knows the terminal
@@ -166,7 +166,7 @@ light or dark theme.
 
 Each agent row shows whether its hooks are installed. If the extension
 directory moves, or a release adds a hook event the installed set is missing,
-the row offers **Update** — every installed hook command embeds an absolute
+the row offers **Update**: every installed hook command embeds an absolute
 path, and an install written before a new event existed is out of date.
 
 ### Task lists
@@ -179,8 +179,8 @@ hook. `/clear` starts a fresh list, because it starts a fresh session id.
 
 ### Waiting on you
 
-When an agent says it is waiting on you — Claude raises this after its prompt
-has sat idle, and for any permission the island did not answer itself — the
+When an agent says it is waiting on you (Claude raises this after its prompt
+has sat idle, and for any permission the island did not answer itself), the
 message appears on that session's row and the popup opens to show it. Both
 revert a few seconds later, and a popup you opened yourself is never closed
 for you. Both the delay and whether the popup opens at all are in the
@@ -212,7 +212,7 @@ on screen.
 | Agent | Availability | Config touched | Status reporting | Permission gating |
 |---|---|---|---|---|
 | Claude Code | Shipped | `~/.claude/settings.json` | 18 real hook-payload fixtures | yes |
-| Codex CLI | Shipped | `~/.codex/hooks.json` | 6 real fixtures (0.146.0) | no — [notify-only](docs/limitations.md#codex-has-no-permission-gate) |
+| Codex CLI | Shipped | `~/.codex/hooks.json` | 6 real fixtures (0.146.0) | no, [notify-only](docs/limitations.md#codex-has-no-permission-gate) |
 | OpenCode | Coming soon | — | — | — |
 | Cursor CLI | Coming soon | — | — | — |
 | Antigravity CLI | Coming soon | — | — | — |
@@ -248,7 +248,7 @@ This project says what it has not proven. The full account is in
   [Details](docs/limitations.md#claude-codes-sessionend-and-notification-are-inferred)
 - **Codex hooks written by any earlier dasbo release never fired.** They used a
   form Codex parses without complaint and ignores. **Update** in the
-  preferences replaces them — this is a format change, not a missing event, so
+  preferences replaces them. This is a format change, not a missing event, so
   the row offers Update even when nothing about your install has moved.
   [Details](docs/limitations.md#codex-hooks-written-before-01460-never-fired)
 
@@ -273,7 +273,7 @@ GitHub Pages via [`.github/workflows/site.yml`](.github/workflows/site.yml).
 ## Contributing
 
 Bug reports, fixtures from real agent sessions, and pull requests are all
-welcome — captured payloads especially, since several of the gaps on this page
+welcome. Captured payloads especially, since several of the gaps on this page
 close the moment someone produces one. Start with
 [CONTRIBUTING.md](CONTRIBUTING.md); participation is covered by the
 [Code of Conduct](CODE_OF_CONDUCT.md).

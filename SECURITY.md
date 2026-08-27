@@ -14,7 +14,7 @@ its disclosure will be discussed with you before either lands.
 
 ## What this extension does to your system
 
-It writes hook entries into your agents' own configuration files —
+It writes hook entries into your agents' own configuration files:
 `~/.claude/settings.json` and `~/.codex/hooks.json`. Installation preserves
 entries belonging to other tools and writes a `.dasbo.bak` backup before its
 first change to a file. Every installed hook command embeds an absolute path
@@ -43,7 +43,7 @@ Codex CLI has no permission gate through this extension at all; its hooks are
 installed
 [notify-only](docs/limitations.md#codex-has-no-permission-gate).
 Claude Code's gate is the one this project treats as working; its
-dialect is verified against 17 captured payloads, though
+dialect is verified against 18 captured payloads, though
 [no permission round-trip has been captured for any agent](docs/limitations.md#no-permission-round-trip-has-been-captured).
 
 No other agent's hooks can be installed from this build, so no other agent's
