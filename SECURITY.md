@@ -43,7 +43,7 @@ Codex CLI has no permission gate through this extension at all; its hooks are
 installed
 [notify-only](docs/limitations.md#codex-has-no-permission-gate).
 Claude Code's gate is the one this project treats as working; its
-dialect is verified against 17 captured payloads, though
+dialect is verified against 18 captured payloads, though
 [no permission round-trip has been captured for any agent](docs/limitations.md#no-permission-round-trip-has-been-captured).
 
 No other agent's hooks can be installed from this build, so no other agent's
