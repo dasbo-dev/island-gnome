@@ -8,7 +8,11 @@ and this project adheres to
 
 ## [Unreleased]
 
-Nothing has been tagged yet. Everything below is on `main`.
+Nothing since 0.1.0.
+
+## [0.1.0] - 2026-08-28
+
+The first tagged release. Everything below shipped in it.
 
 ### Fixed
 
@@ -126,4 +130,5 @@ Nothing has been tagged yet. Everything below is on `main`.
   section without scrolling, and that page's banner is trimmed to earn back the
   room it needs.
 
-[Unreleased]: https://github.com/dasbo-dev/island-gnome/commits/main
+[Unreleased]: https://github.com/dasbo-dev/island-gnome/compare/v0.1.0...main
+[0.1.0]: https://github.com/dasbo-dev/island-gnome/releases/tag/v0.1.0

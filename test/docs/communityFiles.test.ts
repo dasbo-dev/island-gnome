@@ -25,11 +25,16 @@ describe('the community-health files', () => {
     })
   }
 
-  // No tag has ever been cut in this repository. A changelog that invents a
-  // release date is worse than one that admits nothing has shipped.
-  it('CHANGELOG.md claims no released version', () => {
+  // The version a user sees in preferences comes from metadata.json, and the
+  // changelog is where they go to find out what that version contains. The
+  // two drift apart silently: bumping one is a one-line edit that leaves the
+  // other reading as though the new version was never cut.
+  it('CHANGELOG.md carries a dated section for the version metadata.json ships', () => {
+    const shipped = JSON.parse(readFileSync('metadata.json', 'utf8'))['version-name']
     const text = readFileSync('CHANGELOG.md', 'utf8')
-    expect(text).not.toMatch(/^## \[\d+\.\d+\.\d+\]/m)
+    const escaped = shipped.replace(/\./g, '\\.')
+    const heading = new RegExp(`^## \\[${escaped}\\] - \\d{4}-\\d{2}-\\d{2}$`, 'm')
+    expect(text, `CHANGELOG.md has no dated section for ${shipped}`).toMatch(heading)
   })
 
   // The fail-open guarantee is written out in full in two files, and nothing
