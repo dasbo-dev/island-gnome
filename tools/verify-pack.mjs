@@ -30,6 +30,48 @@ const FORBIDDEN = [
 ]
 
 /**
+ * `unzip -Z` long-format entry line. Nine fields: the ten-character mode, the
+ * zip version, the source OS, the uncompressed size, the text/binary flag,
+ * the compression method, the date, the time, and the name. Everything that
+ * does not match — the `Archive:` header, the `Zip file size:` line, the
+ * trailing summary — is not an entry and is skipped.
+ */
+const LONG_LISTING_ENTRY = /^([d-])([rwxsSt-]{9})\s+\S+\s+\S+\s+\d+\s+\S+\s+\S+\s+\S+\s+\S+\s+(.+)$/
+
+/**
+ * Refuses an archive that ships an executable file.
+ *
+ * Nothing in this package is ever run by path: preferences writes every hook
+ * command as `gjs -m <path>` (see src/core/install/plan.ts, which says so at
+ * length), and the Makefile's install target chmods the installed copy for
+ * anyone who wants to run it by hand. Meanwhile an executable file whose
+ * suffix is neither `.js` nor `.sh` reads to the extensions.gnome.org static
+ * analyzer as a bundled binary — shexli EGO-P-005, error severity, and
+ * hooks/dasbo-hook is exactly that shape. build.mjs drops the bit; this
+ * catches a build that stops doing so.
+ *
+ * Directories are exempt: one that is not executable cannot be entered.
+ *
+ * @param {string} listing `unzip -Z` output for the archive.
+ * @returns {string[]} One message per file entry shipping an executable bit.
+ */
+export function checkModes(listing) {
+  const problems = []
+  for (const line of listing.split('\n')) {
+    const match = LONG_LISTING_ENTRY.exec(line.trimEnd())
+    if (match === null) continue
+    const [, kind, permissions, name] = match
+    if (kind === 'd') continue
+    if (permissions.includes('x')) {
+      problems.push(
+        `must not ship executable: ${name} — an executable file with no .js or .sh suffix reads as a bundled binary to the EGO analyzer, and nothing runs the packaged copy by path`
+      )
+    }
+  }
+  return problems
+}
+
+/**
  * @param {string[]} entries Archive entry names as `unzip -Z1` prints them:
  *   no leading `./`, directories with a trailing slash.
  * @param {{ icons?: string[], assets?: string[] }} [expected] Plain filenames
@@ -102,6 +144,11 @@ function readEntry(zipPath, entry) {
   return execFileSync('unzip', ['-p', zipPath, entry], { encoding: 'utf8' })
 }
 
+/** @param {string} zipPath */
+function longListingOf(zipPath) {
+  return execFileSync('unzip', ['-Z', zipPath], { encoding: 'utf8' })
+}
+
 // Run as a CLI only, so importing this from a test does not shell out.
 if (process.argv[1] && process.argv[1].endsWith('verify-pack.mjs')) {
   const zipPath = process.argv[2]
@@ -118,6 +165,7 @@ if (process.argv[1] && process.argv[1].endsWith('verify-pack.mjs')) {
   }
   const problems = [
     ...checkEntries(entriesOf(zipPath), expected),
+    ...checkModes(longListingOf(zipPath)),
     ...checkBundleText('extension.js', readEntry(zipPath, 'extension.js')),
     ...checkBundleText('prefs.js', readEntry(zipPath, 'prefs.js')),
   ]
