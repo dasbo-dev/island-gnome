@@ -139,7 +139,7 @@ export function rememberSessionWindow(pid: number): void {
 /** Drop every remembered window. Called from the reaper and at teardown. */
 export function pruneSessionWindows(): void {
   // Nothing to prune before the first session is recorded, and the reaper
-  // runs on a 1s timer from the moment enable() returns.
+  // sweeps every 60s from the moment enable() returns (src/extension.ts).
   sessionWindows?.prune(pidAlive)
 }
 
