@@ -35,16 +35,29 @@ if [ ! -f "$ARCHIVE" ]; then
 fi
 ARCHIVE=$(readlink -f "$ARCHIVE")
 
-VENV=.shexli-venv
-if [ ! -x "$VENV/bin/shexli" ]; then
+# Anchor the venv to the repo root (not the caller's cwd) so a direct
+# `tools/shexli.sh some.zip` from elsewhere reuses the one `make analyze`
+# builds instead of scattering a stray copy wherever it was invoked from.
+ROOT=$(readlink -f "$(dirname "$0")/..")
+VENV="$ROOT/.shexli-venv"
+
+# The binary's existence isn't proof the venv is usable: if `pip install -U
+# shexli` succeeds but the tree-sitter pin below it fails, `$VENV/bin/shexli`
+# is left executable and paired with tree-sitter 0.26.0, the exact
+# combination that segfaults (see the header comment). Guard on a sentinel
+# written only after every build step below succeeds, so a half-built venv
+# gets rebuilt instead of silently run.
+if [ ! -f "$VENV/.ready" ]; then
   echo "building $VENV (first run only)"
   python3 -m venv "$VENV"
   "$VENV/bin/pip" install -q -U pip
   "$VENV/bin/pip" install -q -U shexli
   "$VENV/bin/pip" install -q 'tree-sitter==0.25.2'
+  touch "$VENV/.ready"
 fi
 
 WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
 REPORT=$(mktemp)
 trap 'rm -rf "$WORK" "$REPORT"' EXIT
 unzip -q "$ARCHIVE" -d "$WORK"
