@@ -2,8 +2,9 @@
 
 ## Supported versions
 
-No version has been tagged yet. Fixes land on `main`; if you are running the
-extension, run what `make install` gives you from `main`.
+0.1.0 is the only released version, and it is supported. Fixes land on `main`
+first and reach a release only when the next one is tagged; if you want one
+before then, run what `make install` gives you from `main`.
 
 ## Reporting a vulnerability
 

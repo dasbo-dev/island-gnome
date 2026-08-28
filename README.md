@@ -86,8 +86,8 @@ Source: [github.com/dasbo-dev/island-gnome](https://github.com/dasbo-dev/island-
 - GNOME Shell 46 to 50
 - X11 or Wayland
 
-**To build.** No version has been tagged, so building from source is the only
-way to install it.
+**To build.** The extension is not on extensions.gnome.org, so building from
+source is how it is installed.
 
 - Node 22, the version CI runs
 - npm
