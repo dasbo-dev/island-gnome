@@ -29,12 +29,40 @@ describe('the store description', () => {
     expect(description).toContain('Codex')
   })
 
+  // DIS-28. The landing page hero says "coding agents" and names the two in a
+  // table at the foot; test/site/indexCopy.test.ts pins its subhead free of
+  // both names for the same reason. The list view cuts the description to its
+  // first paragraph, so a vendor named there is a vendor in the store's
+  // one-line summary — and every agent added later would force that sentence
+  // open again.
+  it('keeps the first paragraph free of agent and vendor names', () => {
+    for (const name of ['Claude', 'Codex', 'Antigravity', 'Gemini', 'Anthropic', 'OpenAI']) {
+      expect(paragraphs[0], `the first paragraph names ${name}`).not.toContain(name)
+    }
+  })
+
+  // The names belong in one place. Scattering them back through the copy is
+  // how the first paragraph got them in the first place.
+  it('gathers the agent names into a single paragraph', () => {
+    const naming = paragraphs.filter((p) => /Claude Code|Codex CLI/.test(p))
+    expect(naming).toHaveLength(1)
+  })
+
   // docs/limitations.md § "Codex has no permission gate": every Codex hook is
-  // installed notify-only, so an unscoped promise of inline approval is false.
-  it('scopes inline permission approval to the agent that has it', () => {
-    const inline = description.indexOf('inline')
-    if (inline === -1) return
-    expect(description.slice(0, inline)).toContain('Claude Code permission')
+  // installed notify-only, so an unscoped promise that prompts get answered is
+  // false for half the agents this build supports. The old form of this test
+  // keyed on the word "inline" and demanded "Claude Code permission" before it;
+  // the copy no longer uses either, so it passed while checking nothing. The
+  // qualifier is what carries the truth now.
+  it('qualifies the permission claim it makes before naming any agent', () => {
+    const named = paragraphs.findIndex((p) => /Claude Code|Codex CLI/.test(p))
+    expect(named, 'no paragraph names the agents').toBeGreaterThan(-1)
+    for (const paragraph of paragraphs.slice(0, named)) {
+      if (!/permission prompts/.test(paragraph)) continue
+      expect(paragraph, 'an unqualified permission claim precedes the agent list').toContain(
+        'where supported',
+      )
+    }
   })
 
   // H1 of the DIS-14 review: the extension writes into other applications'
@@ -44,7 +72,7 @@ describe('the store description', () => {
   // have to discover; a copy edit that drops one puts the submission back
   // where it started.
   it('discloses the files it writes and the terms it writes them on', () => {
-    for (const path of ['~/.claude/settings.json', '~/.codex/hooks.json', '~/.gemini/config/hooks.json']) {
+    for (const path of ['~/.claude/settings.json', '~/.codex/hooks.json']) {
       expect(description, `the description no longer names ${path}`).toContain(path)
     }
     expect(description, 'the button-press precondition is gone').toContain('Install hooks')
@@ -53,18 +81,16 @@ describe('the store description', () => {
     expect(description, 'the hook still reads as a shipped binary').toContain('GJS script')
   })
 
-  // DIS-15 final review, finding 1: agentCatalog.ts marks antigravity
-  // 'coming-soon' and prefs.ts gives coming-soon rows no Install button, so no
-  // reachable path in this build writes ~/.gemini/config/hooks.json. Naming
-  // the file without qualifying it would claim a write this build cannot
-  // perform. This asserts the qualification survives, not just the path, so a
-  // copy edit cannot quietly turn the reserved file back into a claimed one.
-  it('qualifies the gemini path as reserved, not written, in this build', () => {
-    const gemini = description.indexOf('~/.gemini/config/hooks.json')
-    expect(gemini, 'the gemini path is gone').not.toBe(-1)
-    const sentence = description.slice(gemini)
-    expect(sentence, 'the gemini path is no longer scoped to Antigravity').toContain('Antigravity')
-    expect(sentence, 'the gemini path no longer says this build leaves it unused').toContain('not enabled in this build')
+  // DIS-28 inverts DIS-15's finding. The qualification was accurate but
+  // self-inflicted: the path was named, so it needed explaining. This build
+  // never writes it — agentCatalog.ts marks antigravity 'coming-soon' and
+  // prefs.ts gives a coming-soon row no Install button — so the description
+  // drops it rather than explaining it. src/core/install/plan.ts still builds
+  // the path, which is why this stays pinned: the copy must not drift back to
+  // describing a write no reachable UI performs.
+  it('claims no write to the file this build never touches', () => {
+    expect(description).not.toContain('.gemini')
+    expect(description).not.toContain('Antigravity')
   })
 
   // M1 of the DIS-14 review: the copy uses three vendors' product names
