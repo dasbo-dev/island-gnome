@@ -149,7 +149,7 @@ suite.
 
 **Log through `warn()` from `src/core/log.ts`, never `console` directly.**
 `build.mjs` bundles all of `src/` into one `extension.js`, so every scattered
-`console.warn` counts against the same file's total — which is exactly what
+`console.warn` counts against the same file's total, which is exactly what
 EGO's "no excessive logging" rule measures. One seam holds that count at one.
 `test/core/logging.test.ts` enforces it and will fail your build.
 
