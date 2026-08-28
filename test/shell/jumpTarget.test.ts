@@ -25,7 +25,11 @@ describe('Jump raises the window its session started in', () => {
   })
 
   it('offers the remembered window to that decision', () => {
-    expect(finder).toMatch(/chooseWindow\([\s\S]{0,200}?sessionWindows\.recall\(pid\)/)
+    // Optional-chained since the map is created on first use rather than at
+    // module scope — an allocation before enable() is what shexli's EGO-L-001
+    // reports. What this guards is unchanged: the remembered window still
+    // reaches chooseWindow.
+    expect(finder).toMatch(/chooseWindow\([\s\S]{0,200}?sessionWindows\?\.recall\(pid\)/)
   })
 
   it('records only the focused window that belongs to the agent', () => {
