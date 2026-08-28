@@ -98,6 +98,37 @@ node build.mjs    # builds dist/ and the landing page in dist-site/
 [The pull-request template](.github/PULL_REQUEST_TEMPLATE.md) lists what else
 is worth checking before you open one.
 
+## Before submitting to extensions.gnome.org
+
+extensions.gnome.org asks submitters to run the Shexli static analyzer over
+the package first. One target does it:
+
+```bash
+make analyze
+```
+
+That packs the archive, extracts it with file modes intact, runs the analyzer
+over the result, and exits non-zero if anything is reported at error severity.
+
+Two warnings are expected in a clean run. Neither is a bug:
+
+- **`EGO-X-004`, synchronous file IO.** `src/shell/windowFinder.ts` reads
+  `/proc` through `GLib.file_get_contents()`. `/proc` is served from kernel
+  memory and cannot block on a disk or a network filesystem, the reads are
+  bounded at 20, and they happen on an explicit Jump click or once at session
+  start.
+- **`EGO-L-003`, signals without disconnects.** Every site connects to a child
+  actor the widget itself creates and destroys, so the handlers die with the
+  object they are attached to.
+
+[The design document](docs/superpowers/specs/2026-08-28-shexli-static-analysis-design.md)
+records the finding-by-finding disposition, including the three that were
+fixed.
+
+`tools/shexli.sh` builds its own virtualenv in `.shexli-venv/` on first run,
+and pins `tree-sitter==0.25.2` because the version pip resolves by default
+segfaults inside shexli. Delete the directory to rebuild it.
+
 ## Rules worth knowing before you start
 
 **`src/core/` must never import `gi://` or `resource://`.** That directory is

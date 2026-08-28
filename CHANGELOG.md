@@ -32,6 +32,11 @@ Nothing has been tagged yet. Everything below is on `main`.
 
 ### Changed
 
+- The packaged `hooks/dasbo-hook` now ships without its executable bit.
+  Nothing changes for a hook entry preferences wrote: those invoke the file
+  as `gjs -m <path>`, and `make install` still marks the installed copy
+  executable. An executable file with no `.js` or `.sh` suffix reads to the
+  extensions.gnome.org static analyzer as a bundled binary.
 - Supported GNOME Shell versions widen from 46 alone to **46 through 50**.
   The typings target 50, since one dependency tree can hold only one `@girs`
   generation, and the range is backed by runtime validation rather than by
