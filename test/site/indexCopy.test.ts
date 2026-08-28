@@ -1,19 +1,22 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 
-// The page's own fine print says "Statuses are honest, not aspirational".
-// These cases are that claim, enforced. Each one failed against the page as
-// audited on 2026-08-10 (docs/copy-seo-audit-2026-08-10.md).
+// These cases hold the page to what the extension actually does. Each one
+// failed against the page as audited on 2026-08-10
+// (docs/copy-seo-audit-2026-08-10.md), except where marked as revised in
+// the 2026-08-24 review.
 const html = readFileSync('site/index.html', 'utf8')
 
 describe('the landing page copy', () => {
-  // C1. Codex's PreToolUse hook rejects an allow/ask decision outright, so
-  // every Codex hook is installed notify-only. An unqualified "permission
-  // prompts answered inline" in the hero is a promise to Codex users that
-  // the table two screens down contradicts.
-  it('attributes inline permission answering to Claude Code alone', () => {
-    expect(html).toContain('Claude&nbsp;Code permission prompts answered inline')
-    expect(html).not.toMatch(/top bar[^<]*status at a glance, permission prompts answered inline/)
+  // C1, revised in the 2026-08-24 review. The hero now pitches the category
+  // ("coding agent"), not a vendor list; the per-agent truth — Claude Code
+  // gates, Codex is notify-only — lives on the permissions card and the
+  // agents table, which the next case and C13 still enforce.
+  it('keeps the hero subhead generic about agents', () => {
+    const sub = html.match(/<p class="sub">([\s\S]*?)<\/p>/)?.[1] ?? ''
+    expect(sub).toContain('coding agent')
+    expect(sub).not.toContain('Claude')
+    expect(sub).not.toContain('Codex')
   })
 
   it('says on the permissions card that Codex cannot be answered from the bar', () => {

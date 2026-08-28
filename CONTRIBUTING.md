@@ -11,7 +11,7 @@ It is a one-person project, so replies come when they come.
 
 **Captured hook payloads.** Several gaps in
 [docs/limitations.md](docs/limitations.md) close the moment someone produces a
-real payload — a Claude Code `SessionEnd` or `Notification` above all, and a
+real payload: a Claude Code `SessionEnd` or `Notification` above all, and a
 permission round-trip from any agent, which nobody has captured yet. A fixture
 is worth more here than a patch.
 
@@ -23,7 +23,7 @@ the whole story.
 ## How to capture a payload
 
 `tools/capture-hook` records one payload verbatim, then exits 0 with empty
-stdout — it is safe to leave wired into a session you are actually working in.
+stdout, so it is safe to leave wired into a session you are actually working in.
 
 ```bash
 /path/to/island-gnome/tools/capture-hook claude
@@ -37,7 +37,7 @@ agent happened to be in.
 
 Every event the hook fires lands in `test/fixtures/claude/` as `raw-N.json`,
 where `N` is however many files are already in that directory when the hook
-runs — not a count you can predict from outside it. Set `DASBO_FIXTURE_DIR` to
+runs, not a count you can predict from outside it. Set `DASBO_FIXTURE_DIR` to
 an absolute path to collect them somewhere else first.
 
 Rename each file after the event it captured, matching what is already in
@@ -47,7 +47,7 @@ version produced them.
 
 **Scrub before you open the pull request.** A payload carries `cwd`,
 `session_id`, transcript paths and your prompt text. Replace anything you would
-not post in public — paths, project names, prompts — and leave the structure
+not post in public (paths, project names, prompts) and leave the structure
 alone. The structure is the part an adapter is tested against; the contents are
 yours.
 
@@ -66,7 +66,7 @@ git config blame.ignoreRevsFile .git-blame-ignore-revs
 ```
 
 `.git-blame-ignore-revs` does nothing until a developer opts in with that
-command — Git does not read it on its own. Without it, `git blame` attributes
+command; Git does not read it on its own. Without it, `git blame` attributes
 every line of the whitespace-only reindent commit listed there to the
 reindent itself, burying ~1300 lines of real history underneath a reformat.
 
@@ -161,7 +161,7 @@ dialect into the extension's own events.
 exist; the fixtures behind them are in `test/fixtures/`.
 
 An adapter written without captured fixtures is a guess, and this project
-labels guesses as such — see
+labels guesses as such. See
 [Claude Code's SessionEnd and Notification are inferred](docs/limitations.md#claude-codes-sessionend-and-notification-are-inferred)
 for what that looks like in practice.
 

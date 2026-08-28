@@ -14,8 +14,8 @@ Nothing has been tagged yet. Everything below is on `main`.
 
 - A Claude Code turn you interrupt with Esc or Ctrl+C no longer leaves its row
   reading **thinking** until you type again. Claude fires no hook at all when a
-  turn is interrupted — captured against 2.1.220, and its hook vocabulary has
-  no interrupt event in it — but it does write a `[Request interrupted by
+  turn is interrupted (captured against 2.1.220, and its hook vocabulary has
+  no interrupt event in it), but it does write a `[Request interrupted by
   user…]` line into the session transcript, and the extension now tails the
   transcript of a running Claude session and settles the row to **idle** when
   that line appears. No hook change: nothing to reinstall. An interrupt that
@@ -24,11 +24,11 @@ Nothing has been tagged yet. Everything below is on `main`.
 - A Claude Code session whose turn ended on an API error no longer reads
   **thinking** forever. Claude ends a failed turn through its `StopFailure`
   hook and does not fire `Stop` there, so the island never learned the turn
-  was over — and nothing else cleared it, because the REPL is still running.
+  was over. Nothing else cleared it, because the REPL is still running.
   That event is now installed and read: the row settles to **error**, showing
   the message the terminal showed, until the next prompt. **If you installed
   hooks before this change, preferences shows them as out of date and
-  *Update hooks* rewrites them** — the fix does nothing until it does.
+  *Update hooks* rewrites them.** The fix does nothing until it does.
 
 ### Changed
 
@@ -43,12 +43,12 @@ Nothing has been tagged yet. Everything below is on `main`.
   that typing target: every declared version loads and enables on a real
   Shell, and live 47, 48, 49 and 50 sessions were driven through the chip,
   the permission popup, disable and re-enable, and the preferences window.
-  Nothing a user can see changes on 46 — the port is type-level, and the
+  Nothing a user can see changes on 46: the port is type-level, and the
   popup animation is pinned to the value the old code already produced.
 - Hooks are now installed as `gjs -m <path> …` rather than as a bare path to
-  `hooks/dasbo-hook`. No `chmod` exists in `src/`, `hooks/`, or `build.mjs` —
-  the only one lives in the Makefile's `install` target, which local installs
-  run and the packaged path never does — and a dropped mode made every hook
+  `hooks/dasbo-hook`. No `chmod` exists in `src/`, `hooks/`, or `build.mjs`
+  (the only one lives in the Makefile's `install` target, which local installs
+  run and the packaged path never does), and a dropped mode made every hook
   fail silently. If you installed hooks before this change, preferences shows
   them as out of date and **Update hooks** rewrites them.
 
@@ -70,7 +70,7 @@ Nothing has been tagged yet. Everything below is on `main`.
   itself. Claude Code's list is read from `~/.claude/tasks/<session-id>/`.
 - Waiting-on-you messages surfaced on the row, with a configurable delay and
   an optional automatic popup.
-- Four sound cues — permission, question, notification, session finished —
+- Four sound cues (permission, question, notification, session finished)
   played from the desktop's sound theme and honouring GNOME's `event-sounds`.
 - An agent chip with three display modes: mark, mark and name, or name.
 - A preferences About page with author, links, and support QR.
@@ -107,7 +107,7 @@ Nothing has been tagged yet. Everything below is on `main`.
 
 - The landing page no longer promises Codex the inline permission answering
   only Claude Code can do, and its install snippet runs `npm ci` before it
-  builds — as published, it failed on its second line from a clean clone.
+  builds; as published, it failed on its second line from a clean clone.
 - Every repository URL now points at `dasbo-dev/island-gnome`; three files
   named it and all three were stale at once.
 - Codex hooks written in the older named-hook form parsed without complaint
