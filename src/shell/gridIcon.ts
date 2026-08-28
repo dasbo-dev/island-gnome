@@ -5,6 +5,7 @@ import GLib from 'gi://GLib'
 import type cairo from 'cairo'
 import type { SessionState } from '../core/types.js'
 import { gridPose, tickIntervalMs, type GridPose } from '../core/grid.js'
+import { warn } from '../core/log.js'
 
 /**
  * Deliberately a local copy of the same table in sessionRow.ts rather than a
@@ -168,7 +169,7 @@ export const GridIcon = GObject.registerClass(
       } catch (e) {
         this._broken = true
         this._stopTimer()
-        console.warn(`dasbo-island: grid repaint failed, disabled: ${e}`)
+        warn(`grid repaint failed, disabled: ${e}`)
       } finally {
         // Mandatory in GJS — the context leaks without it. Optional-chained
         // because get_context() returns null rather than throwing when the

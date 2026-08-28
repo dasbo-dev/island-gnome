@@ -29,6 +29,7 @@ import { noticeVisible } from '../core/activity.js'
 import { bodyMaxHeight, scrollIntoView } from '../core/popupSize.js'
 import type { SoundPlayer } from './soundPlayer.js'
 import type { Assert, Equals } from './typeAssert.js'
+import { warn } from '../core/log.js'
 
 /**
  * `PanelMenu.Button#menu` is typed as `PopupMenu | PopupDummyMenu` because a
@@ -169,7 +170,7 @@ const IslandImpl = class Island extends PanelMenu.Button {
           // the gnome-extensions side instead. Still worth catching: an
           // exception escaping a Clutter signal handler is otherwise logged
           // without this context, and the menu is already closed by then.
-          console.warn(`dasbo-island: opening preferences failed: ${e}`)
+          warn(`opening preferences failed: ${e}`)
         }
       },
     })
@@ -551,7 +552,7 @@ const IslandImpl = class Island extends PanelMenu.Button {
       try {
         this._settings.disconnect(id)
       } catch (e) {
-        console.warn(`dasbo-island: disconnecting a settings handler failed: ${e}`)
+        warn(`disconnecting a settings handler failed: ${e}`)
       }
     }
     this._settingsChangedIds = []

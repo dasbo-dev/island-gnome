@@ -1,6 +1,7 @@
 import Gio from 'gi://Gio'
 import St from 'gi://St'
 import { logoAsset, prefersDark } from '../core/logo.js'
+import { warn } from '../core/log.js'
 
 /**
  * The project mark as a header icon, or `null` when the asset is not there.
@@ -53,7 +54,7 @@ function _gicon(base: string, dark: boolean): Gio.Icon | null {
     // query_exists does not throw for an absent file, but it can for a path
     // that is not readable at all. This runs inside a widget build, and an
     // exception escaping there takes the popup with it.
-    console.warn(`dasbo-island: resolving the logo failed: ${e}`)
+    warn(`resolving the logo failed: ${e}`)
     return null
   }
 }

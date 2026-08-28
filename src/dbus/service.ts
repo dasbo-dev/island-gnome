@@ -6,6 +6,7 @@ import { sessionKey } from '../core/types.js'
 import { rememberSessionWindow, resolveAgent } from '../shell/windowFinder.js'
 import type { SessionStore } from '../core/store.js'
 import type { PermissionTable } from '../core/permissions.js'
+import { warn } from '../core/log.js'
 
 const VERSION = '0.1.0'
 
@@ -64,7 +65,7 @@ export class IslandService {
       },
       () => {
         if (this.nameAcquired) return
-        console.warn(`dasbo-island: could not own ${BUS_NAME}; another instance may be running`)
+        warn(`could not own ${BUS_NAME}; another instance may be running`)
       }
     )
   }
@@ -89,7 +90,7 @@ export class IslandService {
     try {
       raw = JSON.parse(payloadJson)
     } catch {
-      console.warn(`dasbo-island: unparseable payload from ${agent}`)
+      warn(`unparseable payload from ${agent}`)
       return
     }
     // Resolved now, while the hook is still alive to have a readable /proc
@@ -124,7 +125,7 @@ export class IslandService {
       try {
         this.opts.onNotification(key)
       } catch (err) {
-        console.warn(`dasbo-island: onNotification failed: ${err}`)
+        warn(`onNotification failed: ${err}`)
       }
       return
     }
@@ -245,7 +246,7 @@ export class IslandService {
       // never set a pendingPermission with this id, so they stay silent too.
       if (this.store.get(key)?.pendingPermission?.id === id) this.opts.onPermissionOpened('permission')
     } catch (e) {
-      console.warn(`dasbo-island: RequestPermissionAsync failed: ${e}`)
+      warn(`RequestPermissionAsync failed: ${e}`)
       reply('{}')
     }
   }

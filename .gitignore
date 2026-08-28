@@ -1,5 +1,6 @@
 .superpowers/
 node_modules/
+.shexli-venv/
 dist/
 dist-site/
 *.log

@@ -32,6 +32,11 @@ Nothing has been tagged yet. Everything below is on `main`.
 
 ### Changed
 
+- The packaged `hooks/dasbo-hook` now ships without its executable bit.
+  Nothing changes for a hook entry preferences wrote: those invoke the file
+  as `gjs -m <path>`, and `make install` still marks the installed copy
+  executable. An executable file with no `.js` or `.sh` suffix reads to the
+  extensions.gnome.org static analyzer as a bundled binary.
 - Supported GNOME Shell versions widen from 46 alone to **46 through 50**.
   The typings target 50, since one dependency tree can hold only one `@girs`
   generation, and the range is backed by runtime validation rather than by
@@ -41,11 +46,12 @@ Nothing has been tagged yet. Everything below is on `main`.
   Nothing a user can see changes on 46: the port is type-level, and the
   popup animation is pinned to the value the old code already produced.
 - Hooks are now installed as `gjs -m <path> …` rather than as a bare path to
-  `hooks/dasbo-hook`. No `chmod` exists in `src/`, `hooks/`, or `build.mjs`
-  (the only one lives in the Makefile's `install` target, which local installs
-  run and the packaged path never does), and a dropped mode made every hook
-  fail silently. If you installed hooks before this change, preferences shows
-  them as out of date and **Update hooks** rewrites them.
+  `hooks/dasbo-hook`. The only chmod that adds the executable bit lives in the
+  Makefile's `install` target, which local installs run and the packaged path
+  never does; the build script strips the bit from the packaged copy instead.
+  A dropped mode made every hook fail silently. If you installed hooks before
+  this change, preferences shows them as out of date and **Update hooks**
+  rewrites them.
 
 ### Added
 

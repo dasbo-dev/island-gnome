@@ -1,6 +1,6 @@
 import { build } from 'esbuild'
 import { DOC_PAGES, renderDoc, renderPage } from './site/docPages.mjs'
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { chmod, cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 
 const external = ['gi://*', 'resource://*', 'system', 'cairo', 'gettext']
@@ -41,6 +41,15 @@ await cp('src/icons', 'dist/icons', { recursive: true })
 await cp('src/assets', 'dist/assets', { recursive: true })
 if (existsSync('hooks')) {
   await cp('hooks', 'dist/hooks', { recursive: true })
+  // The repo copy stays 755 — test/hook/harness.mjs spawns it directly — but
+  // the packaged one must not be. An executable file with no .js or .sh
+  // suffix reads to the extensions.gnome.org static analyzer as a bundled
+  // binary (shexli EGO-P-005, error severity). Nothing execs the packaged
+  // copy: preferences writes every hook command as `gjs -m <path>` (see
+  // src/core/install/plan.ts) and the Makefile's install target chmods the
+  // installed copy. tools/verify-pack.mjs refuses an archive that ships
+  // this bit, so a change here fails the pack rather than the submission.
+  await chmod('dist/hooks/dasbo-hook', 0o644)
 }
 
 // Every absolute URL the site emits — canonical, og:*, sitemap, JSON-LD —

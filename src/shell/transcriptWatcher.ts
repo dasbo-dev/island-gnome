@@ -2,6 +2,7 @@ import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 import { scanTranscript, watchesTranscript } from '../core/transcript.js'
 import type { SessionStore } from '../core/store.js'
+import { warn } from '../core/log.js'
 
 /**
  * Most bytes read in one pass. An interrupt marker is a couple of hundred
@@ -76,7 +77,7 @@ export class TranscriptWatcher {
       watch.monitor.disconnect(watch.changedId)
       watch.monitor.cancel()
     } catch (e) {
-      console.warn(`dasbo-island: releasing a transcript monitor failed: ${e}`)
+      warn(`releasing a transcript monitor failed: ${e}`)
     }
   }
 
@@ -120,7 +121,7 @@ export class TranscriptWatcher {
         try {
           monitor = file.monitor_file(Gio.FileMonitorFlags.NONE, cancellable)
         } catch (e) {
-          console.warn(`dasbo-island: cannot watch ${path}: ${e}`)
+          warn(`cannot watch ${path}: ${e}`)
           return
         }
         const watch: Watch = {

@@ -6,6 +6,27 @@ import { agentStartMs, ancestorPids, selectAgentPid } from '../core/procParse.js
 import { SessionWindows, chooseWindow } from '../core/windowPick.js'
 import type { AgentId } from '../core/types.js'
 
+/**
+ * Read one file synchronously. Every caller in this module passes a path
+ * under `/proc`.
+ *
+ * That is what makes the synchronous call safe, and it is the argument to
+ * make when a static analyzer or a reviewer flags it — shexli reports it as
+ * EGO-X-004, "avoid synchronous file IO in shell code". The rule exists to
+ * stop the compositor blocking on a disk or a network filesystem. `/proc` is
+ * neither: it is served from kernel memory, so the read completes without a
+ * device in the path. The volume is bounded too — the walk climbs at most 20
+ * ancestors, and each step costs a small file or two, so the worst case is
+ * tens of reads and never an unbounded scan — and the reads run on every hook
+ * event the agent sends, through `resolveAgent` from the D-Bus handlers,
+ * plus on an explicit Jump click and once at session start. Nothing polls:
+ * each read is triggered by a discrete event, never a timer.
+ *
+ * Converting this to `load_contents_async` would make `findWindowForPid`
+ * asynchronous and take the whole click path with it, to remove reads that
+ * cannot block. See
+ * docs/superpowers/specs/2026-08-28-shexli-static-analysis-design.md.
+ */
 function readFile(path: string): string | null {
   try {
     const [ok, bytes] = GLib.file_get_contents(path)
@@ -64,7 +85,25 @@ export function pidAlive(pid: number): boolean {
   return GLib.file_test(`/proc/${pid}`, GLib.FileTest.EXISTS)
 }
 
-const sessionWindows = new SessionWindows<Meta.Window>()
+/**
+ * Created on first use rather than at module scope, and dropped again at
+ * teardown. An allocation that runs when the module is imported happens
+ * before `enable()` — shexli reports the module-scope form as EGO-L-001,
+ * "extension must not create GObject instances or modify shell before
+ * enable()". `SessionWindows` is a plain class from `../core/windowPick.js`
+ * and touches nothing in the shell, so nothing was leaking; the shape is
+ * still worth avoiding, because it is the shape a reviewer greps for.
+ */
+let sessionWindows: SessionWindows<Meta.Window> | null = null
+
+/**
+ * Not named `windows()`: `findWindowForPid` below has a local
+ * `const windows: Meta.Window[]` that would shadow it.
+ */
+function recorded(): SessionWindows<Meta.Window> {
+  sessionWindows ??= new SessionWindows<Meta.Window>()
+  return sessionWindows
+}
 
 /**
  * Record the window a session was started in, so Jump can return to that one
@@ -94,17 +133,24 @@ export function rememberSessionWindow(pid: number): void {
   if (!ancestorPids(pid, readStat).includes(wpid)) return
   // Cheap here and nowhere else: sessions start rarely, and this is the one
   // moment the map is known to be about to grow.
-  sessionWindows.prune(pidAlive)
-  sessionWindows.remember(pid, win)
+  recorded().prune(pidAlive)
+  recorded().remember(pid, win)
 }
 
 /** Drop every remembered window. Called from the reaper and at teardown. */
 export function pruneSessionWindows(): void {
-  sessionWindows.prune(pidAlive)
+  // Nothing to prune before the first session is recorded, and the reaper
+  // sweeps every 60s from the moment enable() returns (src/extension.ts).
+  sessionWindows?.prune(pidAlive)
 }
 
 export function forgetSessionWindows(): void {
-  sessionWindows.clear()
+  // Dropping the map rather than clearing it also releases the Meta.Window
+  // references it held, which is the point of calling this at teardown.
+  // SessionWindows.clear() stays where it is: it belongs to the generic
+  // container in ../core/windowPick.js, and test/core/windowPick.test.ts
+  // covers it there.
+  sessionWindows = null
 }
 
 /**
@@ -126,7 +172,9 @@ export function findWindowForPid(pid: number): Meta.Window | null {
 
   // A closed window is gone from that list, which is exactly the test
   // chooseWindow makes before trusting what was remembered.
-  return chooseWindow(chain, windows, (w) => w.get_pid(), sessionWindows.recall(pid))
+  // Read directly rather than through recorded(): a Jump click on a session
+  // nothing was ever recorded for should not mint a map to find it empty.
+  return chooseWindow(chain, windows, (w) => w.get_pid(), sessionWindows?.recall(pid) ?? null)
 }
 
 export function activateForPid(pid: number): boolean {

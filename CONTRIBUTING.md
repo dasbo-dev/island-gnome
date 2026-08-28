@@ -98,6 +98,39 @@ node build.mjs    # builds dist/ and the landing page in dist-site/
 [The pull-request template](.github/PULL_REQUEST_TEMPLATE.md) lists what else
 is worth checking before you open one.
 
+## Before submitting to extensions.gnome.org
+
+extensions.gnome.org asks submitters to run the Shexli static analyzer over
+the package first. One target does it:
+
+```bash
+make analyze
+```
+
+That packs the archive, extracts it with file modes intact, runs the analyzer
+over the result, and exits non-zero if anything is reported at error severity.
+
+Two warnings are expected in a clean run. Neither is a bug:
+
+- **`EGO-X-004`, synchronous file IO.** `src/shell/windowFinder.ts` reads
+  `/proc` through `GLib.file_get_contents()`. `/proc` is served from kernel
+  memory and cannot block on a disk or a network filesystem, the walk is
+  bounded at 20 ancestors with a small file or two read per step, so the
+  worst case is tens of reads and never an unbounded scan, and they run on
+  every hook event the agent sends, plus on an explicit Jump click and once
+  at session start.
+- **`EGO-L-003`, signals without disconnects.** Every site connects to a child
+  actor the widget itself creates and destroys, so the handlers die with the
+  object they are attached to.
+
+[The design document](docs/superpowers/specs/2026-08-28-shexli-static-analysis-design.md)
+records the finding-by-finding disposition, including the three that were
+fixed.
+
+`tools/shexli.sh` builds its own virtualenv in `.shexli-venv/` on first run,
+and pins `tree-sitter==0.25.2` because the version pip resolves by default
+segfaults inside shexli. Delete the directory to rebuild it.
+
 ## Rules worth knowing before you start
 
 **`src/core/` must never import `gi://` or `resource://`.** That directory is
@@ -115,6 +148,12 @@ ship them. If you add an asset, add its guard.
 repository slugs, and `test/docs/` guards the README's structure, the logo
 files, and the limitations page. A restructure that drops a warning fails the
 suite.
+
+**Log through `warn()` from `src/core/log.ts`, never `console` directly.**
+`build.mjs` bundles all of `src/` into one `extension.js`, so every scattered
+`console.warn` counts against the same file's total, which is exactly what
+EGO's "no excessive logging" rule measures. One seam holds that count at one.
+`test/core/logging.test.ts` enforces it and will fail your build.
 
 ## Adding an agent
 

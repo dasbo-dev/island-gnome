@@ -1,6 +1,7 @@
 import type { SessionStore } from './store.js'
 import type { Decision } from './types.js'
 import type { Question } from './questions.js'
+import { warn } from './log.js'
 
 /** Injected so tests advance time rather than sleeping, and so the shell layer can use GLib. */
 export interface Timers {
@@ -228,7 +229,7 @@ export class PermissionTable {
     try {
       entry.resolve(d)
     } catch (e) {
-      console.warn(`dasbo-island: permission resolve callback for ${id} threw: ${e}`)
+      warn(`permission resolve callback for ${id} threw: ${e}`)
     }
 
     const remaining = this.queues.get(entry.sessionKey)

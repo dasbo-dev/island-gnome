@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { checkEntries, checkBundleText } from '../../tools/verify-pack.mjs'
+import { checkEntries, checkBundleText, checkModes } from '../../tools/verify-pack.mjs'
 
 // The stale archive that prompted this file held nine entries and neither
 // icons/ nor assets/. Both are loaded by absolute path at runtime and both
@@ -150,5 +150,71 @@ describe('checkBundleText', () => {
   it('names the offending bundle in the message', () => {
     const text = '//# sourceMappingURL=prefs.js.map\n'
     expect(checkBundleText('prefs.js', text)[0]).toContain('prefs.js')
+  })
+})
+
+// EGO-P-005 reads any packaged file that is executable and has neither a .js
+// nor a .sh suffix as a bundled binary — an error-severity finding, the only
+// one this archive can carry. hooks/dasbo-hook is an extensionless GJS
+// script, so it trips that rule the moment it ships 755. Nothing execs the
+// packaged copy: preferences writes every hook command as `gjs -m <path>`
+// (src/core/install/plan.ts), and make install chmods the installed copy.
+// build.mjs drops the bit; this is what stops an edit there from putting it
+// back unnoticed.
+const LISTING = [
+  'Archive:  dasbo-island@ayubaswad.gmail.com.shell-extension.zip',
+  'Zip file size: 159135 bytes, number of entries: 16',
+  '-rw-rw-r--  3.0 unx      934 tx defN 26-Aug-28 09:28 metadata.json',
+  '-rw-rw-r--  3.0 unx   134571 tx defN 26-Aug-28 09:28 extension.js',
+  'drwxrwxr-x  3.0 unx        0 bx stor 26-Aug-28 09:28 hooks/',
+  '-rw-rw-r--  3.0 unx     3443 tx defN 26-Aug-28 09:28 hooks/dasbo-hook',
+  '16 files, 296481 bytes uncompressed, 156545 bytes compressed:  47.2%',
+].join('\n')
+
+describe('checkModes', () => {
+  it('passes a listing where nothing but the directories is executable', () => {
+    expect(checkModes(LISTING)).toEqual([])
+  })
+
+  it('rejects the archive that ships an executable hook', () => {
+    const executable = LISTING.replace(
+      '-rw-rw-r--  3.0 unx     3443 tx defN 26-Aug-28 09:28 hooks/dasbo-hook',
+      '-rwxrwxr-x  3.0 unx     3443 tx defN 26-Aug-28 09:28 hooks/dasbo-hook'
+    )
+    expect(checkModes(executable)).toHaveLength(1)
+  })
+
+  it('names the offending entry in the message, not just the rule', () => {
+    const executable = LISTING.replace('-rw-rw-r--  3.0 unx     3443', '-rwxrwxr-x  3.0 unx     3443')
+    expect(checkModes(executable)[0]).toContain('hooks/dasbo-hook')
+  })
+
+  // A directory with no execute bit cannot be entered, so every archive has
+  // them and a rule that flagged them would fire on every pack forever.
+  it('exempts directory entries, which must be executable to be traversable', () => {
+    const dirsOnly = [
+      'drwxrwxr-x  3.0 unx        0 bx stor 26-Aug-28 09:28 hooks/',
+      'drwxrwxr-x  3.0 unx        0 bx stor 26-Aug-28 09:28 icons/',
+    ].join('\n')
+    expect(checkModes(dirsOnly)).toEqual([])
+  })
+
+  // The header and the summary line are not entries. Parsing them as one
+  // would either crash or invent a finding with a nonsense filename.
+  it('ignores the header and summary lines unzip -Z wraps the listing in', () => {
+    const noEntries = [
+      'Archive:  dasbo-island@ayubaswad.gmail.com.shell-extension.zip',
+      'Zip file size: 159135 bytes, number of entries: 16',
+      '16 files, 296481 bytes uncompressed, 156545 bytes compressed:  47.2%',
+    ].join('\n')
+    expect(checkModes(noEntries)).toEqual([])
+  })
+
+  it('reports every executable entry at once, not just the first', () => {
+    const two = [
+      '-rwxrwxr-x  3.0 unx     3443 tx defN 26-Aug-28 09:28 hooks/dasbo-hook',
+      '-rwxr-xr-x  3.0 unx      120 tx defN 26-Aug-28 09:28 tools/something',
+    ].join('\n')
+    expect(checkModes(two)).toHaveLength(2)
   })
 })
