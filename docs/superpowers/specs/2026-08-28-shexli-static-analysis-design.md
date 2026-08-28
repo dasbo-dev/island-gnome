@@ -170,9 +170,10 @@ The warning will appear in every report. That is expected, and this document is
 where it is recorded as accepted rather than missed.
 
 **`EGO-L-003` — signals without disconnects.** All 13 sites connect to child
-actors the widget itself constructs and destroys: `this._expander`, `this._jump`,
-`this._permissionBox`, `this._questionBox`, `this._taskBox`, and buttons and
-entries inside the prefs pages. A handler on an object that is destroyed dies
+actors the widget itself constructs and destroys: 8 in `src/shell/sessionRow.ts`
+(`this._expander`, `this._jump`, `this._permissionBox`, `this._questionBox`,
+`this._taskBox`), 1 in `src/shell/permissionRow.ts`, and 4 in
+`src/shell/questionPanel.ts`. A handler on an object that is destroyed dies
 with it; GNOME Shell's own code connects this way. The rule has a suppression
 for parent-owned descendants and simply fails to see the ownership through this
 codebase's construction order. Adding handler-id bookkeeping for handlers that

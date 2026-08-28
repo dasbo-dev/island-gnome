@@ -38,7 +38,7 @@ ARCHIVE=$(readlink -f "$ARCHIVE")
 # Anchor the venv to the repo root (not the caller's cwd) so a direct
 # `tools/shexli.sh some.zip` from elsewhere reuses the one `make analyze`
 # builds instead of scattering a stray copy wherever it was invoked from.
-ROOT=$(readlink -f "$(dirname "$0")/..")
+ROOT=$(readlink -f "$(dirname "$(readlink -f "$0")")/..")
 VENV="$ROOT/.shexli-venv"
 
 # The binary's existence isn't proof the venv is usable: if `pip install -U
@@ -57,7 +57,6 @@ if [ ! -f "$VENV/.ready" ]; then
 fi
 
 WORK=$(mktemp -d)
-trap 'rm -rf "$WORK"' EXIT
 REPORT=$(mktemp)
 trap 'rm -rf "$WORK" "$REPORT"' EXIT
 unzip -q "$ARCHIVE" -d "$WORK"
@@ -71,7 +70,13 @@ import json, sys
 with open(sys.argv[1]) as handle:
     result = json.load(handle)
 
-counts = result.get("summary", {}).get("severity_counts", {})
+summary = result.get("summary")
+counts = None if summary is None else summary.get("severity_counts")
+if counts is None:
+    # A missing key here means shexli's JSON schema changed underneath us;
+    # defaulting to {} would silently report success on an unread result.
+    print("shexli: report has no summary.severity_counts — shexli's JSON schema may have changed", file=sys.stderr)
+    sys.exit(1)
 errors = counts.get("error", 0)
 warnings = counts.get("warning", 0)
 

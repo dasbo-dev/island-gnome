@@ -15,8 +15,9 @@ import type { AgentId } from '../core/types.js'
  * EGO-X-004, "avoid synchronous file IO in shell code". The rule exists to
  * stop the compositor blocking on a disk or a network filesystem. `/proc` is
  * neither: it is served from kernel memory, so the read completes without a
- * device in the path. The volume is bounded too — one read per ancestor
- * process, capped at 20 by `ancestorPids` — and the reads run on every hook
+ * device in the path. The volume is bounded too — the walk climbs at most 20
+ * ancestors, and each step costs a small file or two, so the worst case is
+ * tens of reads and never an unbounded scan — and the reads run on every hook
  * event the agent sends, through `resolveAgent` from the D-Bus handlers,
  * plus on an explicit Jump click and once at session start. Nothing polls:
  * each read is triggered by a discrete event, never a timer.

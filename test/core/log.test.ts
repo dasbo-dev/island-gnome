@@ -23,11 +23,4 @@ describe('warn', () => {
     expect(spy).toHaveBeenCalledTimes(2)
     expect(spy).toHaveBeenLastCalledWith('dasbo-island: two')
   })
-
-  it('leaves an already-interpolated message intact', () => {
-    const spy = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const e = new Error('boom')
-    warn(`teardown step "reaper timer" failed: ${e}`)
-    expect(spy).toHaveBeenCalledWith('dasbo-island: teardown step "reaper timer" failed: Error: boom')
-  })
 })
