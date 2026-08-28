@@ -1,7 +1,7 @@
 UUID := dasbo-island@ayubaswad.gmail.com
 DEST := $(HOME)/.local/share/gnome-shell/extensions/$(UUID)
 
-.PHONY: build install uninstall schemas test typecheck clean pack
+.PHONY: build install uninstall schemas test typecheck clean pack analyze
 
 build:
 	npm run build
@@ -33,3 +33,6 @@ pack:
 	rm -f $(UUID).shell-extension.zip
 	cd dist && zip -qr ../$(UUID).shell-extension.zip . -x '*.map' -x 'schemas/gschemas.compiled'
 	node tools/verify-pack.mjs $(UUID).shell-extension.zip
+
+analyze: pack
+	tools/shexli.sh $(UUID).shell-extension.zip
