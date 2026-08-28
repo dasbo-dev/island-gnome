@@ -32,6 +32,12 @@ Nothing has been tagged yet. Everything below is on `main`.
 
 ### Changed
 
+- The extensions.gnome.org description now leads with what the extension does
+  rather than which agents it does it for. Claude Code and Codex CLI are named
+  once, at the end, with what each one gets: status and permission prompts for
+  Claude Code, status alone for Codex. The reserved
+  `~/.gemini/config/hooks.json` path is no longer mentioned, because no
+  reachable path in this build writes it.
 - The packaged `hooks/dasbo-hook` now ships without its executable bit.
   Nothing changes for a hook entry preferences wrote: those invoke the file
   as `gjs -m <path>`, and `make install` still marks the installed copy
