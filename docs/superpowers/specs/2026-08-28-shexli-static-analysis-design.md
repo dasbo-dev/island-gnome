@@ -255,9 +255,11 @@ relative link and heading anchor in it, so the new section's pointer to this
 document is checked without adding a test. `test/docs/communityFiles.test.ts`
 requires `CONTRIBUTING.md` to keep naming `npm test`, `npm run typecheck`,
 `gi://` and `docs/agent-dialects.md`; the new section is an addition, so those
-stay. No test exercises `windowFinder.ts`'s module-scope state today, and the
-accessor change does not create a reason to add one — the behaviour is
-identical.
+stay. `windowFinder.ts` cannot be loaded by vitest at all, so what guards it is
+`test/shell/jumpTarget.test.ts`, which asserts against its source text; one of
+those assertions matches the exact call the lazy accessor changes and is
+widened to accept the optional chain. The other five must keep passing
+unmodified — they are what says the behaviour is identical.
 
 `tools/shexli.sh` gets no test. It needs network access and a Python
 toolchain, so it can only run on a developer machine, and a test that cannot run

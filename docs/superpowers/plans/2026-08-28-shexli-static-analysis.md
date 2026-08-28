@@ -276,12 +276,13 @@ git commit -m "refactor: route every log line through core/log.ts"
 
 **Files:**
 - Modify: `src/shell/windowFinder.ts:9-17` (comment), `:67` (allocation), `:102-108` (prune and forget), and the two call sites at `:97` and `:128`
+- Test: `test/shell/jumpTarget.test.ts:28` — one regex widened
 
 **Interfaces:**
 - Consumes: `chooseWindow<W>(chainPids, windows, pidOf, remembered: W | null): W | null` and `class SessionWindows<W>` from `src/core/windowPick.ts`. Neither changes.
 - Produces: no signature changes. `rememberSessionWindow(pid: number): void`, `pruneSessionWindows(): void`, `forgetSessionWindows(): void` and `findWindowForPid(pid: number): Meta.Window | null` all keep their exported shapes, so `src/extension.ts` and `src/dbus/service.ts` are untouched. New module-private `recorded(): SessionWindows<Meta.Window>`.
 
-There is no unit test in this task. `src/shell/windowFinder.ts` imports `gi://GLib`, `gi://Meta` and `resource:///org/gnome/shell/ui/main.js`, so vitest cannot load it — that is the whole reason `src/core/windowPick.ts` exists and is tested separately in `test/core/windowPick.test.ts`. The behaviour here is unchanged; the verification is the typecheck, the existing suite, and the analyzer run in Task 6.
+`src/shell/windowFinder.ts` imports `gi://GLib`, `gi://Meta` and `resource:///org/gnome/shell/ui/main.js`, so vitest cannot load it — that is why `src/core/windowPick.ts` holds the decision logic and is tested for real in `test/core/windowPick.test.ts`. What guards this file instead is `test/shell/jumpTarget.test.ts`, which makes **source assertions** against its text. One of them matches the exact call this task edits, so it fails and must be widened. That is the failing test this task starts from.
 
 - [ ] **Step 1: Sharpen the `readFile` comment**
 
@@ -434,12 +435,44 @@ becomes:
 
 > `chooseWindow` types that fourth parameter `remembered: W | null` (`src/core/windowPick.ts:33`), so the `?? null` is required — `sessionWindows?.recall(pid)` alone widens to `Meta.Window | null | undefined` and fails the typecheck.
 
-- [ ] **Step 4: Typecheck**
+- [ ] **Step 4: Run the source-assertion guard to see it fail**
+
+Run: `npx vitest run test/shell/jumpTarget.test.ts`
+Expected: FAIL on `offers the remembered window to that decision`. Its regex on line 28 matches `sessionWindows.recall(pid)` literally, and the call is now `sessionWindows?.recall(pid)`.
+
+- [ ] **Step 5: Widen that one assertion**
+
+In `test/shell/jumpTarget.test.ts`, replace:
+
+```ts
+  it('offers the remembered window to that decision', () => {
+    expect(finder).toMatch(/chooseWindow\([\s\S]{0,200}?sessionWindows\.recall\(pid\)/)
+  })
+```
+
+with:
+
+```ts
+  it('offers the remembered window to that decision', () => {
+    // Optional-chained since the map is created on first use rather than at
+    // module scope — an allocation before enable() is what shexli's EGO-L-001
+    // reports. What this guards is unchanged: the remembered window still
+    // reaches chooseWindow.
+    expect(finder).toMatch(/chooseWindow\([\s\S]{0,200}?sessionWindows\?\.recall\(pid\)/)
+  })
+```
+
+- [ ] **Step 6: Run it again to verify it passes**
+
+Run: `npx vitest run test/shell/jumpTarget.test.ts`
+Expected: PASS, 6 tests. The other five assertions must pass **unmodified** — if any of them also fails, the edits in Step 3 went further than the plan asks and should be narrowed rather than the test widened.
+
+- [ ] **Step 7: Typecheck**
 
 Run: `npm run typecheck`
 Expected: exit 0 with no output. A complaint about the fourth argument of `chooseWindow` means the `?? null` was dropped from the `findWindowForPid` line.
 
-- [ ] **Step 5: Run the suite and the build**
+- [ ] **Step 8: Run the suite and the build**
 
 Run: `npm test`
 Expected: PASS.
@@ -447,10 +480,10 @@ Expected: PASS.
 Run: `node build.mjs`
 Expected: `built dist/ and dist-site/`.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add src/shell/windowFinder.ts
+git add src/shell/windowFinder.ts test/shell/jumpTarget.test.ts
 git commit -m "refactor(shell): create sessionWindows on first use, not at import"
 ```
 
