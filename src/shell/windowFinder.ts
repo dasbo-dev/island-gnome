@@ -16,8 +16,10 @@ import type { AgentId } from '../core/types.js'
  * stop the compositor blocking on a disk or a network filesystem. `/proc` is
  * neither: it is served from kernel memory, so the read completes without a
  * device in the path. The volume is bounded too — one read per ancestor
- * process, capped at 20 by `ancestorPids` — and it happens on an explicit
- * Jump click or once at session start, never on a timer.
+ * process, capped at 20 by `ancestorPids` — and the reads run on every hook
+ * event the agent sends, through `resolveAgent` from the D-Bus handlers,
+ * plus on an explicit Jump click and once at session start. Nothing polls:
+ * each read is triggered by a discrete event, never a timer.
  *
  * Converting this to `load_contents_async` would make `findWindowForPid`
  * asynchronous and take the whole click path with it, to remove reads that

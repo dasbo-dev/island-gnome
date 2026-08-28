@@ -158,8 +158,10 @@ still chmods `+x` at the destination for local installs.
 `/proc/<pid>/stat`, `/proc/<pid>/cmdline` and `/proc/stat` through
 `GLib.file_get_contents()`. Every path is under `/proc`, which is served from
 kernel memory and cannot block on disk or on a network filesystem — the
-condition the rule exists to prevent. The reads happen on an explicit Jump
-click and on session start, one per ancestor, bounded at 20. The existing
+condition the rule exists to prevent. The reads run on every hook event the
+agent sends, through `resolveAgent` from the D-Bus handlers `Notify` and
+`RequestPermissionAsync`, plus on an explicit Jump click and on session
+start — one per ancestor, bounded at 20 per call. The existing
 comment says "deliberately synchronous"; it will be extended to name `/proc` as
 the reason and to state the bound, so the next reader — reviewer or maintainer —
 gets the argument without having to reconstruct it.

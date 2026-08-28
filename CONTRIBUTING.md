@@ -115,8 +115,8 @@ Two warnings are expected in a clean run. Neither is a bug:
 - **`EGO-X-004`, synchronous file IO.** `src/shell/windowFinder.ts` reads
   `/proc` through `GLib.file_get_contents()`. `/proc` is served from kernel
   memory and cannot block on a disk or a network filesystem, the reads are
-  bounded at 20, and they happen on an explicit Jump click or once at session
-  start.
+  bounded at 20 per call, and they run on every hook event the agent sends,
+  plus on an explicit Jump click and once at session start.
 - **`EGO-L-003`, signals without disconnects.** Every site connects to a child
   actor the widget itself creates and destroys, so the handlers die with the
   object they are attached to.
