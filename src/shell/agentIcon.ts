@@ -1,5 +1,6 @@
 import Gio from 'gi://Gio'
 import type { AgentId } from '../core/types.js'
+import { warn } from '../core/log.js'
 
 /**
  * Resolved marks, keyed `${base}:${agent}`.
@@ -37,7 +38,7 @@ export function agentGicon(base: string, agent: AgentId): Gio.Icon | null {
     // that is not readable at all. This runs inside a row build, and an
     // exception escaping there takes the whole popup rebuild with it — a
     // missing decoration must never cost the user their session list.
-    console.warn(`dasbo-island: resolving the ${agent} mark failed: ${e}`)
+    warn(`resolving the ${agent} mark failed: ${e}`)
     icon = null
   }
 

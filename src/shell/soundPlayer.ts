@@ -1,6 +1,7 @@
 import Gio from 'gi://Gio'
 import GLib from 'gi://GLib'
 import { CUE_DESCRIPTIONS, CUE_SOUNDS, shouldPlay, type SoundCue } from '../core/sound.js'
+import { warn } from '../core/log.js'
 
 /**
  * The desktop's own "event sounds" switch, or null when the schema is not
@@ -109,7 +110,7 @@ export class SoundPlayer {
       // while the popup is open, and a warn per tick would bury the journal.
       if (!this._warned) {
         this._warned = true
-        console.warn(`dasbo-island: playing a sound failed, staying silent: ${e}`)
+        warn(`playing a sound failed, staying silent: ${e}`)
       }
     }
   }

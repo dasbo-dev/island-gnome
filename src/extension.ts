@@ -21,6 +21,7 @@ import { panelBox } from './core/panelBox.js'
 import { SoundPlayer } from './shell/soundPlayer.js'
 import { TranscriptWatcher } from './shell/transcriptWatcher.js'
 import { maybeShowWelcome } from './shell/welcome.js'
+import { warn } from './core/log.js'
 
 export default class DasboIslandExtension extends Extension {
   private _island: InstanceType<typeof Island> | null = null
@@ -157,7 +158,7 @@ export default class DasboIslandExtension extends Extension {
         // ends holds its window here until some later session start prunes.
         pruneSessionWindows()
       } catch (e) {
-        console.warn(`dasbo-island: reaper sweep failed: ${e}`)
+        warn(`reaper sweep failed: ${e}`)
       }
       return GLib.SOURCE_CONTINUE
     })
@@ -176,7 +177,7 @@ export default class DasboIslandExtension extends Extension {
       try {
         fn()
       } catch (e) {
-        console.warn(`dasbo-island: teardown step "${label}" failed: ${e}`)
+        warn(`teardown step "${label}" failed: ${e}`)
       }
     }
 

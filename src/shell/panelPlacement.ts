@@ -1,5 +1,6 @@
 import type Clutter from 'gi://Clutter'
 import * as Main from 'resource:///org/gnome/shell/ui/main.js'
+import { warn } from '../core/log.js'
 
 /**
  * The panel exposes its three boxes only as private fields. Widen locally
@@ -37,7 +38,7 @@ export function placeInPanelBox(container: Clutter.Actor, box: string, index: nu
   if (!target) {
     // Silence here would make every position change an invisible no-op with
     // nothing to go on.
-    console.warn(`dasbo-island: panel box "${box}" is missing; leaving the island where it is`)
+    warn(`panel box "${box}" is missing; leaving the island where it is`)
     return
   }
   const parent = container.get_parent()

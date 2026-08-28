@@ -17,6 +17,7 @@ import { installRowText, installToast } from './core/install/messages.js'
 import { aboutPage } from './prefs/about.js'
 import { PREFS_WINDOW } from './core/prefsWindow.js'
 import { PREFS_LABEL } from './core/vocabulary.js'
+import { warn } from './core/log.js'
 
 export default class DasboIslandPreferences extends ExtensionPreferences {
   // GNOME 46 types the base method as returning void, GNOME 50 as returning
@@ -312,7 +313,7 @@ export default class DasboIslandPreferences extends ExtensionPreferences {
           // The toast says what the user can act on; the real error goes where
           // a bug report can find it. A GLib error string in a one-line toast
           // is a path, an errno and no advice, clipped.
-          console.warn(`dasbo-island: ${verb} of ${id} hooks failed: ${e}`)
+          warn(`${verb} of ${id} hooks failed: ${e}`)
           toast('failed')
         }
       } finally {

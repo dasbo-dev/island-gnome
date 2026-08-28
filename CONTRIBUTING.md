@@ -116,6 +116,12 @@ repository slugs, and `test/docs/` guards the README's structure, the logo
 files, and the limitations page. A restructure that drops a warning fails the
 suite.
 
+**Log through `warn()` from `src/core/log.ts`, never `console` directly.**
+`build.mjs` bundles all of `src/` into one `extension.js`, so every scattered
+`console.warn` counts against the same file's total — which is exactly what
+EGO's "no excessive logging" rule measures. One seam holds that count at one.
+`test/core/logging.test.ts` enforces it and will fail your build.
+
 ## Adding an agent
 
 Adapters live in `src/core/adapters/`. Each one translates its agent's hook
