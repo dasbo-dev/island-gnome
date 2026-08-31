@@ -8,6 +8,16 @@ import { readFileSync } from 'node:fs'
 const extension = readFileSync('src/extension.ts', 'utf8')
 const disable = extension.slice(extension.indexOf('disable() {'))
 
+// Shared by every ordering assertion below. indexOf on its own is not enough:
+// it returns -1 for a needle that no longer exists, and -1 sorts before every
+// real index, so a bare `indexOf(a) < indexOf(b)` keeps passing after `a` is
+// deleted. Asserting presence first turns that silent pass into a failure.
+const at = (needle: string) => {
+  const i = disable.indexOf(needle)
+  expect(i, `disable() lost ${needle}`).toBeGreaterThan(-1)
+  return i
+}
+
 describe('disable()', () => {
   it('wraps nothing in try/catch, because none of its steps throw', () => {
     // GNOME best practices #3. GLib.Source.remove, unexport(), destroy() and
@@ -24,17 +34,12 @@ describe('disable()', () => {
     // still listening at that point makes the extension chime on its way out.
     // Destroying it first drops the store subscription and the tick timer,
     // which makes that path unreachable instead of suppressed by a flag.
-    expect(disable.indexOf('this._island?.destroy()')).toBeLessThan(
-      disable.indexOf('this._permissions?.resolveAllFallthrough()')
+    expect(at('this._island?.destroy()')).toBeLessThan(
+      at('this._permissions?.resolveAllFallthrough()')
     )
   })
 
   it('tears down in the order the rest of the file assumes', () => {
-    const at = (needle: string) => {
-      const i = disable.indexOf(needle)
-      expect(i, `disable() lost ${needle}`).toBeGreaterThan(-1)
-      return i
-    }
     const order = [
       'GLib.Source.remove(this._reaperId)',
       'this._service?.unexport()',

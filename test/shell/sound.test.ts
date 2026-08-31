@@ -175,6 +175,19 @@ describe('sounding a permission and a question', () => {
   const service = readFileSync('src/dbus/service.ts', 'utf8')
   const island = readFileSync('src/shell/island.ts', 'utf8')
   const extension = readFileSync('src/extension.ts', 'utf8')
+  // Sliced to disable() the way test/shell/teardown.test.ts and
+  // test/shell/transcriptWatch.test.ts both do, so the position assertions
+  // below cannot key on an occurrence of the same call in enable() instead.
+  const disable = extension.slice(extension.indexOf('disable() {'))
+  // indexOf alone is not enough for an ordering check: it returns -1 for a
+  // deleted needle, and -1 sorts before every real index, so a bare
+  // `indexOf(a) < indexOf(b)` keeps passing once `a` is gone. Assert presence
+  // first so that failure mode turns into a real one.
+  const at = (needle: string) => {
+    const i = disable.indexOf(needle)
+    expect(i, `disable() lost ${needle}`).toBeGreaterThan(-1)
+    return i
+  }
 
   it('tells the island which of the two arrived', () => {
     // One handler, two call sites that already exist separately in service.ts —
@@ -214,9 +227,7 @@ describe('sounding a permission and a question', () => {
   it('destroys the player during teardown, after the island that plays through it', () => {
     expect(extension).toContain('this._sound?.destroy()')
     expect(extension).toContain('this._sound = null')
-    expect(extension.indexOf('this._island?.destroy()')).toBeLessThan(
-      extension.indexOf('this._sound?.destroy()')
-    )
+    expect(at('this._island?.destroy()')).toBeLessThan(at('this._sound?.destroy()'))
   })
 
   it('destroys the island before resolveAllFallthrough can settle a held permission to done', () => {
@@ -224,9 +235,7 @@ describe('sounding a permission and a question', () => {
     // through clearPending. Silencing the player with a flag was one way to
     // stop that; destroying the island first is the other, and it leaves
     // nothing to flag.
-    expect(extension.indexOf('this._island?.destroy()')).toBeLessThan(
-      extension.indexOf('resolveAllFallthrough()')
-    )
+    expect(at('this._island?.destroy()')).toBeLessThan(at('resolveAllFallthrough()'))
   })
 })
 
