@@ -43,7 +43,7 @@ describe('disable()', () => {
       'this._island?.destroy()',
       'this._permissions?.resolveAllFallthrough()',
       'this._sound?.destroy()',
-      'this._settingsIds',
+      'this._settings?.disconnect(id)',
     ]
     for (let i = 1; i < order.length; i++) {
       const previous = order[i - 1] as string
