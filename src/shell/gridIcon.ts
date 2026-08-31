@@ -96,12 +96,21 @@ export const GridIcon = GObject.registerClass(
     constructor() {
       super({ style_class: 'dasbo-grid', y_align: Clutter.ActorAlign.CENTER })
       this.connect('repaint', () => this._onRepaint())
-      // The 'destroy' signal, not a destroy() override: Clutter tears children
-      // down through clutter_actor_destroy, which emits this signal and does
-      // not necessarily route through a JS method override. Without it the
-      // timer outlives the actor and fires against a disposed object.
+      // Both this signal and the destroy() override below, deliberately.
+      // GNOME best practices #6 asks for the override alone, and that covers a
+      // direct widget.destroy() — but Clutter tears children down through
+      // clutter_actor_destroy(), which emits this signal without routing
+      // through a JS method override. A panel rebuild by another extension
+      // destroys this actor that way, and the timer would then outlive it and
+      // fire against a disposed object. _stopTimer() is idempotent, so being
+      // reached twice costs nothing. Island keeps the same pair.
       this.connect('destroy', () => this._stopTimer())
       this._schedule()
+    }
+
+    destroy(): void {
+      this._stopTimer()
+      super.destroy()
     }
 
     setState(state: SessionState): void {

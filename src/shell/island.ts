@@ -238,16 +238,17 @@ const IslandImpl = class Island extends PanelMenu.Button {
       this._applyPause()
     )
 
-    // Anything held by, or connected to, an object that outlives this
-    // widget must be released here, not only from destroy() below. Clutter
-    // tears children down through clutter_actor_destroy(), which emits the
-    // 'destroy' signal and does not necessarily route through a JS method
-    // override (see gridIcon.ts); a panel rebuild by an extension
-    // like Dash to Panel can destroy this button that way without disable()
-    // ever running. this._settings, global.display, and this._store all
-    // stay alive in that case, so a subsequent settings change, a pending
-    // GLib source, or a store event would otherwise reach a disposed
-    // widget with nothing to catch it.
+    // Both this signal and the destroy() override below, deliberately. GNOME
+    // best practices #6 asks for the override alone, and that covers a direct
+    // widget.destroy() — but Clutter tears children down through
+    // clutter_actor_destroy(), which emits this signal without routing through
+    // a JS method override, and a panel rebuild by an extension like Dash to
+    // Panel destroys this button that way without disable() ever running.
+    // this._settings, global.display and this._store all stay alive in that
+    // case, so a later settings change, a pending GLib source or a store event
+    // would otherwise reach a disposed widget. _releaseExternalRefs() is
+    // idempotent, so being reached from both paths costs nothing. GridIcon
+    // keeps the same pair.
     this.connect('destroy', () => this._releaseExternalRefs())
 
     this._menuStateId = (this.menu as MenuWithOpenSignal).connect(

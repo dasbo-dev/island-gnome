@@ -71,3 +71,26 @@ describe('disable()', () => {
     expect(disable).toContain('this._settingsIds = []')
   })
 })
+
+describe('widgets that outlive a plain destroy() call', () => {
+  const gridIcon = readFileSync('src/shell/gridIcon.ts', 'utf8')
+  const island = readFileSync('src/shell/island.ts', 'utf8')
+
+  // GNOME best practices #6 asks for a destroy() override instead of the
+  // 'destroy' signal. Both are kept here on purpose: clutter_actor_destroy()
+  // on a parent emits the signal on its children without routing through a JS
+  // subclass method, so a panel rebuild by another extension would strand the
+  // timer and the settings handlers. The override covers the direct
+  // widget.destroy() the guideline is written for. Both cleanups are
+  // idempotent, so being reached twice costs nothing.
+  it('GridIcon stops its timer from both destroy paths', () => {
+    expect(gridIcon).toMatch(/destroy\(\): void \{\s*this\._stopTimer\(\)\s*super\.destroy\(\)/)
+    expect(gridIcon).toContain("this.connect('destroy', () => this._stopTimer())")
+  })
+
+  it('Island releases its external refs from both destroy paths', () => {
+    expect(island).toContain("this.connect('destroy', () => this._releaseExternalRefs())")
+    const destroy = island.slice(island.indexOf('destroy(): void {'))
+    expect(destroy).toContain('this._releaseExternalRefs()')
+  })
+})
