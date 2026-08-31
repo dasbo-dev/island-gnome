@@ -97,6 +97,24 @@ describe('the README', () => {
     )
   })
 
+  // An install route documented without its matching uninstall strands the
+  // reader who took it: a zip user has no repository to run `make uninstall`
+  // in, and `gnome-extensions uninstall` is the only command that removes
+  // what `gnome-extensions install` put there. toContain, not an indexOf
+  // ordering check, because an ordering check keeps passing after a needle
+  // is deleted — indexOf returns -1 for both missing sides and -1 is less
+  // than everything.
+  it('documents an uninstall command for each install route', () => {
+    const uninstall = readme.slice(
+      readme.indexOf('## Uninstall'),
+      readme.indexOf('## How it works')
+    )
+    expect(uninstall, 'the release-zip uninstall command is missing').toContain(
+      'gnome-extensions uninstall dasbo-island@ayubaswad.gmail.com'
+    )
+    expect(uninstall, 'the from-source uninstall command is missing').toContain('make uninstall')
+  })
+
   // Whitespace-tolerant because the sentence wrapped across two source
   // lines: a toContain on the flat string never matched the file even
   // before the sentence was replaced, so it asserted nothing.

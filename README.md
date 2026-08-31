@@ -178,7 +178,16 @@ entries and leaves every other tool's alone, so the agent goes back to
 behaving as it did before. The `.dasbo.bak` written before the first change
 stays where it is.
 
-Then remove the extension itself:
+Then remove the extension itself.
+
+### From a release
+
+```bash
+gnome-extensions disable dasbo-island@ayubaswad.gmail.com
+gnome-extensions uninstall dasbo-island@ayubaswad.gmail.com
+```
+
+### From source
 
 ```bash
 gnome-extensions disable dasbo-island@ayubaswad.gmail.com
