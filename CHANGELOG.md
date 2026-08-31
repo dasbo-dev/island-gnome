@@ -15,11 +15,12 @@ and this project adheres to
   `unexport()`, `destroy()` and `forgetSessionWindows()` do not throw, and the
   one step that runs consumer callbacks already catches per callback — and the
   wrapper hid the teardown order it existed to protect.
-- The extension no longer chimes on its way out. `disable()` destroys the
-  island before it drains pending permissions, rather than after: draining can
-  settle a session to **done**, which reached the finish cue while the island
-  was still listening. A flag on the sound player used to suppress that; the
-  order makes the path unreachable, so the flag is gone.
+- The sound player's `markDestroyed()` suppression flag is gone. `disable()`
+  now destroys the island before it drains pending permissions, rather than
+  after: draining can settle a session to **done**, which reached the finish
+  cue while the island was still listening. The flag used to catch that after
+  the fact; the new order makes the path unreachable instead, so there is
+  nothing left to flag.
 - `GridIcon` stops its animation timer from a `destroy()` override as well as
   from the `destroy` signal, matching `Island`. The signal stays: Clutter tears
   children down without routing through a JavaScript override, so an override
