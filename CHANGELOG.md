@@ -8,7 +8,34 @@ and this project adheres to
 
 ## [Unreleased]
 
-Nothing since 0.1.0.
+### Changed
+
+- `disable()` tears down in a straight line now. It used to wrap all nine of
+  its steps in a try/catch that guarded nothing — `GLib.Source.remove`,
+  `unexport()`, `destroy()` and `forgetSessionWindows()` do not throw, and the
+  one step that runs consumer callbacks already catches per callback — and the
+  wrapper hid the teardown order it existed to protect.
+- The extension no longer chimes on its way out. `disable()` destroys the
+  island before it drains pending permissions, rather than after: draining can
+  settle a session to **done**, which reached the finish cue while the island
+  was still listening. A flag on the sound player used to suppress that; the
+  order makes the path unreachable, so the flag is gone.
+- `GridIcon` stops its animation timer from a `destroy()` override as well as
+  from the `destroy` signal, matching `Island`. The signal stays: Clutter tears
+  children down without routing through a JavaScript override, so an override
+  alone would strand the timer when another extension rebuilds the panel.
+
+Together these follow the GNOME extension
+[best practices](https://gitlab.gnome.org/World/javascript/gjs-guide/-/blob/main/docs/extensions/review-guidelines/best-practices.md)
+on unnecessary try/catch, lifecycle flags, and widget destruction.
+
+### Documentation
+
+- The README says why the extension is not on extensions.gnome.org: the single
+  bundled `extension.js`, the hook entries written into agent config files, and
+  the `/proc` reads the window matcher needs. All three are deliberate.
+- Install documents the release zip and `gnome-extensions install` alongside
+  building from source.
 
 ## [0.1.0] - 2026-08-28
 
