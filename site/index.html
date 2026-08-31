@@ -56,7 +56,7 @@
   <h1>Your coding agents, on the GNOME top&nbsp;bar.</h1>
   <p class="sub">Dasbo Island is a GNOME Shell extension that keeps every live coding agent session in the top bar: status at a glance, permission prompts answered inline, and one click back to the terminal that's running the work.</p>
   <p class="cta">
-    <a class="button primary" href="#install">Install from source</a>
+    <a class="button primary" href="#install">Install</a>
     <a class="button" href="https://github.com/dasbo-dev/island-gnome">GitHub</a>
   </p>
   <p class="fine">Verified against 18 real Claude&nbsp;Code hook payloads and 6 from Codex. Free and GPL-3.0-or-later. GNOME Shell 46 to 50.</p>
@@ -140,20 +140,24 @@
   <h2>Fail-open, guaranteed.</h2>
   <p>The hook helper exits 0 with empty stdout on every error path. If the island is disabled, crashed, or never installed, your agents behave exactly as they would without it. A session can never hang on this extension.</p>
   <p>Nothing leaves your machine. Hook payloads travel from the agent to the extension over your session's D-Bus; the extension makes no network calls and collects no telemetry.</p>
-  <p class="cta"><a class="button primary" href="#install">Install from source</a></p>
+  <p class="cta"><a class="button primary" href="#install">Install</a></p>
 </section>
 
 <section id="install">
   <h2>Install</h2>
-  <p>GNOME Shell 46 to 50, X11 or Wayland. Building needs Node 22 and <code>glib-compile-schemas</code> (<code>libglib2.0-bin</code> on Debian and Ubuntu; it ships with GLib itself on other distributions). Install from source:</p>
+  <p>GNOME Shell 46 to 50, X11 or Wayland.</p>
+  <p><strong>From a release.</strong> Download <code>dasbo-island@ayubaswad.gmail.com.shell-extension.zip</code> from the <a href="https://github.com/dasbo-dev/island-gnome/releases/latest">latest release</a>, then:</p>
+  <pre><code>gnome-extensions install --force dasbo-island@ayubaswad.gmail.com.shell-extension.zip
+gnome-extensions enable dasbo-island@ayubaswad.gmail.com</code></pre>
+  <p><strong>From source.</strong> Needs Node 22 and <code>glib-compile-schemas</code> (<code>libglib2.0-bin</code> on Debian and Ubuntu; it ships with GLib itself on other distributions).</p>
   <pre><code>git clone https://github.com/dasbo-dev/island-gnome.git
 cd island-gnome
 npm ci
 make install
-# Reload the shell: X11 Alt+F2, r, Enter; Wayland log out and back in
 gnome-extensions enable dasbo-island@ayubaswad.gmail.com</code></pre>
+  <p class="fine">Either way, reload the shell afterwards: X11 Alt+F2, r, Enter; Wayland log out and back in.</p>
   <p class="fine">Then open the preferences and install hooks for each agent you use:<br><code>gnome-extensions prefs dasbo-island@ayubaswad.gmail.com</code></p>
-  <p class="fine">Changed your mind? Remove the hooks from that same preferences page, then <code>make uninstall</code>.</p>
+  <p class="fine">Changed your mind? Remove the hooks from that same preferences page first. Release: <code>gnome-extensions uninstall dasbo-island@ayubaswad.gmail.com</code>. Source: <code>make uninstall</code>.</p>
 </section>
 
 <section id="support">
