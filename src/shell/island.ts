@@ -543,18 +543,10 @@ const IslandImpl = class Island extends PanelMenu.Button {
   }
 
   private _releaseExternalRefs(): void {
-    // Each disconnect isolated in its own try/catch, unlike extension.ts's
-    // _settingsIds teardown (which wraps the whole loop and accepts that a
-    // throw skips whatever ids follow it): here a bad id must not strand
-    // the remaining connections, since one of them is the chip-display
-    // handler that keeps live rows in sync with the setting.
-    for (const id of this._settingsChangedIds) {
-      try {
-        this._settings.disconnect(id)
-      } catch (e) {
-        warn(`disconnecting a settings handler failed: ${e}`)
-      }
-    }
+    // No try/catch: Gio.Settings.disconnect() does not throw. An id that is
+    // already gone raises a GLib warning and returns, so the wrapper this
+    // replaces was guarding against nothing — GNOME best practices #3.
+    for (const id of this._settingsChangedIds) this._settings.disconnect(id)
     this._settingsChangedIds = []
     if (this._fullscreenId) {
       global.display.disconnect(this._fullscreenId)
