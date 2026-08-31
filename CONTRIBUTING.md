@@ -98,10 +98,13 @@ node build.mjs    # builds dist/ and the landing page in dist-site/
 [The pull-request template](.github/PULL_REQUEST_TEMPLATE.md) lists what else
 is worth checking before you open one.
 
-## Before submitting to extensions.gnome.org
+## Shexli static analysis
 
 extensions.gnome.org asks submitters to run the Shexli static analyzer over
-the package first. One target does it:
+the package before review. This project does not submit there — see
+[Why it is not on extensions.gnome.org](README.md#why-it-is-not-on-extensionsgnomeorg)
+— but the analyzer still catches real issues, so it stays a gate here anyway.
+One target does it:
 
 ```bash
 make analyze
