@@ -34,6 +34,7 @@ describe('the README', () => {
     for (const heading of [
       '## Features',
       '## Requirements',
+      '## Why it is not on extensions.gnome.org',
       '## Install',
       '## How it works',
       '## Supported agents',
@@ -56,6 +57,48 @@ describe('the README', () => {
     expect(readme, 'the Codex trust step must stay in the README').toContain(
       'approve the hook review'
     )
+  })
+
+  // "Not on extensions.gnome.org" without a reason reads as an oversight or a
+  // submission still in the queue. It is neither: all three are load-bearing
+  // and none of them is going to change, so the reader should be told which.
+  it('says why it is not on extensions.gnome.org, not merely that it is not', () => {
+    const section = readme.slice(
+      readme.indexOf('## Why it is not on extensions.gnome.org'),
+      readme.indexOf('## Install')
+    )
+    expect(section, 'the bundled-file reason is missing').toMatch(/bundle/i)
+    expect(section, 'the agent-config reason is missing').toContain('~/.claude/settings.json')
+    expect(section, 'the /proc reason is missing').toContain('/proc')
+  })
+
+  it('names the channel that replaces it', () => {
+    expect(readme).toContain('github.com/dasbo-dev/island-gnome/releases')
+  })
+
+  // Contents is hand-maintained, and GitHub's slug rule drops the periods in
+  // "extensions.gnome.org" rather than turning them into separators. A
+  // hand-typed anchor gets that wrong, and a wrong anchor scrolls nowhere.
+  it('lists the new section in Contents, with the anchor GitHub actually generates', () => {
+    expect(readme).toContain(
+      '- [Why it is not on extensions.gnome.org](#why-it-is-not-on-extensionsgnomeorg)'
+    )
+  })
+
+  // A reader landing on Install should not have to clone a repository to get a
+  // build now that releases carry the zip.
+  it('documents both install routes, release zip first', () => {
+    const install = readme.slice(readme.indexOf('## Install'), readme.indexOf('## Uninstall'))
+    expect(install).toContain('gnome-extensions install')
+    expect(install).toContain('.shell-extension.zip')
+    expect(install).toContain('make install')
+    expect(install.indexOf('gnome-extensions install')).toBeLessThan(
+      install.indexOf('make install')
+    )
+  })
+
+  it('no longer claims building from source is the only way in', () => {
+    expect(readme).not.toContain('so building from source is how it is installed')
   })
 
   // The table lists agents dasbo cannot install yet, so every row has to say
