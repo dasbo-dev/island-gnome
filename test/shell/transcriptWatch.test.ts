@@ -54,8 +54,16 @@ describe('the transcript watcher', () => {
   it('releases the subscription and the monitors on disable', () => {
     // Module-free state, but shell-lifetime state: a monitor left connected
     // outlives the store it reports to, and the next enable() adds another.
-    expect(extension).toMatch(/safely\('transcript watcher'[\s\S]{0,220}?this\._unwatchStore\?\.\(\)/)
-    expect(extension).toMatch(/safely\('transcript watcher'[\s\S]{0,260}?this\._transcripts\?\.destroy\(\)/)
+    // disable() used to wrap this step in a safely() helper and the assertion
+    // keyed on that wrapper's label. The wrapper is gone (it guarded calls
+    // that cannot throw), so the release is pinned by its position instead:
+    // inside disable(), subscription dropped before the watcher it feeds.
+    const disable = extension.slice(extension.indexOf('disable() {'))
+    expect(disable).toContain('this._unwatchStore?.()')
+    expect(disable).toContain('this._transcripts?.destroy()')
+    expect(disable.indexOf('this._unwatchStore?.()')).toBeLessThan(
+      disable.indexOf('this._transcripts?.destroy()')
+    )
     expect(watcher).toMatch(/watch\.cancellable\.cancel\(\)/)
     expect(watcher).toMatch(/watch\.monitor\.disconnect\(watch\.changedId\)/)
   })
