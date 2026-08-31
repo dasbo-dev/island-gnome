@@ -42,15 +42,6 @@ export class SoundPlayer {
   private _last = new Map<SoundCue, number>()
   private _warned = false
   /**
-   * Set by destroy(), checked first in play(). disable() resolves any pending
-   * permissions before it destroys the island (see extension.ts's teardown
-   * comment for why that order is not to be changed), and settling a held
-   * permission through clearPending can reach a 'done' diff and therefore
-   * play('done') — this flag is what keeps that reachable-during-teardown
-   * path from chiming on the way out, without reordering anything.
-   */
-  private _destroyed = false
-  /**
    * Whether the compiled schema actually has the notification-sounds key,
    * checked once here rather than on every play(). get_boolean on a key
    * absent from the *compiled* schema is g_error, which aborts the whole
@@ -66,22 +57,7 @@ export class SoundPlayer {
     this._hasNotificationSoundsKey = settings.settings_schema.has_key('notification-sounds')
   }
 
-  /**
-   * Sets the destroyed flag without releasing `_last`/`_desktop`. Exists so
-   * `disable()` can silence the player before `resolveAllFallthrough()` runs
-   * — that call can settle a held permission into 'done' and reach
-   * `play('done')` through `Island.refresh()` while the island itself is
-   * still alive, and the teardown order that makes that reachable is not to
-   * be changed (see extension.ts). `destroy()` still runs later, in its
-   * usual place, to release the rest; this only pulls the "go silent" bit of
-   * it forward.
-   */
-  markDestroyed(): void {
-    this._destroyed = true
-  }
-
   play(cue: SoundCue): void {
-    if (this._destroyed) return
     if (!this._hasNotificationSoundsKey) return
 
     const enabled = this._settings.get_boolean('notification-sounds')
@@ -116,7 +92,6 @@ export class SoundPlayer {
   }
 
   destroy(): void {
-    this._destroyed = true
     this._last.clear()
     this._desktop = null
   }

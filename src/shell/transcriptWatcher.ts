@@ -73,12 +73,11 @@ export class TranscriptWatcher {
     if (!watch) return
     this.watches.delete(key)
     watch.cancellable.cancel()
-    try {
-      watch.monitor.disconnect(watch.changedId)
-      watch.monitor.cancel()
-    } catch (e) {
-      warn(`releasing a transcript monitor failed: ${e}`)
-    }
+    // No try/catch: neither GObject.disconnect() nor Gio.FileMonitor.cancel()
+    // throws, and cancel() on a monitor already cancelled is a no-op — GNOME
+    // best practices #3.
+    watch.monitor.disconnect(watch.changedId)
+    watch.monitor.cancel()
   }
 
   /**

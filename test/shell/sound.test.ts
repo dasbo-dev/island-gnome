@@ -151,28 +151,23 @@ describe('SoundPlayer', () => {
     expect(src).not.toContain('Date.now()')
   })
 
-  it('checks destroyed as the very first thing play() does', () => {
-    const play = src.slice(src.indexOf('play(cue: SoundCue): void {'))
-    const firstStatement = play.slice(play.indexOf('{') + 1).trimStart()
-    expect(firstStatement.startsWith('if (this._destroyed) return')).toBe(true)
-  })
-
   it('checks the compiled schema for notification-sounds once, in the constructor', () => {
     // get_boolean on a key absent from the *compiled* schema is g_error,
     // which aborts the whole shell — a price a skipped schema recompile must
     // not be able to charge on the user's first permission request.
-    const ctor = src.slice(src.indexOf('constructor('), src.indexOf('markDestroyed'))
+    const ctor = src.slice(src.indexOf('constructor('), src.indexOf('play(cue'))
     expect(ctor).toMatch(/settings_schema\.has_key\('notification-sounds'\)/)
     expect(src).toMatch(/if\s*\(!this\._hasNotificationSoundsKey\)\s*return/)
   })
 
-  it('destroy() cannot un-skip a post-destroy play() by nulling the desktop settings', () => {
-    // Minor finding from the review: destroy() sets _desktop = null, which
-    // used to make a post-destroy play() *skip* the event-sounds check and
-    // still try to play. The _destroyed early return closes that regardless
-    // of what destroy() does to _desktop afterwards.
-    const destroy = src.slice(src.indexOf('destroy(): void'))
-    expect(destroy.indexOf('_destroyed = true')).toBeLessThan(destroy.indexOf('_desktop = null'))
+  it('carries no destroyed flag, because the teardown order removed the need', () => {
+    // GNOME best practices #5: after destroy(), an instance should be
+    // unreachable rather than flagged. extension.ts destroys the island before
+    // it drains permissions, which is what closed the reachable path — pinned
+    // in test/shell/teardown.test.ts.
+    expect(src).not.toContain('_destroyed')
+    const offenders = walk('src').filter((f) => readFileSync(f, 'utf8').includes('markDestroyed'))
+    expect(offenders).toEqual([])
   })
 })
 
@@ -180,6 +175,19 @@ describe('sounding a permission and a question', () => {
   const service = readFileSync('src/dbus/service.ts', 'utf8')
   const island = readFileSync('src/shell/island.ts', 'utf8')
   const extension = readFileSync('src/extension.ts', 'utf8')
+  // Sliced to disable() the way test/shell/teardown.test.ts and
+  // test/shell/transcriptWatch.test.ts both do, so the position assertions
+  // below cannot key on an occurrence of the same call in enable() instead.
+  const disable = extension.slice(extension.indexOf('disable() {'))
+  // indexOf alone is not enough for an ordering check: it returns -1 for a
+  // deleted needle, and -1 sorts before every real index, so a bare
+  // `indexOf(a) < indexOf(b)` keeps passing once `a` is gone. Assert presence
+  // first so that failure mode turns into a real one.
+  const at = (needle: string) => {
+    const i = disable.indexOf(needle)
+    expect(i, `disable() lost ${needle}`).toBeGreaterThan(-1)
+    return i
+  }
 
   it('tells the island which of the two arrived', () => {
     // One handler, two call sites that already exist separately in service.ts —
@@ -216,20 +224,18 @@ describe('sounding a permission and a question', () => {
     expect(extension).toMatch(/new SoundPlayer\(settings\)/)
   })
 
-  it('destroys the player during teardown, inside the safely wrapper', () => {
-    // Every other teardown step is wrapped so one throw cannot skip the rest.
-    expect(extension).toMatch(/safely\('sound player',[\s\S]*?_sound\?\.destroy\(\)/)
-    expect(extension).toMatch(/this\._sound = null/)
+  it('destroys the player during teardown, after the island that plays through it', () => {
+    expect(extension).toContain('this._sound?.destroy()')
+    expect(extension).toContain('this._sound = null')
+    expect(at('this._island?.destroy()')).toBeLessThan(at('this._sound?.destroy()'))
   })
 
-  it('marks the player destroyed before resolveAllFallthrough can settle a held permission to done', () => {
+  it('destroys the island before resolveAllFallthrough can settle a held permission to done', () => {
     // resolveAllFallthrough() can reach Island.refresh() -> play('done')
-    // through clearPending while the island is still alive — its own
-    // teardown step has not run yet — so disable() must silence the player
-    // before that call, not only destroy it afterward alongside the island.
-    expect(extension.indexOf('_sound?.markDestroyed()')).toBeLessThan(
-      extension.indexOf('resolveAllFallthrough()')
-    )
+    // through clearPending. Silencing the player with a flag was one way to
+    // stop that; destroying the island first is the other, and it leaves
+    // nothing to flag.
+    expect(at('this._island?.destroy()')).toBeLessThan(at('resolveAllFallthrough()'))
   })
 })
 

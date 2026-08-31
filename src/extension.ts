@@ -169,87 +169,45 @@ export default class DasboIslandExtension extends Extension {
   }
 
   disable() {
-    // A throw in one teardown step must not skip the rest: it would leave the
-    // remaining agents wedged and, worse, could skip _island.destroy() itself
-    // — leaking the panel button, the store subscription, the settings
-    // handler and the 1s timer, so the next enable() adds a second button.
-    const safely = (label: string, fn: () => void) => {
-      try {
-        fn()
-      } catch (e) {
-        warn(`teardown step "${label}" failed: ${e}`)
-      }
+    if (this._reaperId) {
+      GLib.Source.remove(this._reaperId)
+      this._reaperId = 0
     }
 
-    safely('reaper timer', () => {
-      if (this._reaperId) {
-        GLib.Source.remove(this._reaperId)
-        this._reaperId = 0
-      }
-    })
+    this._service?.unexport()
+    this._service = null
 
-    safely('dbus service', () => {
-      this._service?.unexport()
-      this._service = null
-    })
+    this._unwatchStore?.()
+    this._unwatchStore = null
+    this._transcripts?.destroy()
+    this._transcripts = null
 
-    safely('transcript watcher', () => {
-      this._unwatchStore?.()
-      this._unwatchStore = null
-      this._transcripts?.destroy()
-      this._transcripts = null
-    })
+    // Module state, not the extension object's: it would otherwise survive a
+    // disable() holding Meta.Window references for a shell that has since torn
+    // them down.
+    forgetSessionWindows()
 
-    safely('remembered jump windows', () => {
-      // Module state, not the extension object's: it would otherwise survive
-      // a disable() holding Meta.Window references for a shell that has since
-      // torn them down.
-      forgetSessionWindows()
-    })
+    // Ahead of the permission drain below, not after it. Draining settles held
+    // requests, a settled request can produce a 'done' diff, and
+    // Island.refresh() answers that with play('done') — so an island still
+    // subscribed at that moment chimes on the way out. Destroying it first
+    // drops the store subscription and the tick timer, which makes that path
+    // unreachable. Agents still get their fall-through answers; they arrive one
+    // step later.
+    this._island?.destroy()
+    this._island = null
 
-    safely('mute sound player', () => {
-      // Ahead of 'pending permissions', deliberately: the fallthrough resolve
-      // just below can settle a session held on a permission straight through
-      // to 'done' (via clearPending), which reaches Island.refresh() ->
-      // play('done') while the island is still alive — its own teardown step
-      // has not run yet. Left alone, a disable() or a shell reload can chime
-      // on the way out. Marking the player destroyed here closes that off
-      // without touching the release order itself, which stays exactly as it
-      // was: reordering it would need verification this change does not do.
-      this._sound?.markDestroyed()
-    })
+    this._permissions?.resolveAllFallthrough()
+    this._permissions = null
 
-    safely('pending permissions', () => {
-      this._permissions?.resolveAllFallthrough()
-      this._permissions = null
-    })
-
-    safely('island', () => {
-      this._island?.destroy()
-      this._island = null
-    })
-
-    safely('sound player', () => {
-      // After the island, which is the only thing that calls play().
-      this._sound?.destroy()
-      this._sound = null
-    })
+    // After the island, which is the only thing that calls play().
+    this._sound?.destroy()
+    this._sound = null
 
     this._store = null
 
-    safely('settings handlers', () => {
-      const settings = this._settings
-      try {
-        if (settings) for (const id of this._settingsIds) settings.disconnect(id)
-      } finally {
-        // A throw part-way through the loop must not carry the remaining ids
-        // into the next enable(): they would be stale, the following disable()
-        // would throw on them again, and the extension would never tear its
-        // handlers down cleanly again.
-        this._settingsIds = []
-      }
-    })
-
+    for (const id of this._settingsIds) this._settings?.disconnect(id)
+    this._settingsIds = []
     this._settings = null
   }
 }

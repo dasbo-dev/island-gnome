@@ -45,6 +45,7 @@ Source: [github.com/dasbo-dev/island-gnome](https://github.com/dasbo-dev/island-
 - [What it is](#what-it-is)
 - [Features](#features)
 - [Requirements](#requirements)
+- [Why it is not on extensions.gnome.org](#why-it-is-not-on-extensionsgnomeorg)
 - [Install](#install)
 - [Uninstall](#uninstall)
 - [How it works](#how-it-works)
@@ -86,15 +87,56 @@ Source: [github.com/dasbo-dev/island-gnome](https://github.com/dasbo-dev/island-
 - GNOME Shell 46 to 50
 - X11 or Wayland
 
-**To build.** The extension is not on extensions.gnome.org, so building from
-source is how it is installed.
+**To build.** Only for the build-from-source route. Installing the release
+zip needs none of this.
 
 - Node 22, the version CI runs
 - npm
 - `glib-compile-schemas`, from `libglib2.0-bin` on Debian and Ubuntu. On other
   distributions it ships with GLib itself.
 
+## Why it is not on extensions.gnome.org
+
+The extension follows the GNOME
+[review guidelines](https://gitlab.gnome.org/World/javascript/gjs-guide/-/blob/main/docs/extensions/review-guidelines/review-guidelines.md)
+and
+[best practices](https://gitlab.gnome.org/World/javascript/gjs-guide/-/blob/main/docs/extensions/review-guidelines/best-practices.md)
+everywhere it can, and breaks three of them on purpose. Each one is
+load-bearing, so none of them is going to be fixed:
+
+- **It ships as one bundled file.** `dist/extension.js` is a single esbuild
+  bundle of the TypeScript source. The guidelines ask for many small modules,
+  because the bundle is what a reviewer has to read. The source is modular —
+  around fifty files under `src/` — but that is not what the archive contains.
+- **It writes to other tools' config files.** The preferences window adds hook
+  entries to `~/.claude/settings.json` and `~/.codex/hooks.json`, and the
+  archive ships `hooks/dasbo-hook` for the agent to run. External scripts are
+  discouraged. Without one, an agent has no way to tell the shell anything.
+- **It reads `/proc` from the shell process.** Matching a session to the
+  terminal window running it needs the process tree, and no D-Bus service
+  answers that question.
+
+Releases are published on
+[GitHub Releases](https://github.com/dasbo-dev/island-gnome/releases)
+instead, and building from source stays supported. Both routes are below.
+
 ## Install
+
+### From a release
+
+Download `dasbo-island@ayubaswad.gmail.com.shell-extension.zip` from the
+[latest release](https://github.com/dasbo-dev/island-gnome/releases/latest),
+then:
+
+```bash
+gnome-extensions install --force dasbo-island@ayubaswad.gmail.com.shell-extension.zip
+gnome-extensions enable dasbo-island@ayubaswad.gmail.com
+```
+
+`gnome-extensions install` compiles the settings schema itself, so there is
+nothing else to run.
+
+### From source
 
 ```bash
 git clone https://github.com/dasbo-dev/island-gnome.git
@@ -104,8 +146,8 @@ make install
 gnome-extensions enable dasbo-island@ayubaswad.gmail.com
 ```
 
-Then reload the shell. On X11 press `Alt`+`F2`, type `r`, press `Enter`. On
-Wayland, log out and back in.
+Either way, reload the shell afterwards. On X11 press `Alt`+`F2`, type `r`,
+press `Enter`. On Wayland, log out and back in.
 
 Open the preferences and install the hooks for each agent you use:
 
@@ -136,7 +178,16 @@ entries and leaves every other tool's alone, so the agent goes back to
 behaving as it did before. The `.dasbo.bak` written before the first change
 stays where it is.
 
-Then remove the extension itself:
+Then remove the extension itself.
+
+### From a release
+
+```bash
+gnome-extensions disable dasbo-island@ayubaswad.gmail.com
+gnome-extensions uninstall dasbo-island@ayubaswad.gmail.com
+```
+
+### From source
 
 ```bash
 gnome-extensions disable dasbo-island@ayubaswad.gmail.com

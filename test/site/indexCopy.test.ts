@@ -7,6 +7,18 @@ import { readFileSync } from 'node:fs'
 // the 2026-08-24 review.
 const html = readFileSync('site/index.html', 'utf8')
 
+// Shared by every ordering assertion below. indexOf on its own is not
+// enough: it returns -1 for a needle that no longer exists, and -1 sorts
+// before every real index, so a bare `indexOf(a) < indexOf(b)` keeps
+// passing after `a` is deleted. Asserting presence first turns that
+// silent pass into a failure. Mirrors the `at()` helper in
+// test/shell/teardown.test.ts.
+const at = (needle: string) => {
+  const i = html.indexOf(needle)
+  expect(i, `page lost ${needle}`).toBeGreaterThan(-1)
+  return i
+}
+
 describe('the landing page copy', () => {
   // C1, revised in the 2026-08-24 review. The hero now pitches the category
   // ("coding agent"), not a vendor list; the per-agent truth — Claude Code
@@ -25,11 +37,18 @@ describe('the landing page copy', () => {
 
   // C2. `make install` depends on `build`, which runs `npm run build`. A
   // fresh clone has no node_modules, so the snippet as published fails on
-  // its second line.
+  // its second line. Revised in the 2026-08-31 review: the install
+  // section now holds two <pre><code> blocks (release, then source), so
+  // this picks the one that actually contains `make install` rather than
+  // assuming it is the first block on the page.
   it('installs dependencies before it builds', () => {
-    const snippet = html.match(/<pre><code>([\s\S]*?)<\/code><\/pre>/)?.[1] ?? ''
-    expect(snippet).toContain('npm ci')
-    expect(snippet.indexOf('npm ci')).toBeLessThan(snippet.indexOf('make install'))
+    const blocks = [...html.matchAll(/<pre><code>([\s\S]*?)<\/code><\/pre>/g)].map((m) => m[1] ?? '')
+    const sourceSnippet = blocks.find((b) => b.includes('make install'))
+    expect(sourceSnippet, 'no <pre><code> block contains make install').toBeDefined()
+    expect(sourceSnippet).toContain('npm ci')
+    expect((sourceSnippet as string).indexOf('npm ci')).toBeLessThan(
+      (sourceSnippet as string).indexOf('make install')
+    )
   })
 
   // The site, the README and the Makefile all give the same reload
@@ -87,15 +106,42 @@ describe('the landing page copy', () => {
   })
 
   // C6. For an unsigned extension installed from source, "here is how to
-  // remove it" lowers the bar to trying it.
-  it('says how to remove it', () => {
+  // remove it" lowers the bar to trying it. Revised in the 2026-08-31
+  // review: a release-zip route now exists too, and it needs its own
+  // working uninstall command rather than sharing the source route's
+  // `make uninstall`, which a zip install has no Makefile to run.
+  it('says how to remove it, for either route', () => {
     expect(html).toContain('make uninstall')
+    expect(html).toContain('gnome-extensions uninstall dasbo-island@ayubaswad.gmail.com')
   })
 
   // C8. The button said Install and landed the reader on "not yet on
-  // extensions.gnome.org" plus a git clone.
-  it('labels the CTA with what actually happens', () => {
-    expect(html).toContain('>Install from source<')
+  // extensions.gnome.org" plus a git clone. Revised in the 2026-08-31
+  // review: a release zip is now the lead route, so a CTA that promises
+  // "from source" sends every reader down the harder path and tells zip
+  // users they need a toolchain they do not. The CTA reverts to plain
+  // "Install" now that #install itself leads with the release route.
+  it('labels the CTA without promising source as the only way in', () => {
+    const ctas = [...html.matchAll(/<a class="button primary" href="#install">([^<]*)<\/a>/g)].map(
+      (m) => m[1]
+    )
+    expect(ctas.length).toBe(2)
+    for (const label of ctas) {
+      expect(label).toBe('Install')
+    }
+  })
+
+  // Guards the specific regression this branch's whole-branch review found:
+  // the site documented only the from-source route after the README grew a
+  // release-zip route, sending every reader down the harder path. Checks
+  // presence before ordering — see the `at()` helper's own comment for why
+  // a bare indexOf comparison would pass even if the release route were
+  // deleted entirely.
+  it('documents the release-zip route, ahead of building from source', () => {
+    expect(html).toContain('dasbo-island@ayubaswad.gmail.com.shell-extension.zip')
+    expect(html).toContain('https://github.com/dasbo-dev/island-gnome/releases/latest')
+    expect(html).toContain('gnome-extensions install --force')
+    expect(at('gnome-extensions install --force')).toBeLessThan(at('git clone'))
   })
 
   // C7. The most convinced reader on the page — the one who got through the
