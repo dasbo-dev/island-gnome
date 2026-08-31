@@ -97,8 +97,11 @@ describe('the README', () => {
     )
   })
 
+  // Whitespace-tolerant because the sentence wrapped across two source
+  // lines: a toContain on the flat string never matched the file even
+  // before the sentence was replaced, so it asserted nothing.
   it('no longer claims building from source is the only way in', () => {
-    expect(readme).not.toContain('so building from source is how it is installed')
+    expect(readme).not.toMatch(/so building from\s+source is how it is installed/)
   })
 
   // The table lists agents dasbo cannot install yet, so every row has to say
